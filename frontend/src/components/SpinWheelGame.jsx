@@ -62,15 +62,15 @@ function SpinWheelGame({ currentUser, onBalanceUpdate }) {
       ctx.textAlign = 'right';
       ctx.textBaseline = 'middle';
       ctx.fillStyle = PRIZES[i].textColor;
-      ctx.font = 'bold 13px Orbitron, sans-serif';
+      ctx.font = 'bold 11px Orbitron, sans-serif';
       // Offset text from center out toward circumference
-      ctx.fillText(PRIZES[i].text, radius - 20, 0);
+      ctx.fillText(PRIZES[i].text, radius - 15, 0);
       ctx.restore();
     }
 
     // Draw inner central hub
     ctx.beginPath();
-    ctx.arc(center, center, 40, 0, 2 * Math.PI);
+    ctx.arc(center, center, 30, 0, 2 * Math.PI);
     ctx.fillStyle = '#050510';
     ctx.fill();
     ctx.lineWidth = 4;
@@ -185,8 +185,8 @@ function SpinWheelGame({ currentUser, onBalanceUpdate }) {
           <div className="ticker"></div>
           <canvas 
             ref={canvasRef} 
-            width={400} 
-            height={400} 
+            width={300} 
+            height={300} 
             className="wheel-canvas"
           />
         </div>
