@@ -7,6 +7,14 @@ class PubSubManager extends EventEmitter {
     this.redisPublisher = null;
     this.redisSubscriber = null;
     this.isRedisConnected = false;
+
+    // Node.js parent IPC message bridge
+    if (typeof process !== 'undefined' && process.on) {
+      process.on('message', (message) => {
+        console.log('[PubSub] IPC message received from parent process:', message);
+        this.emit('message', message);
+      });
+    }
   }
 
   async connect(redisUrl = 'redis://127.0.0.1:6379') {

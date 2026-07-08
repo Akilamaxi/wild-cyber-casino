@@ -960,23 +960,43 @@ const startServer = async () => {
 
   if (process.env.RUN_WORKER_CONCURRENTLY === 'true') {
     const { fork } = require('child_process');
-    console.log('[LOTTERY ENGINE] Spawning concurrent background payout worker process...');
-    const workerProcess = fork(path.join(__dirname, '..', 'payout-worker', 'worker.js'));
-    
-    workerProcess.on('message', (message) => {
-      console.log(`[LOTTERY ENGINE] Received IPC event from worker: ${message.type}`);
-      pubsub.emit('message', message);
-    });
+    const childProcesses = [];
 
-    console.log('[LOTTERY ENGINE] Spawning concurrent back-office API gateway...');
-    fork(path.join(__dirname, '..', 'backoffice-api', 'server.js'), {
-      env: { ...process.env, PORT: '5001' }
-    });
+    const spawnChild = (scriptPath, name, envOverrides = {}) => {
+      console.log(`[LOTTERY ENGINE] Spawning concurrent ${name}...`);
+      const child = fork(scriptPath, {
+        env: { ...process.env, ...envOverrides }
+      });
 
-    console.log('[LOTTERY ENGINE] Spawning concurrent loyalty gamification microservice...');
-    fork(path.join(__dirname, '..', 'loyalty-engine', 'server.js'), {
-      env: { ...process.env, PORT: '5002' }
-    });
+      child.on('message', (message) => {
+        console.log(`[LOTTERY ENGINE] Received IPC event from ${name}:`, message.type || message);
+        
+        // Relayer fallback: emit in the parent's pubsub event loop
+        pubsub.emit('message', message);
+
+        // Broadcast to all OTHER child processes
+        childProcesses.forEach(cp => {
+          if (cp !== child && cp.connected) {
+            cp.send(message);
+          }
+        });
+      });
+
+      child.on('error', (err) => {
+        console.error(`[LOTTERY ENGINE] ${name} process encountered error:`, err);
+      });
+
+      child.on('exit', (code, signal) => {
+        console.warn(`[LOTTERY ENGINE] ${name} process exited with code ${code} and signal ${signal}`);
+      });
+
+      childProcesses.push(child);
+      return child;
+    };
+
+    spawnChild(path.join(__dirname, '..', 'payout-worker', 'worker.js'), 'payout-worker');
+    spawnChild(path.join(__dirname, '..', 'backoffice-api', 'server.js'), 'backoffice-api', { PORT: '5001' });
+    spawnChild(path.join(__dirname, '..', 'loyalty-engine', 'server.js'), 'loyalty-engine', { PORT: '5002' });
   }
 
   const PORT = process.env.PORT || 5000;
