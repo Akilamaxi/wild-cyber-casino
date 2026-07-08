@@ -79,10 +79,22 @@ app.put('/api/admin/games/:id', async (req, res) => {
   try {
     const { name, draw_interval_ms, ticket_price, max_tickets_per_user, house_edge_percentage, status } = req.body;
     
-    await db.run(
-      'UPDATE games_config SET name = ?, draw_interval_ms = ?, ticket_price = ?, max_tickets_per_user = ?, house_edge_percentage = ?, status = ? WHERE id = ?',
-      [name, draw_interval_ms, ticket_price, max_tickets_per_user, house_edge_percentage, status, req.params.id]
-    );
+    // Get old name first to cascade the rename
+    const oldGame = await db.get('SELECT name FROM games_config WHERE id = ?', [req.params.id]);
+
+    await db.executeTransaction(async (tx) => {
+      await tx.run(
+        'UPDATE games_config SET name = ?, draw_interval_ms = ?, ticket_price = ?, max_tickets_per_user = ?, house_edge_percentage = ?, status = ? WHERE id = ?',
+        [name, draw_interval_ms, ticket_price, max_tickets_per_user, house_edge_percentage, status, req.params.id]
+      );
+      
+      if (oldGame && oldGame.name !== name) {
+        // Cascade rename to draws, pools, and tickets to prevent orphaned sessions
+        await tx.run('UPDATE lottery_draws SET lotteryName = ? WHERE lotteryName = ?', [name, oldGame.name]);
+        await tx.run('UPDATE lottery_ticket_pool SET lotteryName = ? WHERE lotteryName = ?', [name, oldGame.name]);
+        await tx.run('UPDATE lottery_tickets SET lotteryName = ? WHERE lotteryName = ?', [name, oldGame.name]);
+      }
+    });
     
     await pubsub.publish({ type: 'GAME_CONFIG_UPDATED' });
     res.json({ success: true });
