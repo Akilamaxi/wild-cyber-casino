@@ -9,6 +9,7 @@ import WalletPanel from './components/WalletPanel';
 import CyberSlotsGame from './components/CyberSlotsGame';
 import LotteryGame from './components/LotteryGame';
 import BackofficeDashboard from './components/BackofficeDashboard';
+import UserProfile from './components/UserProfile';
 
 function App() {
   const [currentUser, setCurrentUser] = useState(null);
@@ -131,6 +132,12 @@ function App() {
           {currentView === 'backoffice' && currentUser && (
             <BackofficeDashboard 
               currentUser={currentUser}
+            />
+          )}
+          {currentView === 'profile' && currentUser && (
+            <UserProfile 
+              currentUser={currentUser}
+              onBalanceUpdate={handleBalanceUpdate}
             />
           )}
         </main>

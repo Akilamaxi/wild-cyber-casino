@@ -708,6 +708,32 @@ app.use('/api/admin', async (req, res) => {
   }
 });
 
+// Reverse proxy /api/loyalty requests to the loyalty-engine service (port 5002) for Cloud Run single-port routing
+app.use('/api/loyalty', async (req, res) => {
+  try {
+    const targetUrl = `http://127.0.0.1:5002/api/loyalty${req.url}`;
+    
+    const options = {
+      method: req.method,
+      headers: { 
+        'Content-Type': 'application/json',
+        'host': '127.0.0.1:5002'
+      }
+    };
+
+    if (['POST', 'PUT', 'PATCH'].includes(req.method)) {
+      options.body = JSON.stringify(req.body);
+    }
+
+    const response = await fetch(targetUrl, options);
+    const data = await response.json();
+    res.status(response.status).json(data);
+  } catch (error) {
+    console.error('[LOTTERY ENGINE LOYALTY PROXY ERROR]', error);
+    res.status(502).json({ success: false, error: 'Loyalty Engine Timeout' });
+  }
+});
+
 // Serve frontend build in production
 const distPath = path.join(__dirname, 'dist');
 app.use(express.static(distPath));
