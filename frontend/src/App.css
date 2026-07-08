@@ -7,6 +7,7 @@
   --neon-cyan: #00ffcc;
   --neon-purple: #b500ff;
   --neon-gold: #ffcc00;
+  --forest-gold: #ffcc00; /* Neon yellow gold fallback */
   --neon-green: #00ff66; /* Main active color */
   --text-white: #ffffff;
   --text-gray: #8ba093;
