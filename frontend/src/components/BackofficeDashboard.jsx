@@ -171,6 +171,18 @@ function BackofficeDashboard({ currentUser }) {
                 style={{ width: '100%', marginTop: '5px' }} 
               />
             </div>
+            <div>
+              <label style={{ fontSize: '0.8rem', color: '#ccc' }}>Game Status:</label>
+              <select 
+                value={formData.status} 
+                onChange={e => setFormData({...formData, status: e.target.value})} 
+                className="history-search-input" 
+                style={{ width: '100%', marginTop: '5px', background: '#050510', color: '#eee', height: '38px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)' }}
+              >
+                <option value="ACTIVE">ACTIVE</option>
+                <option value="PAUSED">PAUSED</option>
+              </select>
+            </div>
             <div style={{ display: 'flex', gap: '10px' }}>
               <button type="submit" className="history-btn" style={{ flex: '2', marginTop: 0 }}>
                 {editingGame ? 'SAVE CHANGES' : 'DEPLOY GAME'}
