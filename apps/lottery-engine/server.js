@@ -489,12 +489,47 @@ app.get('/api/lottery/pool-tickets', async (req, res) => {
     const nowIso = new Date().toISOString();
 
     // 2. Fetch 5 random tickets that are AVAILABLE or have EXPIRED reservations
-    const poolTickets = await db.all(`
+    let poolTickets = await db.all(`
       SELECT * FROM lottery_ticket_pool 
       WHERE lotteryName = ? AND drawId = ? 
         AND (status = 'AVAILABLE' OR (status = 'RESERVED' AND reservedUntil < ?))
       ORDER BY RANDOM() LIMIT 5
     `, [name, draw.id, nowIso]);
+
+    // If pool has fewer than 5 available tickets, auto-generate 100 fresh tickets to prevent empty screens
+    if (poolTickets.length < 5) {
+      console.log(`[LOTTERY ENGINE] Auto-generating ticket pool of 100 tickets for Draw ID ${draw.id} of ${name}...`);
+      const totalTickets = 100;
+      const pool = [];
+      const generateUniqueNumbers = () => {
+        const nums = new Set();
+        while (nums.size < 6) {
+          nums.add(Math.floor(Math.random() * 49) + 1);
+        }
+        return Array.from(nums).sort((a, b) => a - b);
+      };
+
+      for (let i = 0; i < totalTickets; i++) {
+        pool.push(generateUniqueNumbers());
+      }
+
+      await db.executeTransaction(async (tx) => {
+        for (const ticketNumbers of pool) {
+          await tx.run(
+            'INSERT INTO lottery_ticket_pool (lotteryName, drawId, chosenNumbers, status) VALUES (?, ?, ?, ?)',
+            [name, draw.id, JSON.stringify(ticketNumbers), 'AVAILABLE']
+          );
+        }
+      });
+
+      // Refetch after generation
+      poolTickets = await db.all(`
+        SELECT * FROM lottery_ticket_pool 
+        WHERE lotteryName = ? AND drawId = ? 
+          AND (status = 'AVAILABLE' OR (status = 'RESERVED' AND reservedUntil < ?))
+        ORDER BY RANDOM() LIMIT 5
+      `, [name, draw.id, nowIso]);
+    }
 
     const parsed = poolTickets.map(t => ({
       id: t.id,
