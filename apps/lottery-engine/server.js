@@ -716,10 +716,14 @@ const startServer = async () => {
     });
 
     console.log('[LOTTERY ENGINE] Spawning concurrent back-office API gateway...');
-    fork(path.join(__dirname, '..', 'backoffice-api', 'server.js'));
+    fork(path.join(__dirname, '..', 'backoffice-api', 'server.js'), {
+      env: { ...process.env, PORT: '5001' }
+    });
 
     console.log('[LOTTERY ENGINE] Spawning concurrent loyalty gamification microservice...');
-    fork(path.join(__dirname, '..', 'loyalty-engine', 'server.js'));
+    fork(path.join(__dirname, '..', 'loyalty-engine', 'server.js'), {
+      env: { ...process.env, PORT: '5002' }
+    });
   }
 
   // Reverse proxy /api/admin requests to the backoffice-api service (port 5001) for Cloud Run single-port routing
