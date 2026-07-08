@@ -27,6 +27,11 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
   const [showHistory, setShowHistory] = useState(false);
   const [ticketHistory, setTicketHistory] = useState([]);
   
+  // History View Controls
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyFilter, setHistoryFilter] = useState('ALL');
+  const [historySearch, setHistorySearch] = useState('');
+  
   // Real-Time States
   const [activeDrawId, setActiveDrawId] = useState(null);
   const [drawState, setDrawState] = useState('OPEN'); // OPEN, LOCKED, DRAWING, COMPLETED
@@ -185,6 +190,9 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
       const data = await response.json();
       if (data.success) {
         setTicketHistory(data.tickets);
+        setHistoryPage(1);
+        setHistoryFilter('ALL');
+        setHistorySearch('');
         setShowHistory(true);
       }
     } catch (err) {
@@ -270,6 +278,27 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
   // RENDER VIEW A: TICKET HISTORY
   // ============================================================================
   if (showHistory) {
+    const filteredHistory = ticketHistory.filter(t => {
+      // Search Text
+      const searchStr = historySearch.toLowerCase();
+      const matchSearch = t.lotteryName.toLowerCase().includes(searchStr) || 
+                          t.id.toString().includes(searchStr) ||
+                          t.drawId.toString().includes(searchStr);
+      if (!matchSearch) return false;
+
+      // Status Filter
+      const isDrawComplete = t.drawState === 'COMPLETED';
+      const isWin = t.payout > 0;
+      if (historyFilter === 'WON') return isDrawComplete && isWin;
+      if (historyFilter === 'LOSS') return isDrawComplete && !isWin;
+      if (historyFilter === 'PENDING') return !isDrawComplete;
+      return true;
+    });
+
+    const PAGE_SIZE = 24;
+    const totalPages = Math.ceil(filteredHistory.length / PAGE_SIZE) || 1;
+    const currentList = filteredHistory.slice((historyPage - 1) * PAGE_SIZE, historyPage * PAGE_SIZE);
+
     return (
       <div className="lottery-page-container">
         <div className="lottery-navigation-banner">
@@ -280,53 +309,95 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
             <span><strong>TICKET HISTORY</strong></span>
           </div>
         </div>
-        <div className="lottery-active-tickets-shelf-bottom" style={{ marginTop: '0' }}>
-          <h4>MY TICKET HISTORY</h4>
+        <div className="lottery-active-tickets-shelf-bottom" style={{ marginTop: '0', display: 'flex', flexDirection: 'column', height: '100%' }}>
+          
+          <div className="history-header-controls">
+            <h4>MY TICKET HISTORY</h4>
+            <div className="history-filters">
+              <input 
+                type="text" 
+                className="history-search-input" 
+                placeholder="Search ticket or game..." 
+                value={historySearch} 
+                onChange={(e) => { setHistorySearch(e.target.value); setHistoryPage(1); }} 
+              />
+              <select 
+                className="history-filter-select" 
+                value={historyFilter} 
+                onChange={(e) => { setHistoryFilter(e.target.value); setHistoryPage(1); }}
+              >
+                <option value="ALL">All Tickets</option>
+                <option value="WON">Won Only</option>
+                <option value="LOSS">Loss Only</option>
+                <option value="PENDING">Pending Only</option>
+              </select>
+            </div>
+          </div>
+          
           <div className="panel-divider"></div>
-          {ticketHistory.length === 0 ? (
-             <p className="no-tickets-tag">No tickets found in your history.</p>
+
+          {currentList.length === 0 ? (
+             <p className="no-tickets-tag">No tickets found matching your criteria.</p>
           ) : (
-             <div className="tickets-grid">
-                {ticketHistory.map(t => {
-                  const isDrawComplete = t.drawState === 'COMPLETED';
-                  const isWin = t.payout > 0;
-                  const matchesCount = t.winningNumbers ? t.chosenNumbers.filter(n => t.winningNumbers.includes(n)).length : null;
-                  
-                  return (
-                    <div key={t.id} className={`ticket-row-card ${isWin ? 'won' : ''}`}>
-                      <div className="ticket-card-header">
-                        <span className="card-logo">{t.lotteryName.toUpperCase()}</span>
-                        <span className="card-tx-id">#{t.id} - Draw #{t.drawId}</span>
-                      </div>
-                      <div className="ticket-card-numbers">
-                        {t.chosenNumbers.map(n => {
-                          const matched = t.winningNumbers && t.winningNumbers.includes(n);
-                          return <span key={n} className={`ticket-card-num-badge ${matched ? 'matched' : ''}`}>{n}</span>;
-                        })}
-                      </div>
-                      <div className="ticket-card-meta">
-                        <span>Bet: ${t.betAmount}</span>
-                        <span style={{ fontSize: '0.75rem', color: '#888' }}>{new Date(t.timestamp).toLocaleString()}</span>
-                      </div>
-                      <div className="ticket-card-meta" style={{ marginTop: '8px' }}>
-                        {isDrawComplete ? (
-                          isWin ? (
-                            <span className="ticket-status-label font-gold">Matched {matchesCount} (+${t.payout})</span>
+             <>
+               <div className="tickets-grid history-grid-small">
+                  {currentList.map(t => {
+                    const isDrawComplete = t.drawState === 'COMPLETED';
+                    const isWin = t.payout > 0;
+                    const matchesCount = t.winningNumbers ? t.chosenNumbers.filter(n => t.winningNumbers.includes(n)).length : null;
+                    
+                    return (
+                      <div key={t.id} className={`ticket-row-card small-card ${isWin ? 'won' : ''}`}>
+                        <div className="ticket-card-header">
+                          <span className="card-logo">{t.lotteryName.toUpperCase()}</span>
+                          <span className="card-tx-id">#{t.id} - Draw #{t.drawId}</span>
+                        </div>
+                        <div className="ticket-card-numbers">
+                          {t.chosenNumbers.map(n => {
+                            const matched = t.winningNumbers && t.winningNumbers.includes(n);
+                            return <span key={n} className={`ticket-card-num-badge ${matched ? 'matched' : ''}`}>{n}</span>;
+                          })}
+                        </div>
+                        <div className="ticket-card-meta">
+                          <span>Bet: ${t.betAmount}</span>
+                          <span style={{ fontSize: '0.65rem', color: '#888' }}>{new Date(t.timestamp).toLocaleString()}</span>
+                        </div>
+                        <div className="ticket-card-meta" style={{ marginTop: '8px', borderBottom: 'none', paddingBottom: '0' }}>
+                          {isDrawComplete ? (
+                            isWin ? (
+                              <span className="ticket-status-label font-gold">Matched {matchesCount} (+${t.payout})</span>
+                            ) : (
+                              <span className="ticket-status-badge loss">LOSS</span>
+                            )
                           ) : (
-                            <span className="ticket-status-label font-gray">LOSS</span>
-                          )
-                        ) : (
-                          <span className="ticket-status-label font-gray">PENDING DRAW ⏱️</span>
-                        )}
+                            <span className="ticket-status-label font-gray">PENDING ⏱️</span>
+                          )}
+                        </div>
+                        <div className="ticket-barcode">
+                          <div className="barcode-strip"></div>
+                          <div className="barcode-numbers">49-CYBER-{t.id}</div>
+                        </div>
                       </div>
-                      <div className="ticket-barcode">
-                        <div className="barcode-strip"></div>
-                        <div className="barcode-numbers">49-CYBER-TICKET-{t.id}</div>
-                      </div>
-                    </div>
-                  );
-                })}
-             </div>
+                    );
+                  })}
+               </div>
+               
+               <div className="history-pagination">
+                 <button 
+                   disabled={historyPage === 1} 
+                   onClick={() => setHistoryPage(prev => prev - 1)}
+                 >
+                   PREV
+                 </button>
+                 <span>PAGE {historyPage} OF {totalPages}</span>
+                 <button 
+                   disabled={historyPage === totalPages} 
+                   onClick={() => setHistoryPage(prev => prev + 1)}
+                 >
+                   NEXT
+                 </button>
+               </div>
+             </>
           )}
         </div>
       </div>

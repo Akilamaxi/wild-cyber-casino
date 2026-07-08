@@ -13,7 +13,8 @@ COPY apps/payout-worker/package*.json ./apps/payout-worker/
 COPY apps/backoffice-api/package*.json ./apps/backoffice-api/
 
 # Bootstrap all monorepo links and install modules
-RUN npm install
+# Removing package-lock.json before install resolves the cross-platform Vite/Rollup native binary issue
+RUN rm -f package-lock.json */package-lock.json */*/package-lock.json && npm install
 
 # Copy source codes
 COPY packages/ ./packages/

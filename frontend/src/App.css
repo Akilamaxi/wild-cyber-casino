@@ -218,7 +218,7 @@ body {
 
 .logo-text-wrapper {
   display: flex;
-  gap: 5px; /* Spacing between WILD and CYBER */
+  gap: 12px; /* Spacing between WILD and CYBER */
 }
 
 .logo-text-bold {
@@ -732,6 +732,139 @@ body {
   padding: 4px 12px;
   border-radius: 20px;
   margin-bottom: 20px;
+}
+
+.history-btn {
+  background: transparent;
+  border: 1px solid var(--forest-gold);
+  color: var(--forest-gold);
+  font-family: 'Orbitron', sans-serif;
+  padding: 10px 20px;
+  border-radius: 8px;
+  cursor: pointer;
+  margin-top: 16px;
+  transition: all 0.2s ease;
+}
+.history-btn:hover {
+  background: rgba(197, 160, 89, 0.2);
+  transform: translateY(-2px);
+}
+
+.ticket-status-badge {
+  font-weight: 900;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.85rem;
+  letter-spacing: 0.5px;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.ticket-status-badge.loss {
+  color: #ff4d4d;
+  background: rgba(255, 77, 77, 0.1);
+  border: 1px solid rgba(255, 77, 77, 0.5);
+  box-shadow: 0 0 8px rgba(255, 77, 77, 0.2);
+}
+
+/* History Pagination & Filters */
+.history-header-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.history-filters {
+  display: flex;
+  gap: 10px;
+}
+
+.history-search-input, .history-filter-select {
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid var(--forest-gold);
+  color: #fff;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.85rem;
+}
+
+.history-search-input:focus, .history-filter-select:focus {
+  outline: none;
+  box-shadow: 0 0 5px var(--forest-gold);
+}
+
+.history-grid-small {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
+  margin-top: 15px;
+}
+
+.ticket-row-card.small-card {
+  min-width: 170px;
+  padding: 10px;
+  padding-bottom: 12px;
+}
+
+.ticket-row-card.small-card .ticket-card-header {
+  font-size: 0.55rem;
+}
+
+.ticket-row-card.small-card .ticket-card-num-badge {
+  width: 18px;
+  height: 18px;
+  font-size: 0.55rem;
+}
+
+.ticket-row-card.small-card .ticket-card-meta {
+  font-size: 0.6rem;
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+}
+
+.ticket-row-card.small-card .ticket-barcode {
+  margin-top: 8px;
+  padding-top: 8px;
+  gap: 6px;
+}
+
+.ticket-row-card.small-card .barcode-strip {
+  height: 16px;
+}
+
+.ticket-row-card.small-card .barcode-numbers {
+  font-size: 0.55rem;
+}
+
+.ticket-row-card.small-card .ticket-status-badge {
+  font-size: 0.65rem;
+  padding: 2px 5px;
+}
+
+.history-pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 20px;
+  margin-top: 15px;
+}
+
+.history-pagination button {
+  background: var(--forest-gold);
+  color: var(--forest-dark);
+  border: none;
+  padding: 6px 15px;
+  border-radius: 6px;
+  font-weight: 800;
+  cursor: pointer;
+  font-family: 'Orbitron', sans-serif;
+}
+
+.history-pagination button:disabled {
+  background: #333;
+  color: #666;
+  cursor: not-allowed;
 }
 
 .mock-description {
@@ -2803,6 +2936,9 @@ body {
 .lottery-lobby-header {
   text-align: center;
   margin-bottom: 25px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .lottery-lobby-header h2 {
@@ -2893,8 +3029,9 @@ body {
 .hero-balls-decoration {
   position: absolute;
   top: 0;
-  left: 0;
-  width: 100%;
+  right: 0;
+  left: auto;
+  width: 50%;
   height: 100%;
   pointer-events: none;
   z-index: 1;
@@ -3243,6 +3380,7 @@ body {
   border: 1.5px dashed rgba(197, 160, 89, 0.35);
   border-radius: 14px;
   padding: 16px;
+  padding-bottom: 20px;
   box-shadow: 0 6px 20px rgba(0,0,0,0.4);
   transition: all 0.25s ease;
 }
@@ -3293,9 +3431,9 @@ body {
 .ticket-card-num-badge.matched {
   background: var(--forest-gold);
   color: var(--forest-dark);
-  border-color: var(--forest-gold);
+  border-color: #ffeb3b;
   font-weight: 800;
-  box-shadow: 0 0 8px var(--forest-gold);
+  box-shadow: 0 0 12px #ffeb3b, inset 0 0 5px rgba(255, 255, 255, 0.8);
 }
 
 .ticket-card-meta {
@@ -3311,8 +3449,10 @@ body {
 .ticket-barcode {
   display: flex;
   flex-direction: column;
-  gap: 5px;
-  margin-top: 12px;
+  gap: 10px;
+  margin-top: 15px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.1);
+  padding-top: 12px;
 }
 
 .barcode-strip {
