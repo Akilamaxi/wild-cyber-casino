@@ -24,6 +24,8 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
   const [revealedBalls, setRevealedBalls] = useState([]); // animated reveals
   const [winMessage, setWinMessage] = useState('');
   const [payoutAmount, setPayoutAmount] = useState(0);
+  const [showHistory, setShowHistory] = useState(false);
+  const [ticketHistory, setTicketHistory] = useState([]);
   
   // Real-Time States
   const [activeDrawId, setActiveDrawId] = useState(null);
@@ -176,6 +178,20 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
     }
   };
 
+  const fetchHistory = async () => {
+    if (!currentUser) return;
+    try {
+      const response = await fetch(`${API_BASE}/api/lottery/history?email=${currentUser.email}`);
+      const data = await response.json();
+      if (data.success) {
+        setTicketHistory(data.tickets);
+        setShowHistory(true);
+      }
+    } catch (err) {
+      console.error('Failed to fetch ticket history:', err);
+    }
+  };
+
   const selectNumber = (num) => {
     if (isDrawing || drawState !== 'OPEN') return;
     if (selectedNumbers.includes(num)) {
@@ -251,7 +267,74 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
   };
 
   // ============================================================================
-  // RENDER VIEW A: LOTTERY GAMES LOBBY (Default View)
+  // RENDER VIEW A: TICKET HISTORY
+  // ============================================================================
+  if (showHistory) {
+    return (
+      <div className="lottery-page-container">
+        <div className="lottery-navigation-banner">
+          <button className="back-lobby-btn" onClick={() => setShowHistory(false)}>
+            ← BACK TO LOBBY
+          </button>
+          <div className="nav-details">
+            <span><strong>TICKET HISTORY</strong></span>
+          </div>
+        </div>
+        <div className="lottery-active-tickets-shelf-bottom" style={{ marginTop: '0' }}>
+          <h4>MY TICKET HISTORY</h4>
+          <div className="panel-divider"></div>
+          {ticketHistory.length === 0 ? (
+             <p className="no-tickets-tag">No tickets found in your history.</p>
+          ) : (
+             <div className="tickets-grid">
+                {ticketHistory.map(t => {
+                  const isDrawComplete = t.drawState === 'COMPLETED';
+                  const isWin = t.payout > 0;
+                  const matchesCount = t.winningNumbers ? t.chosenNumbers.filter(n => t.winningNumbers.includes(n)).length : null;
+                  
+                  return (
+                    <div key={t.id} className={`ticket-row-card ${isWin ? 'won' : ''}`}>
+                      <div className="ticket-card-header">
+                        <span className="card-logo">{t.lotteryName.toUpperCase()}</span>
+                        <span className="card-tx-id">#{t.id} - Draw #{t.drawId}</span>
+                      </div>
+                      <div className="ticket-card-numbers">
+                        {t.chosenNumbers.map(n => {
+                          const matched = t.winningNumbers && t.winningNumbers.includes(n);
+                          return <span key={n} className={`ticket-card-num-badge ${matched ? 'matched' : ''}`}>{n}</span>;
+                        })}
+                      </div>
+                      <div className="ticket-card-meta">
+                        <span>Bet: ${t.betAmount}</span>
+                        <span style={{ fontSize: '0.75rem', color: '#888' }}>{new Date(t.timestamp).toLocaleString()}</span>
+                      </div>
+                      <div className="ticket-card-meta" style={{ marginTop: '8px' }}>
+                        {isDrawComplete ? (
+                          isWin ? (
+                            <span className="ticket-status-label font-gold">Matched {matchesCount} (+${t.payout})</span>
+                          ) : (
+                            <span className="ticket-status-label font-gray">LOSS</span>
+                          )
+                        ) : (
+                          <span className="ticket-status-label font-gray">PENDING DRAW ⏱️</span>
+                        )}
+                      </div>
+                      <div className="ticket-barcode">
+                        <div className="barcode-strip"></div>
+                        <div className="barcode-numbers">49-CYBER-TICKET-{t.id}</div>
+                      </div>
+                    </div>
+                  );
+                })}
+             </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ============================================================================
+  // RENDER VIEW B: LOTTERY GAMES LOBBY (Default View)
   // ============================================================================
   if (!selectedGame) {
     return (
@@ -301,6 +384,11 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
           <h2>CYBER LOTTERY DRAW GAMES</h2>
           <p className="panel-subtitle">Select a draw game from our premium pool to buy tickets and join live drawings.</p>
           <div className="section-divider"></div>
+          {currentUser && (
+            <button className="history-btn" onClick={() => fetchHistory()}>
+              📜 MY TICKET HISTORY
+            </button>
+          )}
         </div>
 
         {/* Games Selector Grid (Arranged in Rows and Columns Grid Mode) */}
