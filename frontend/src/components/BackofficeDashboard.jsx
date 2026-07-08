@@ -6,6 +6,9 @@ function BackofficeDashboard({ currentUser }) {
   const [games, setGames] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  
+  // Track if we are editing an existing game config
+  const [editingGame, setEditingGame] = useState(null);
 
   const [formData, setFormData] = useState({
     id: '', name: '', draw_interval_ms: 60000, ticket_price: 10, max_tickets_per_user: 100, house_edge_percentage: 0.30, status: 'ACTIVE'
@@ -31,17 +34,31 @@ function BackofficeDashboard({ currentUser }) {
     setLoading(false);
   };
 
-  const handleCreate = async (e) => {
+  const resetForm = () => {
+    setEditingGame(null);
+    setFormData({
+      id: '', name: '', draw_interval_ms: 60000, ticket_price: 10, max_tickets_per_user: 100, house_edge_percentage: 0.30, status: 'ACTIVE'
+    });
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch(`${BACKOFFICE_API}/api/admin/games`, {
-        method: 'POST',
+      const url = editingGame 
+        ? `${BACKOFFICE_API}/api/admin/games/${editingGame.id}`
+        : `${BACKOFFICE_API}/api/admin/games`;
+      
+      const method = editingGame ? 'PUT' : 'POST';
+
+      const res = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData)
       });
       const data = await res.json();
       if (data.success) {
-        alert('Game configuration successfully saved and broadcasted!');
+        alert(editingGame ? 'Game configuration updated successfully!' : 'New game deployed successfully!');
+        resetForm();
         fetchGames();
       } else {
         alert('Error: ' + data.error);
@@ -49,6 +66,19 @@ function BackofficeDashboard({ currentUser }) {
     } catch (err) {
       alert('Error connecting to backoffice: ' + err.message);
     }
+  };
+
+  const startEdit = (game) => {
+    setEditingGame(game);
+    setFormData({
+      id: game.id,
+      name: game.name,
+      draw_interval_ms: game.draw_interval_ms,
+      ticket_price: game.ticket_price,
+      max_tickets_per_user: game.max_tickets_per_user,
+      house_edge_percentage: game.house_edge_percentage,
+      status: game.status
+    });
   };
 
   const toggleStatus = async (game) => {
@@ -83,25 +113,74 @@ function BackofficeDashboard({ currentUser }) {
 
       <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start' }}>
         
-        {/* CREATE GAME FORM */}
+        {/* EDIT / CREATE GAME FORM */}
         <div style={{ flex: '1', background: 'rgba(0,0,0,0.5)', padding: '20px', borderRadius: '12px', border: '1px solid var(--forest-gold)' }}>
-          <h3 style={{ color: '#fff', marginBottom: '15px' }}>ADD NEW LOTTERY GAME</h3>
-          <form onSubmit={handleCreate} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-            <input type="text" placeholder="Unique Game ID (e.g., GAME-10)" value={formData.id} onChange={e => setFormData({...formData, id: e.target.value})} required className="history-search-input" />
-            <input type="text" placeholder="Display Name (e.g., Turbo Rush)" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} required className="history-search-input" />
+          <h3 style={{ color: '#fff', marginBottom: '15px' }}>
+            {editingGame ? `EDIT GAME: ${editingGame.id}` : 'ADD NEW LOTTERY GAME'}
+          </h3>
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+            <input 
+              type="text" 
+              placeholder="Unique Game ID (e.g., GAME-10)" 
+              value={formData.id} 
+              onChange={e => setFormData({...formData, id: e.target.value})} 
+              required 
+              disabled={!!editingGame}
+              className="history-search-input" 
+            />
+            <input 
+              type="text" 
+              placeholder="Display Name (e.g., Turbo Rush)" 
+              value={formData.name} 
+              onChange={e => setFormData({...formData, name: e.target.value})} 
+              required 
+              className="history-search-input" 
+            />
             <div>
               <label style={{ fontSize: '0.8rem', color: '#ccc' }}>Draw Interval (ms):</label>
-              <input type="number" value={formData.draw_interval_ms} onChange={e => setFormData({...formData, draw_interval_ms: parseInt(e.target.value)})} required className="history-search-input" style={{ width: '100%', marginTop: '5px' }} />
+              <input 
+                type="number" 
+                value={formData.draw_interval_ms} 
+                onChange={e => setFormData({...formData, draw_interval_ms: parseInt(e.target.value)})} 
+                required 
+                className="history-search-input" 
+                style={{ width: '100%', marginTop: '5px' }} 
+              />
             </div>
             <div>
               <label style={{ fontSize: '0.8rem', color: '#ccc' }}>Ticket Price ($):</label>
-              <input type="number" step="0.1" value={formData.ticket_price} onChange={e => setFormData({...formData, ticket_price: parseFloat(e.target.value)})} required className="history-search-input" style={{ width: '100%', marginTop: '5px' }} />
+              <input 
+                type="number" 
+                step="0.1" 
+                value={formData.ticket_price} 
+                onChange={e => setFormData({...formData, ticket_price: parseFloat(e.target.value)})} 
+                required 
+                className="history-search-input" 
+                style={{ width: '100%', marginTop: '5px' }} 
+              />
             </div>
             <div>
               <label style={{ fontSize: '0.8rem', color: '#ccc' }}>House Edge (0.0 to 1.0):</label>
-              <input type="number" step="0.01" value={formData.house_edge_percentage} onChange={e => setFormData({...formData, house_edge_percentage: parseFloat(e.target.value)})} required className="history-search-input" style={{ width: '100%', marginTop: '5px' }} />
+              <input 
+                type="number" 
+                step="0.01" 
+                value={formData.house_edge_percentage} 
+                onChange={e => setFormData({...formData, house_edge_percentage: parseFloat(e.target.value)})} 
+                required 
+                className="history-search-input" 
+                style={{ width: '100%', marginTop: '5px' }} 
+              />
             </div>
-            <button type="submit" className="history-btn" style={{ width: '100%' }}>DEPLOY GAME</button>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button type="submit" className="history-btn" style={{ flex: '2', marginTop: 0 }}>
+                {editingGame ? 'SAVE CHANGES' : 'DEPLOY GAME'}
+              </button>
+              {editingGame && (
+                <button type="button" onClick={resetForm} className="history-btn" style={{ flex: '1', marginTop: 0, background: '#555' }}>
+                  CANCEL
+                </button>
+              )}
+            </div>
           </form>
         </div>
 
@@ -118,7 +197,7 @@ function BackofficeDashboard({ currentUser }) {
                   <th style={{ padding: '10px' }}>Ticket Price</th>
                   <th style={{ padding: '10px' }}>House Edge</th>
                   <th style={{ padding: '10px' }}>Status</th>
-                  <th style={{ padding: '10px' }}>Action</th>
+                  <th style={{ padding: '10px', textAlign: 'center' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -130,7 +209,10 @@ function BackofficeDashboard({ currentUser }) {
                     <td style={{ padding: '10px' }}>${g.ticket_price}</td>
                     <td style={{ padding: '10px' }}>{(g.house_edge_percentage * 100).toFixed(0)}%</td>
                     <td style={{ padding: '10px', color: g.status === 'ACTIVE' ? '#4ade80' : '#f87171' }}>{g.status}</td>
-                    <td style={{ padding: '10px' }}>
+                    <td style={{ padding: '10px', display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                      <button onClick={() => startEdit(g)} style={{ padding: '4px 8px', background: 'var(--forest-gold)', color: '#000', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
+                        Edit
+                      </button>
                       <button onClick={() => toggleStatus(g)} style={{ padding: '4px 8px', background: '#333', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
                         {g.status === 'ACTIVE' ? 'Pause' : 'Activate'}
                       </button>
