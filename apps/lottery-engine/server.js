@@ -663,24 +663,75 @@ pubsub.on('message', (message) => {
     io.emit('lottery_events', message);
   }
 });
+// WebSockets connection routing
+const chatBotMessages = [
+  "Just got a 10x multiplier on Spin Wheel! Let's go! 🎡",
+  "Is anyone playing the Sugar Rush 15 draw? It's about to roll!",
+  "Who is SuperAdmin? Saw them claim a VIP bonus earlier. 🔥",
+  "Wild! Just hit 4 matching balls in Sweet Treat 30!",
+  "Depositing some BTC, hoping to hit the Grand Ganache jackpot tonight. 🪙",
+  "Good luck everyone! May the RNG be with you.",
+  "Check out the leaderboard, the top player is absolutely crushing it today."
+];
+const chatBotNames = ["NeonSpins", "LuckyByte", "JackpotRunner", "CryptoCzar", "WildDealer", "VegasGrid"];
 
 io.on('connection', (socket) => {
   console.log(`[LOTTERY ENGINE] Client connected to WebSockets: ${socket.id}`);
   
   socket.on('request_initial_state', async () => {
     try {
-      const activeDraw = await db.get('SELECT id, state, timestamp FROM lottery_draws ORDER BY id DESC LIMIT 1');
+      const activeDraws = {};
+      const games = await db.all("SELECT * FROM games_config WHERE status = 'ACTIVE'");
+      
+      for (const g of games) {
+        let draw = await db.get('SELECT * FROM lottery_draws WHERE lotteryName = ? ORDER BY id DESC LIMIT 1', [g.name]);
+        if (!draw) {
+          await db.run('INSERT INTO lottery_draws (lotteryName, state, winningNumbers, timestamp) VALUES (?, "OPEN", NULL, ?)', [g.name, new Date().toISOString()]);
+          draw = await db.get('SELECT * FROM lottery_draws WHERE lotteryName = ? ORDER BY id DESC LIMIT 1', [g.name]);
+        }
+        activeDraws[g.name] = draw;
+      }
+      
       const ksSetting = await db.get("SELECT value FROM game_settings WHERE key = 'kill_switch_active'");
       
       socket.emit('initial_state', {
-        draw: activeDraw,
+        draws: activeDraws,
         killSwitchActive: ksSetting ? ksSetting.value === 'true' : false
       });
     } catch (err) {
-      console.error(err);
+      console.error('[LOTTERY ENGINE WS ERROR]', err);
     }
   });
+
+  // Chat message listener
+  socket.on('send_chat_message', (data) => {
+    if (!data || !data.message) return;
+    io.emit('chat_message', {
+      username: data.username || 'Guest',
+      email: data.email || 'guest@casino.com',
+      message: data.message.substring(0, 200), // Limit length
+      role: data.role || 'USER',
+      timestamp: new Date().toISOString()
+    });
+  });
+  
+  socket.on('disconnect', () => {
+    console.log(`[LOTTERY ENGINE] Client disconnected: ${socket.id}`);
+  });
 });
+
+// Periodic simulated chat bot interactions to make the casino lobby feel alive
+setInterval(() => {
+  const randomName = chatBotNames[Math.floor(Math.random() * chatBotNames.length)];
+  const randomMsg = chatBotMessages[Math.floor(Math.random() * chatBotMessages.length)];
+  io.emit('chat_message', {
+    username: randomName,
+    email: `${randomName.toLowerCase()}@bot.casino`,
+    message: randomMsg,
+    role: 'USER',
+    timestamp: new Date().toISOString()
+  });
+}, 45000);
 
 // Reverse proxy /api/admin requests to the backoffice-api service (port 5001) for Cloud Run single-port routing
 app.use('/api/admin', async (req, res) => {

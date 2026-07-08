@@ -10,6 +10,7 @@ import CyberSlotsGame from './components/CyberSlotsGame';
 import LotteryGame from './components/LotteryGame';
 import BackofficeDashboard from './components/BackofficeDashboard';
 import UserProfile from './components/UserProfile';
+import CyberChat from './components/CyberChat';
 
 function App() {
   const [currentUser, setCurrentUser] = useState(null);
@@ -17,6 +18,7 @@ function App() {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [authTab, setAuthTab] = useState('login');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
 
   // Load user session from LocalStorage on mount
   useEffect(() => {
@@ -150,6 +152,25 @@ function App() {
         initialTab={authTab}
         onAuthSuccess={handleAuthSuccess}
       />
+
+      {/* Cyber Chat Drawer Widget */}
+      <CyberChat 
+        isOpen={isChatOpen} 
+        onClose={() => setIsChatOpen(false)} 
+        currentUser={currentUser} 
+        onOpenLogin={openLogin} 
+      />
+
+      {/* Floating Chat Bubble Toggle Button */}
+      {!isChatOpen && (
+        <button 
+          className="chat-floating-toggle-btn" 
+          onClick={() => setIsChatOpen(true)}
+          title="Open Cyber Chat"
+        >
+          💬
+        </button>
+      )}
     </div>
   );
 }
