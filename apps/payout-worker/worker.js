@@ -11,6 +11,43 @@ const IS_PROD = process.env.NODE_ENV === 'production';
 const activeLocalWorkers = {};
 
 /**
+ * Pre-generates 100 unique available lottery tickets for a draw session
+ */
+const generateTicketPool = async (lotteryName, drawId) => {
+  console.log(`[SCHEDULER] ["${lotteryName}"] Pre-generating ticket pool for Draw ID ${drawId}...`);
+  try {
+    const totalTickets = 100;
+    const pool = [];
+    
+    const generateUniqueNumbers = () => {
+      const nums = new Set();
+      while (nums.size < 6) {
+        nums.add(Math.floor(Math.random() * 49) + 1);
+      }
+      return Array.from(nums).sort((a, b) => a - b);
+    };
+
+    for (let i = 0; i < totalTickets; i++) {
+      const ticketNumbers = generateUniqueNumbers();
+      pool.push(ticketNumbers);
+    }
+
+    await db.executeTransaction(async (tx) => {
+      for (const ticketNumbers of pool) {
+        await tx.run(
+          'INSERT INTO lottery_ticket_pool (lotteryName, drawId, chosenNumbers, status) VALUES (?, ?, ?, ?)',
+          [lotteryName, drawId, JSON.stringify(ticketNumbers), 'AVAILABLE']
+        );
+      }
+    });
+
+    console.log(`[SCHEDULER] ["${lotteryName}"] Pre-generated ${totalTickets} tickets for Draw ID ${drawId}.`);
+  } catch (err) {
+    console.error(`[SCHEDULER] ["${lotteryName}"] Failed to generate ticket pool:`, err);
+  }
+};
+
+/**
  * Core Lottery Drawing Execution Logic for a specific game
  */
 const executeLotteryDraw = async (lotteryName) => {
@@ -24,7 +61,7 @@ const executeLotteryDraw = async (lotteryName) => {
     );
 
     if (!activeDraw) {
-      await db.run(
+      const activeDrawResult = await db.run(
         'INSERT INTO lottery_draws (lotteryName, state, timestamp) VALUES (?, ?, ?)',
         [lotteryName, 'OPEN', new Date().toISOString()]
       );
@@ -32,6 +69,7 @@ const executeLotteryDraw = async (lotteryName) => {
         "SELECT * FROM lottery_draws WHERE state = 'OPEN' AND lotteryName = ? ORDER BY id DESC LIMIT 1",
         [lotteryName]
       );
+      await generateTicketPool(lotteryName, activeDraw.id);
     }
 
     console.log(`[SCHEDULER] ["${lotteryName}"] Session active: Draw ID ${activeDraw.id}`);
@@ -163,11 +201,12 @@ const executeLotteryDraw = async (lotteryName) => {
     });
 
     // 7. Initialize Next Draw session for this game
-    await db.run(
+    const nextDrawRes = await db.run(
       'INSERT INTO lottery_draws (lotteryName, state, timestamp) VALUES (?, ?, ?)',
       [lotteryName, 'OPEN', new Date().toISOString()]
     );
     console.log(`[SCHEDULER] ["${lotteryName}"] Next draw session initialized.`);
+    await generateTicketPool(lotteryName, nextDrawRes.lastID);
 
   } catch (error) {
     console.error(`[SCHEDULER] Error during drawing session of "${lotteryName}":`, error);
@@ -199,10 +238,11 @@ const startScheduler = async () => {
         [game.name]
       );
       if (!currentDraw) {
-        await db.run(
+        const insertRes = await db.run(
           'INSERT INTO lottery_draws (lotteryName, state, timestamp) VALUES (?, ?, ?)',
           [game.name, 'OPEN', new Date().toISOString()]
         );
+        await generateTicketPool(game.name, insertRes.lastID);
       }
 
       console.log(`[SCHEDULER] Configuring local interval loop for "${game.name}" (${intervalTime / 1000}s)`);

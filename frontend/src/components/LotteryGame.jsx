@@ -3,15 +3,17 @@ import io from 'socket.io-client';
 
 const API_BASE = '';
 
-// Game configurations are now loaded dynamically from the backend database.
-
 function LotteryGame({ currentUser, onBalanceUpdate }) {
   // Navigation State: null = Games Lobby, otherwise active game object
   const [selectedGame, setSelectedGame] = useState(null);
   const [lobbyGames, setLobbyGames] = useState([]);
   
-  const [selectedNumbers, setSelectedNumbers] = useState([]);
-  const [betSize, setBetSize] = useState(5);
+  // Selection and Reservation States
+  const [poolTickets, setPoolTickets] = useState([]);
+  const [loadingPool, setLoadingPool] = useState(false);
+  const [reservedTicket, setReservedTicket] = useState(null);
+  const [checkoutTimer, setCheckoutTimer] = useState(0);
+
   const [isDrawing, setIsDrawing] = useState(false);
   const [drawResults, setDrawResults] = useState([]); // official numbers
   const [revealedBalls, setRevealedBalls] = useState([]); // animated reveals
@@ -30,7 +32,7 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
   const [drawState, setDrawState] = useState('OPEN'); // OPEN, LOCKED, DRAWING, COMPLETED
   const [myTickets, setMyTickets] = useState([]);
   const [countdown, setCountdown] = useState(30);
-
+ 
   // Background Toasts Alerts
   const [toasts, setToasts] = useState([]);
   const socketRef = useRef(null);
@@ -73,12 +75,12 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
     fetchGames();
   }, []);
 
-  // Fetch status on selected game changes
+  // Fetch status and ticket pool on selected game changes
   useEffect(() => {
     if (selectedGame) {
-      setBetSize(selectedGame.ticket_price);
       handleClear();
       fetchStatus(selectedGame.name);
+      fetchPoolTickets(selectedGame.name);
     }
   }, [selectedGame]);
 
@@ -108,15 +110,26 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
           setDrawState(event.state);
           if (event.state === 'LOCKED' || event.state === 'DRAWING') {
             setIsDrawing(true);
+            // Forcefully clear reservation if sales lock for drawing
+            if (reservedTicket) {
+              setReservedTicket(null);
+              setCheckoutTimer(0);
+              alert("Drawing in progress! Active checkout ticket reservation has expired.");
+            }
           } else if (event.state === 'OPEN') {
             setIsDrawing(false);
             setDrawState('OPEN');
+            fetchPoolTickets(activeGame.name);
           }
         } else if (event.type === 'DRAW_COMPLETED') {
           setDrawState('COMPLETED');
           setIsDrawing(true);
           setDrawResults(event.winningNumbers);
           
+          // Clear checkout if drawing complete
+          setReservedTicket(null);
+          setCheckoutTimer(0);
+
           // Trigger sequential ball reveal animation
           let revealed = [];
           for (let i = 0; i < event.winningNumbers.length; i++) {
@@ -130,8 +143,9 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
           setIsDrawing(false);
           setCountdown(30); // Reset local timer
 
-          // Re-fetch status to update wallet balance and tickets payouts
+          // Re-fetch status and reload pool
           fetchStatus(activeGame.name);
+          fetchPoolTickets(activeGame.name);
           
           // Calculate matches and display banner
           if (currentUserRef.current) {
@@ -184,6 +198,45 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
     return () => clearInterval(timer);
   }, []);
 
+  // 30-Second Reservation Timer
+  useEffect(() => {
+    let interval = null;
+    if (reservedTicket && checkoutTimer > 0) {
+      interval = setInterval(() => {
+        setCheckoutTimer(prev => {
+          if (prev <= 1) {
+            handleReservationTimeout();
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [reservedTicket, checkoutTimer]);
+
+  const handleReservationTimeout = async () => {
+    if (!reservedTicket) return;
+    const ticketId = reservedTicket.id;
+    setReservedTicket(null);
+    setCheckoutTimer(0);
+    alert("30-Second Checkout reservation has expired! The ticket is thrown back into the pool.");
+    
+    try {
+      await fetch(`${API_BASE}/api/lottery/release`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: currentUser.email, ticketId })
+      });
+    } catch (err) {
+      console.error(err);
+    }
+
+    if (selectedGame) {
+      fetchPoolTickets(selectedGame.name);
+    }
+  };
+
   const addToast = (msg) => {
     const id = Date.now() + Math.random();
     setToasts(prev => [...prev, { id, text: msg }]);
@@ -220,6 +273,21 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
     }
   };
 
+  const fetchPoolTickets = async (gameName) => {
+    setLoadingPool(true);
+    try {
+      const response = await fetch(`${API_BASE}/api/lottery/pool-tickets?lotteryName=${encodeURIComponent(gameName)}`);
+      const data = await response.json();
+      if (data.success) {
+        setPoolTickets(data.tickets);
+      }
+    } catch (err) {
+      console.error('Failed to fetch pool tickets:', err);
+    } finally {
+      setLoadingPool(false);
+    }
+  };
+
   const fetchHistory = async () => {
     if (!currentUser) return;
     try {
@@ -237,77 +305,90 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
     }
   };
 
-  const selectNumber = (num) => {
-    if (isDrawing || drawState !== 'OPEN') return;
-    if (selectedNumbers.includes(num)) {
-      setSelectedNumbers(prev => prev.filter(n => n !== num));
-    } else {
-      if (selectedNumbers.length >= 6) {
-        alert("You can only select up to 6 numbers per ticket!");
-        return;
-      }
-      setSelectedNumbers(prev => [...prev, num].sort((a, b) => a - b));
-    }
-  };
-
-  const handleQuickPick = () => {
-    if (isDrawing || drawState !== 'OPEN') return;
-    const quick = [];
-    while (quick.length < 6) {
-      const randomNum = Math.floor(Math.random() * 49) + 1;
-      if (!quick.includes(randomNum)) {
-        quick.push(randomNum);
-      }
-    }
-    setSelectedNumbers(quick.sort((a, b) => a - b));
-  };
-
   const handleClear = () => {
-    if (isDrawing || drawState !== 'OPEN') return;
-    setSelectedNumbers([]);
     setDrawResults([]);
     setRevealedBalls([]);
     setWinMessage('');
     setPayoutAmount(0);
   };
 
-  const buyTicket = async () => {
-    if (!selectedGame || isDrawing || drawState !== 'OPEN') return;
-    if (selectedNumbers.length !== 6) {
-      alert("Please select exactly 6 numbers first or click QUICK PICK!");
+  const handleReserve = async (ticket) => {
+    if (!currentUser) {
+      alert("Please log in to purchase tickets.");
       return;
     }
-    if (!currentUser) return;
+    if (isDrawing || drawState !== 'OPEN') return;
 
-    if (currentUser.balance < betSize) {
-      alert("Insufficient funds for this ticket. Deposit cash inside your Wallet first!");
+    try {
+      const response = await fetch(`${API_BASE}/api/lottery/reserve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: currentUser.email, ticketId: ticket.id })
+      });
+      const data = await response.json();
+
+      if (data.success) {
+        setReservedTicket(ticket);
+        setCheckoutTimer(30);
+      } else {
+        alert(data.error || 'Failed to reserve ticket.');
+        fetchPoolTickets(selectedGame.name);
+      }
+    } catch (err) {
+      console.error('Reservation error:', err);
+      alert('Could not connect to Reservation API.');
+    }
+  };
+
+  const handleCancelCheckout = async () => {
+    if (!reservedTicket) return;
+    const ticketId = reservedTicket.id;
+    setReservedTicket(null);
+    setCheckoutTimer(0);
+
+    try {
+      await fetch(`${API_BASE}/api/lottery/release`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: currentUser.email, ticketId })
+      });
+    } catch (err) {
+      console.error('Release error:', err);
+    }
+
+    if (selectedGame) {
+      fetchPoolTickets(selectedGame.name);
+    }
+  };
+
+  const handleCheckout = async () => {
+    if (!reservedTicket || !currentUser || !selectedGame) return;
+
+    if (currentUser.balance < selectedGame.ticket_price) {
+      alert("Insufficient funds! Deposit cash inside your Wallet first.");
       return;
     }
 
     try {
-      const response = await fetch(`${API_BASE}/api/lottery/buy`, {
+      const response = await fetch(`${API_BASE}/api/lottery/checkout`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: currentUser.email,
-          bet: betSize,
-          chosenNumbers: selectedNumbers,
-          lotteryName: selectedGame.name
-        })
+        body: JSON.stringify({ email: currentUser.email, ticketId: reservedTicket.id })
       });
       const data = await response.json();
 
-      if (!response.ok || !data.success) {
-        alert(data.error || 'Server rejected ticket purchase.');
-        return;
+      if (data.success) {
+        alert(`Ticket #${reservedTicket.id} successfully purchased for ${selectedGame.name}!`);
+        setReservedTicket(null);
+        setCheckoutTimer(0);
+        fetchStatus(selectedGame.name);
+        fetchPoolTickets(selectedGame.name);
+      } else {
+        alert(data.error || 'Checkout process rejected.');
       }
-
-      alert(`Ticket registered successfully for ${selectedGame.name} (Draw #${data.drawId})!`);
-      setSelectedNumbers([]);
-      fetchStatus(selectedGame.name); // Reload tickets list
     } catch (err) {
-      console.error('Lottery purchase error:', err);
-      alert('Could not connect to lottery API.');
+      console.error('Checkout error:', err);
+      alert('Could not connect to Checkout API.');
     }
   };
 
@@ -381,7 +462,6 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
                   {currentList.map(t => {
                     const isDrawComplete = t.drawState === 'COMPLETED';
                     const isWin = t.payout > 0;
-                    const matchesCount = t.winningNumbers ? t.chosenNumbers.filter(n => t.winningNumbers.includes(n)).length : null;
                     
                     return (
                       <div key={t.id} className={`ticket-row-card small-card ${isWin ? 'won' : ''}`}>
@@ -398,11 +478,9 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
                         <div className="ticket-card-meta">
                           <span>Bet: ${t.betAmount}</span>
                           <span style={{ fontSize: '0.65rem', color: '#888' }}>{new Date(t.timestamp).toLocaleString()}</span>
-                        </div>
-                        <div className="ticket-card-meta" style={{ marginTop: '8px', borderBottom: 'none', paddingBottom: '0' }}>
                           {isDrawComplete ? (
                             isWin ? (
-                              <span className="ticket-status-label font-gold">Matched {matchesCount} (+${t.payout})</span>
+                              <span className="ticket-status-label font-gold">WIN (+${t.payout})</span>
                             ) : (
                               <span className="ticket-status-badge loss">LOSS</span>
                             )
@@ -469,10 +547,10 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
           <div className="hero-banner-content">
             <span className="hero-subtitle">CYBERPUNK CASINO DRAW GAMES</span>
             <h1>MEGA LOTTERY 49</h1>
-            <p>State-of-the-art cryptographic draws powered by SHA-256 server-side seeds. Choose 6 numbers, match them, and credit your balance instantly.</p>
+            <p>Ready pool-ticket allocations secured with SHA-256 integrity checks. Reserve your lottery numbers instantly and execute secure ledger checkouts.</p>
             <div className="hero-badges">
               <span className="hero-badge-item">🛡️ Provably Fair</span>
-              <span className="hero-badge-item">⚡ Instant Payouts</span>
+              <span className="hero-badge-item">⚡ 30s Lockouts</span>
               <span className="hero-badge-item">🔐 Ledger Verified</span>
             </div>
           </div>
@@ -490,7 +568,7 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
 
         <div className="lottery-lobby-header">
           <h2>CYBER LOTTERY DRAW GAMES</h2>
-          <p className="panel-subtitle">Select a draw game from our premium pool to buy tickets and join live drawings.</p>
+          <p className="panel-subtitle">Choose a draw game configuration to browse ready tickets and reserve wagers.</p>
           <div className="section-divider"></div>
           {currentUser && (
             <button className="history-btn" onClick={() => fetchHistory()}>
@@ -499,7 +577,7 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
           )}
         </div>
 
-        {/* Games Selector Grid (Arranged in Rows and Columns Grid Mode) */}
+        {/* Games Selector Grid */}
         <div className="lottery-lobby-grid">
           {lobbyGames.map(game => (
             <div 
@@ -533,7 +611,7 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
   }
 
   // ============================================================================
-  // RENDER VIEW B: TICKET PURCHASING & DRAW VIEW
+  // RENDER VIEW C: TICKET SELECTION & RESERVATION VIEW
   // ============================================================================
   return (
     <div className="lottery-page-container">
@@ -564,53 +642,123 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
       </div>
 
       <div className="lottery-main-layout">
-        {/* Left Grid: Ticket selection */}
-        <div className="lottery-ticket-box">
+        
+        {/* Left Side: BROWSING PHASE / CHECKOUT PHASE */}
+        <div className="lottery-ticket-box" style={{ position: 'relative' }}>
+          
+          {/* Reservation Lock Overlay (CHECKOUT PHASE) */}
+          {reservedTicket && (
+            <div className="checkout-lock-overlay">
+              <div className="checkout-box">
+                <div className="checkout-header">
+                  <span className="lock-tag">🔒 SECURE 30s RESERVATION LOCK</span>
+                  <h3>COMPLETE CHECKOUT</h3>
+                  <div className="countdown-ring">
+                    EXPIRES IN: <span className="timer-sec">{checkoutTimer}s</span>
+                  </div>
+                </div>
+                
+                <div className="checkout-ticket-details">
+                  <div className="ticket-detail-row">
+                    <span>TICKET ID:</span>
+                    <strong>#{reservedTicket.id}</strong>
+                  </div>
+                  <div className="ticket-detail-row">
+                    <span>NUMBERS:</span>
+                    <div className="checkout-nums">
+                      {reservedTicket.chosenNumbers.map(n => (
+                        <span key={n} className="checkout-num-badge">{n}</span>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="ticket-detail-row">
+                    <span>TOTAL PRICE:</span>
+                    <strong style={{ color: 'var(--forest-gold)', fontSize: '1.25rem' }}>${selectedGame.ticket_price}</strong>
+                  </div>
+                </div>
+
+                <div className="checkout-actions">
+                  <button 
+                    onClick={handleCheckout}
+                    className="checkout-complete-btn"
+                  >
+                    AUTHORIZE PAYMENT 💳
+                  </button>
+                  <button 
+                    onClick={handleCancelCheckout}
+                    className="checkout-cancel-btn"
+                  >
+                    CANCEL CHECKOUT
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Browsing Phase Selector Lobby */}
           <div className="ticket-header">
-            <h2>{selectedGame.name.toUpperCase()} TICKET</h2>
-            <div className="security-tag">🔐 cryptographically secure hm-sha256 engine</div>
+            <h2>{selectedGame.name.toUpperCase()} LOBBY</h2>
+            <div className="security-tag">Select a pre-generated ticket to begin checkout.</div>
           </div>
 
           <div className="ticket-helper-bar">
-            <span>Select exactly 6 numbers: <strong>{selectedNumbers.length}/6</strong></span>
+            <span>Select one of the 5 pre-generated tickets:</span>
             <div className="ticket-quick-actions">
-              <button onClick={handleQuickPick} disabled={isDrawing || drawState !== 'OPEN'} className="quick-action-btn pick">✨ QUICK PICK</button>
-              <button onClick={handleClear} disabled={isDrawing || drawState !== 'OPEN'} className="quick-action-btn clear">✕ CLEAR</button>
+              <button 
+                onClick={() => fetchPoolTickets(selectedGame.name)} 
+                disabled={isDrawing || drawState !== 'OPEN' || reservedTicket} 
+                className="quick-action-btn pick"
+                style={{ background: 'var(--forest-gold)', color: '#000' }}
+              >
+                🔄 REFRESH OPTIONS
+              </button>
             </div>
           </div>
 
-          {/* 1 to 49 Number Grid */}
-          <div className="lottery-numbers-grid">
-            {Array.from({ length: 49 }, (_, i) => i + 1).map((num) => {
-              const isSelected = selectedNumbers.includes(num);
-              const isMatch = drawResults.length > 0 && drawResults.includes(num) && selectedNumbers.includes(num);
-              return (
-                <button
-                  key={num}
-                  type="button"
-                  onClick={() => selectNumber(num)}
-                  disabled={isDrawing || drawState !== 'OPEN'}
-                  className={`grid-number-btn ${isSelected ? 'selected' : ''} ${isMatch ? 'matched-glow' : ''}`}
-                >
-                  {num}
-                </button>
-              );
-            })}
-          </div>
+          {/* Available tickets list */}
+          {loadingPool ? (
+            <div className="loader-placeholder">Loading available ticket pool...</div>
+          ) : poolTickets.length === 0 ? (
+            <div className="loader-placeholder" style={{ padding: '60px 10px', color: '#ff0055' }}>
+              {drawState !== 'OPEN' ? '⚠️ sales locked during drawing session' : '⚠️ Generating tickets... Please click Refresh Options!'}
+            </div>
+          ) : (
+            <div className="pool-tickets-selection-grid">
+              {poolTickets.map((t) => (
+                <div key={t.id} className="pool-ticket-option-card">
+                  <div className="option-card-header">
+                    <span>TICKET #{t.id}</span>
+                    <span className="price-tag">${selectedGame.ticket_price}</span>
+                  </div>
+                  <div className="option-card-numbers">
+                    {t.chosenNumbers.map(n => (
+                      <span key={n} className="option-num-badge">{n}</span>
+                    ))}
+                  </div>
+                  <button 
+                    disabled={isDrawing || drawState !== 'OPEN' || reservedTicket}
+                    onClick={() => handleReserve(t)}
+                    className="pool-select-buy-btn"
+                  >
+                    SELECT & BUY 🎟️
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
 
           {/* Draw display shelf */}
-          <div className="lottery-draw-results-shelf">
+          <div className="lottery-draw-results-shelf" style={{ marginTop: '25px' }}>
             <span className="draw-label-tag">OFFICIAL DRAW BALLS</span>
             <div className="draw-balls-row">
               {Array.from({ length: 6 }).map((_, index) => {
                 const ballRevealed = revealedBalls.length > index;
                 const value = ballRevealed ? revealedBalls[index] : '?';
-                const isMatched = ballRevealed && selectedNumbers.includes(revealedBalls[index]);
 
                 return (
                   <div 
                     key={index} 
-                    className={`draw-ball ${ballRevealed ? 'revealed bounce-enter' : 'hidden-ball'} ${isDrawing && revealedBalls.length === index ? 'pulsing-loader' : ''} ${isMatched ? 'winner-ball' : ''}`}
+                    className={`draw-ball ${ballRevealed ? 'revealed bounce-enter' : 'hidden-ball'} ${isDrawing && revealedBalls.length === index ? 'pulsing-loader' : ''}`}
                   >
                     <span>{value}</span>
                   </div>
@@ -621,36 +769,13 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
 
           {/* Results feedback banner */}
           {winMessage && (
-            <div className={`lottery-result-banner ${payoutAmount > 0 ? 'win' : 'lose'}`}>
+            <div className={`lottery-result-banner ${payoutAmount > 0 ? 'win' : 'lose'}`} style={{ marginTop: '20px' }}>
               {winMessage}
             </div>
           )}
-
-          {/* Controls */}
-          <div className="lottery-controls-row">
-            <div className="lottery-bet-group">
-              <label>TICKET VALUE</label>
-              <div className="bet-toggles">
-                <button 
-                  disabled
-                  className="bet-toggle-btn active"
-                >
-                  ${betSize}
-                </button>
-              </div>
-            </div>
-
-            <button 
-              className="lottery-draw-action-btn"
-              onClick={buyTicket}
-              disabled={isDrawing || drawState !== 'OPEN' || selectedNumbers.length !== 6}
-            >
-              {drawState !== 'OPEN' ? 'SALES LOCKED 🔒' : 'BUY TICKET 🚀'}
-            </button>
-          </div>
         </div>
 
-        {/* Right Panel: Multipliers */}
+        {/* Right Panel: Match Multipliers */}
         <div className="lottery-payout-panel">
           <h3>MATCH MULTIPLIERS</h3>
           <div className="panel-divider"></div>
@@ -678,14 +803,15 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
             </div>
           </div>
         </div>
+
       </div>
 
-      {/* User's active tickets shelf spanned horizontally across the bottom container */}
+      {/* User's active tickets shelf */}
       <div className="lottery-active-tickets-shelf-bottom">
-        <h4>MY ACTIVE TICKETS (DRAW #{activeDrawId})</h4>
+        <h4>MY ACTIVE WAGERS (DRAW #{activeDrawId})</h4>
         <div className="panel-divider"></div>
         {myTickets.length === 0 ? (
-          <p className="no-tickets-tag">No tickets purchased for this draw session. Pick your numbers above to buy a ticket!</p>
+          <p className="no-tickets-tag">No active wagers registered for this draw session. Purchase a pool ticket above to participate!</p>
         ) : (
           <div className="tickets-scroll-row">
             {myTickets.map(t => {

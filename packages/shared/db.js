@@ -123,6 +123,20 @@ const initDatabase = async () => {
     )
   `);
 
+  // 4.1. Pre-generated ticket pool for reservation model
+  await run(`
+    CREATE TABLE IF NOT EXISTS lottery_ticket_pool (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      lotteryName TEXT NOT NULL,
+      drawId INTEGER NOT NULL,
+      chosenNumbers TEXT NOT NULL,
+      status TEXT DEFAULT 'AVAILABLE',
+      reservedBy TEXT,
+      reservedUntil TEXT,
+      FOREIGN KEY(drawId) REFERENCES lottery_draws(id)
+    )
+  `);
+
   // 5. RNG Audit Trail Logs
   await run(`
     CREATE TABLE IF NOT EXISTS audit_rng_logs (
