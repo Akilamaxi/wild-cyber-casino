@@ -706,6 +706,8 @@ io.on('connection', (socket) => {
   // Chat message listener
   socket.on('send_chat_message', (data) => {
     if (!data || !data.message) return;
+    
+    // Broadcast user's message
     io.emit('chat_message', {
       username: data.username || 'Guest',
       email: data.email || 'guest@casino.com',
@@ -713,6 +715,34 @@ io.on('connection', (socket) => {
       role: data.role || 'USER',
       timestamp: new Date().toISOString()
     });
+
+    // Automated Agent Chatbot responder logic
+    const msgLower = data.message.toLowerCase();
+    let reply = '';
+
+    if (msgLower.includes('deposit')) {
+      reply = `@${data.username} To deposit funds, navigate to the "Wallet Dashboard" in the sidebar and choose Credit Card or Crypto via our secure CyberPay checkout.`;
+    } else if (msgLower.includes('withdraw')) {
+      reply = `@${data.username} Withdrawals are processed immediately to external routing accounts. Set your withdrawal amount under the "Wallet Dashboard".`;
+    } else if (msgLower.includes('vip') || msgLower.includes('loyalty') || msgLower.includes('points') || msgLower.includes('silver') || msgLower.includes('gold')) {
+      reply = `@${data.username} VIP levels are updated automatically based on your wagers! Reach Silver for a $50 cash bonus, or Gold for a $250 bonus. Track progress in your User Profile page.`;
+    } else if (msgLower.includes('lottery') || msgLower.includes('ticket') || msgLower.includes('game') || msgLower.includes('play')) {
+      reply = `@${data.username} We host multiple draw pools (from 15s to 900s). Pick your numbers in "Cyber Lottery" and wagers will update dynamically on draw completions!`;
+    } else if (msgLower.includes('help') || msgLower.includes('support') || msgLower.includes('agent')) {
+      reply = `@${data.username} Hello! I am Agent Neo, your automated support chatbot. How can I assist you with games, VIP status, or payments today?`;
+    }
+
+    if (reply) {
+      setTimeout(() => {
+        io.emit('chat_message', {
+          username: 'Agent Neo',
+          email: 'agent.neo@support.casino',
+          message: reply,
+          role: 'ADMIN',
+          timestamp: new Date().toISOString()
+        });
+      }, 1500);
+    }
   });
   
   socket.on('disconnect', () => {

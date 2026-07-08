@@ -164,9 +164,10 @@ function App() {
       {/* Floating Chat Bubble Toggle Button */}
       {!isChatOpen && (
         <button 
-          className="chat-floating-toggle-btn" 
+          className="floating-support-widget" 
           onClick={() => setIsChatOpen(true)}
           title="Open Cyber Chat"
+          style={{ border: 'none' }}
         >
           💬
         </button>

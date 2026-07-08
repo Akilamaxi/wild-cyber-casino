@@ -131,15 +131,6 @@ function LandingPage({ currentUser, onPlayGame, onOpenLogin }) {
         </section>
       ))}
 
-      {/* Floating Chat Support Simulation */}
-      <div 
-        className="floating-support-widget" 
-        onClick={() => alert("Cyber Chat support agent is offline. Drop a ticket inside your Wallet dashboard!")}
-        title="24/7 Cyber Support"
-      >
-        💬
-      </div>
-
       {/* Coming Soon custom details popup */}
       {selectedMockGame && (
         <div className="mock-details-backdrop" onClick={() => setSelectedMockGame(null)}>
