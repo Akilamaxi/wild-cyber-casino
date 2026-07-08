@@ -747,7 +747,6 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
                 onClick={() => fetchPoolTickets(selectedGame.name)} 
                 disabled={isDrawing || drawState !== 'OPEN' || reservedTickets.length > 0} 
                 className="quick-action-btn pick"
-                style={{ background: 'var(--forest-gold)', color: '#000' }}
               >
                 🔄 REFRESH OPTIONS
               </button>
@@ -756,7 +755,6 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
                   onClick={() => triggerReserve()} 
                   disabled={isDrawing || drawState !== 'OPEN' || reservedTickets.length > 0} 
                   className="quick-action-btn buy-batch-trigger"
-                  style={{ background: 'var(--neon-green)', color: '#000', fontWeight: 'bold' }}
                 >
                   🚀 BUY SELECTED ({selectedTicketIds.length})
                 </button>
@@ -773,7 +771,7 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
               <button 
                 onClick={() => fetchPoolTickets(selectedGame.name)}
                 className="quick-action-btn pick"
-                style={{ background: 'var(--forest-gold)', color: '#000', margin: '0 auto', display: 'block', padding: '10px 24px' }}
+                style={{ margin: '0 auto', display: 'block', padding: '10px 24px' }}
               >
                 🎰 SPIN NEW TICKETS
               </button>
@@ -828,7 +826,7 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
           )}
         </div>
 
-        {/* Right Panel: Official Draw Balls */}
+        {/* Right Panel: Official Draw Balls & Active Wagers */}
         <div className="lottery-payout-panel">
           <h3>OFFICIAL DRAW BALLS</h3>
           <div className="panel-divider"></div>
@@ -851,61 +849,60 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
               })}
             </div>
           </div>
+
+          <div className="lottery-active-tickets-shelf-bottom" style={{ marginTop: '30px', padding: 0, background: 'transparent', border: 'none', boxShadow: 'none' }}>
+            <h4 style={{ fontFamily: 'Orbitron, sans-serif', fontSize: '0.85rem', color: '#ffcc00', letterSpacing: '0.5px' }}>MY ACTIVE WAGERS (DRAW #{activeDrawId})</h4>
+            <div className="panel-divider" style={{ margin: '10px 0' }}></div>
+            {myTickets.length === 0 ? (
+              <p className="no-tickets-tag" style={{ fontSize: '0.75rem', color: '#888', textAlign: 'center', padding: '15px 0' }}>No active wagers for this draw.</p>
+            ) : (
+              <div className="tickets-scroll-row" style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '380px', overflowY: 'auto', paddingRight: '4px' }}>
+                {myTickets.map(t => {
+                  const isResolved = t.claimed === 1;
+                  const matchesCount = drawResults.length > 0 ? t.chosenNumbers.filter(n => drawResults.includes(n)).length : null;
+                  
+                  return (
+                    <div key={t.id} className={`ticket-row-card ${isResolved && t.payout > 0 ? 'won' : ''} ${isResolved && t.payout === 0 ? 'loss-card' : ''}`} style={{ margin: 0, padding: '12px' }}>
+                      <div className="ticket-card-header">
+                        <span className="card-logo">CYBER LOTTO</span>
+                        <span className="card-tx-id">#{t.id}</span>
+                      </div>
+                      <div className="ticket-card-numbers" style={{ gap: '4px', margin: '8px 0' }}>
+                        {t.chosenNumbers.map(n => {
+                          const matched = drawResults.includes(n);
+                          return <span key={n} className={`ticket-card-num-badge ${matched ? 'matched' : ''}`} style={{ width: '22px', height: '22px', fontSize: '0.7rem' }}>{n}</span>;
+                        })}
+                      </div>
+                      <div className="ticket-card-meta">
+                        <span>Bet: ${t.betAmount}</span>
+                        {isResolved ? (
+                          t.payout > 0 ? (
+                            <span className="ticket-status-label font-gold">
+                              WIN (+${t.payout})
+                            </span>
+                          ) : (
+                            <span className="ticket-status-badge loss">LOSS</span>
+                          )
+                        ) : matchesCount !== null ? (
+                          <span className="ticket-status-label font-gold">
+                            Matched {matchesCount} (+${t.payout})
+                          </span>
+                        ) : (
+                          <span className="ticket-status-label font-gray">PENDING DRAW ⏱️</span>
+                        )}
+                      </div>
+                      <div className="ticket-barcode">
+                        <div className="barcode-strip"></div>
+                        <div className="barcode-numbers">49-CYBER-TICKET-{t.id}</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
 
-      </div>
-
-      {/* User's active tickets shelf */}
-      <div className="lottery-active-tickets-shelf-bottom">
-        <h4>MY ACTIVE WAGERS (DRAW #{activeDrawId})</h4>
-        <div className="panel-divider"></div>
-        {myTickets.length === 0 ? (
-          <p className="no-tickets-tag">No active wagers registered for this draw session. Purchase a pool ticket above to participate!</p>
-        ) : (
-          <div className="tickets-scroll-row">
-            {myTickets.map(t => {
-              const isResolved = t.claimed === 1;
-              const matchesCount = drawResults.length > 0 ? t.chosenNumbers.filter(n => drawResults.includes(n)).length : null;
-              
-              return (
-                <div key={t.id} className={`ticket-row-card ${isResolved && t.payout > 0 ? 'won' : ''} ${isResolved && t.payout === 0 ? 'loss-card' : ''}`}>
-                  <div className="ticket-card-header">
-                    <span className="card-logo">CYBER LOTTO</span>
-                    <span className="card-tx-id">#{t.id}</span>
-                  </div>
-                  <div className="ticket-card-numbers">
-                    {t.chosenNumbers.map(n => {
-                      const matched = drawResults.includes(n);
-                      return <span key={n} className={`ticket-card-num-badge ${matched ? 'matched' : ''}`}>{n}</span>;
-                    })}
-                  </div>
-                  <div className="ticket-card-meta">
-                    <span>Bet: ${t.betAmount}</span>
-                    {isResolved ? (
-                      t.payout > 0 ? (
-                        <span className="ticket-status-label font-gold">
-                          WIN (+${t.payout})
-                        </span>
-                      ) : (
-                        <span className="ticket-status-badge loss">LOSS</span>
-                      )
-                    ) : matchesCount !== null ? (
-                      <span className="ticket-status-label font-gold">
-                        Matched {matchesCount} (+${t.payout})
-                      </span>
-                    ) : (
-                      <span className="ticket-status-label font-gray">PENDING DRAW ⏱️</span>
-                    )}
-                  </div>
-                  <div className="ticket-barcode">
-                    <div className="barcode-strip"></div>
-                    <div className="barcode-numbers">49-CYBER-TICKET-{t.id}</div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
       </div>
     </div>
   );

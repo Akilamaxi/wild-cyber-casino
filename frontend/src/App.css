@@ -4363,15 +4363,51 @@ body {
   border-radius: 6px !important;
   background: rgba(212, 175, 55, 0.15) !important;
   border: 1px solid var(--forest-gold) !important;
-  color: var(--forest-gold) !important;
+  color: #fff !important;
   font-weight: 800 !important;
   min-width: 60px;
+  text-shadow: 0 0 5px rgba(212, 175, 55, 0.6);
+  box-shadow: 0 0 10px rgba(212, 175, 55, 0.3);
 }
 
-.tiny-buy-btn:hover {
+.tiny-buy-btn:hover:not(:disabled) {
   background: var(--forest-gold) !important;
-  color: #000 !important;
-  box-shadow: 0 0 10px var(--forest-gold) !important;
+  color: #fff !important;
+  box-shadow: 0 0 15px var(--forest-gold) !important;
+  text-shadow: 0 0 5px #fff;
+}
+
+.lottery-ticket-box .quick-action-btn {
+  background: rgba(212, 175, 55, 0.15) !important;
+  color: #fff !important;
+  border: 1px solid var(--forest-gold) !important;
+  text-shadow: 0 0 5px rgba(212, 175, 55, 0.6);
+  box-shadow: 0 0 10px rgba(212, 175, 55, 0.3);
+  font-weight: 800;
+  transition: all 0.2s ease;
+}
+
+.lottery-ticket-box .quick-action-btn:hover:not(:disabled) {
+  background: var(--forest-gold) !important;
+  color: #fff !important;
+  box-shadow: 0 0 18px var(--forest-gold);
+  text-shadow: 0 0 8px #fff;
+}
+
+.lottery-ticket-box .buy-batch-trigger {
+  background: rgba(0, 255, 102, 0.15) !important;
+  color: #fff !important;
+  border: 1px solid var(--neon-green) !important;
+  text-shadow: 0 0 5px rgba(0, 255, 102, 0.6);
+  box-shadow: 0 0 12px rgba(0, 255, 102, 0.4);
+  font-weight: bold;
+}
+
+.lottery-ticket-box .buy-batch-trigger:hover:not(:disabled) {
+  background: var(--neon-green) !important;
+  color: #fff !important;
+  box-shadow: 0 0 20px var(--neon-green) !important;
+  text-shadow: 0 0 5px #fff;
 }
 
 .buy-batch-trigger {
