@@ -65,6 +65,14 @@ const initDatabase = async () => {
       role TEXT DEFAULT 'USER'
     )
   `);
+ 
+  // Migration: Add role column if old users table exists without it
+  try {
+    await run("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'USER'");
+    console.log('[DB] Migration: Added role column to users table.');
+  } catch (err) {
+    // Ignore error if column already exists
+  }
 
   // Gamification Profiles
   await run(`
