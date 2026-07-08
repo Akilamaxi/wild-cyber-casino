@@ -714,7 +714,39 @@ const startServer = async () => {
       console.log(`[LOTTERY ENGINE] Received IPC event from worker: ${message.type}`);
       pubsub.emit('message', message);
     });
+
+    console.log('[LOTTERY ENGINE] Spawning concurrent back-office API gateway...');
+    fork(path.join(__dirname, '..', 'backoffice-api', 'server.js'));
+
+    console.log('[LOTTERY ENGINE] Spawning concurrent loyalty gamification microservice...');
+    fork(path.join(__dirname, '..', 'loyalty-engine', 'server.js'));
   }
+
+  // Reverse proxy /api/admin requests to the backoffice-api service (port 5001) for Cloud Run single-port routing
+  app.use('/api/admin', async (req, res) => {
+    try {
+      const targetUrl = `http://127.0.0.1:5001/api/admin${req.url}`;
+      
+      const options = {
+        method: req.method,
+        headers: { 
+          'Content-Type': 'application/json',
+          'host': '127.0.0.1:5001'
+        }
+      };
+
+      if (['POST', 'PUT', 'PATCH'].includes(req.method)) {
+        options.body = JSON.stringify(req.body);
+      }
+
+      const response = await fetch(targetUrl, options);
+      const data = await response.json();
+      res.status(response.status).json(data);
+    } catch (error) {
+      console.error('[LOTTERY ENGINE PROXY ERROR]', error);
+      res.status(502).json({ success: false, error: 'Back-office API Gateway Timeout' });
+    }
+  });
 
   const PORT = process.env.PORT || 5000;
   server.listen(PORT, () => {

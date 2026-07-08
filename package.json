@@ -13,8 +13,8 @@
   "scripts": {
     "bootstrap": "npm install",
     "start:engine": "npx concurrently \"npm run start --workspace=@cyber-casino/lottery-engine\" \"npm run start --workspace=@cyber-casino/payout-worker\" \"npm run start --workspace=@cyber-casino/backoffice-api\" \"npm run start --workspace=@cyber-casino/loyalty-engine\"",
-    "build": "npm run build --workspace=@cyber-casino/frontend",
-    "start:frontend": "npm start --workspace=@cyber-casino/frontend"
+    "build:frontend": "npm run build --workspace=frontend",
+    "start:frontend": "npm start --workspace=frontend"
   },
   "dependencies": {
     "bullmq": "^5.8.3",

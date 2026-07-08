@@ -11,6 +11,7 @@ COPY packages/shared/package*.json ./packages/shared/
 COPY apps/lottery-engine/package*.json ./apps/lottery-engine/
 COPY apps/payout-worker/package*.json ./apps/payout-worker/
 COPY apps/backoffice-api/package*.json ./apps/backoffice-api/
+COPY apps/loyalty-engine/package*.json ./apps/loyalty-engine/
 
 # Bootstrap all monorepo links and install modules
 # Removing package-lock.json before install resolves the cross-platform Vite/Rollup native binary issue
@@ -33,7 +34,9 @@ WORKDIR /app
 COPY package*.json ./
 COPY packages/shared/package*.json ./packages/shared/
 COPY apps/lottery-engine/package*.json ./apps/lottery-engine/
-COPY apps/payout-worker/package*.json ./packages/payout-worker/
+COPY apps/payout-worker/package*.json ./apps/payout-worker/
+COPY apps/backoffice-api/package*.json ./apps/backoffice-api/
+COPY apps/loyalty-engine/package*.json ./apps/loyalty-engine/
 
 # Install only production dependencies
 RUN npm install --omit=dev
