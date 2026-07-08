@@ -695,6 +695,18 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
             </div>
           )}
 
+          {/* Drawing Lock Overlay */}
+          {(isDrawing || drawState !== 'OPEN') && (
+            <div className="drawing-lock-overlay">
+              <div className="lock-message-box">
+                <span className="lock-icon">⚠️</span>
+                <h3>DRAW IN PROGRESS</h3>
+                <p>Ticket generation and selection are locked during drawings. Please wait for the next open session!</p>
+                <div className="drawing-pulse-bar"></div>
+              </div>
+            </div>
+          )}
+
           {/* Browsing Phase Selector Lobby */}
           <div className="ticket-header">
             <h2>{selectedGame.name.toUpperCase()} LOBBY</h2>
@@ -720,7 +732,7 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
             <div className="loader-placeholder">Loading available ticket pool...</div>
           ) : poolTickets.length === 0 ? (
             <div className="loader-placeholder" style={{ padding: '60px 10px', color: '#ff0055' }}>
-              {drawState !== 'OPEN' ? '⚠️ sales locked during drawing session' : '⚠️ Generating tickets... Please click Refresh Options!'}
+              ⚠️ Generating tickets... Please click Refresh Options!
             </div>
           ) : (
             <div className="pool-tickets-selection-grid">
@@ -747,26 +759,6 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
             </div>
           )}
 
-          {/* Draw display shelf */}
-          <div className="lottery-draw-results-shelf" style={{ marginTop: '25px' }}>
-            <span className="draw-label-tag">OFFICIAL DRAW BALLS</span>
-            <div className="draw-balls-row">
-              {Array.from({ length: 6 }).map((_, index) => {
-                const ballRevealed = revealedBalls.length > index;
-                const value = ballRevealed ? revealedBalls[index] : '?';
-
-                return (
-                  <div 
-                    key={index} 
-                    className={`draw-ball ${ballRevealed ? 'revealed bounce-enter' : 'hidden-ball'} ${isDrawing && revealedBalls.length === index ? 'pulsing-loader' : ''}`}
-                  >
-                    <span>{value}</span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
           {/* Results feedback banner */}
           {winMessage && (
             <div className={`lottery-result-banner ${payoutAmount > 0 ? 'win' : 'lose'}`} style={{ marginTop: '20px' }}>
@@ -775,31 +767,27 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
           )}
         </div>
 
-        {/* Right Panel: Match Multipliers */}
+        {/* Right Panel: Official Draw Balls */}
         <div className="lottery-payout-panel">
-          <h3>MATCH MULTIPLIERS</h3>
+          <h3>OFFICIAL DRAW BALLS</h3>
           <div className="panel-divider"></div>
 
-          <div className="payout-rows-list">
-            <div className="payout-row jackpot-row">
-              <span className="payout-icons">🟢🟢🟢🟢🟢🟢</span>
-              <span className="payout-label">6 MATCHES</span>
-              <span className="payout-mult">10,000x Bet</span>
-            </div>
-            <div className="payout-row seven-row">
-              <span className="payout-icons">🟢🟢🟢🟢🟢⚪</span>
-              <span className="payout-label">5 MATCHES</span>
-              <span className="payout-mult">100x Bet</span>
-            </div>
-            <div className="payout-row diamond-row">
-              <span className="payout-icons">🟢🟢🟢🟢⚪⚪</span>
-              <span className="payout-label">4 MATCHES</span>
-              <span className="payout-mult">10x Bet</span>
-            </div>
-            <div className="payout-row bell-row">
-              <span className="payout-icons">🟢🟢🟢⚪⚪⚪</span>
-              <span className="payout-label">3 MATCHES</span>
-              <span className="payout-mult">2x Bet</span>
+          <div className="lottery-draw-results-shelf" style={{ marginTop: '20px', background: 'transparent', padding: 0 }}>
+            <div className="draw-balls-row" style={{ justifyContent: 'center', gap: '10px' }}>
+              {Array.from({ length: 6 }).map((_, index) => {
+                const ballRevealed = revealedBalls.length > index;
+                const value = ballRevealed ? revealedBalls[index] : '?';
+
+                return (
+                  <div 
+                    key={index} 
+                    className={`draw-ball ${ballRevealed ? 'revealed bounce-enter' : 'hidden-ball'} ${isDrawing && revealedBalls.length === index ? 'pulsing-loader' : ''}`}
+                    style={{ width: '42px', height: '42px', fontSize: '1rem' }}
+                  >
+                    <span>{value}</span>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
