@@ -682,6 +682,32 @@ io.on('connection', (socket) => {
   });
 });
 
+// Reverse proxy /api/admin requests to the backoffice-api service (port 5001) for Cloud Run single-port routing
+app.use('/api/admin', async (req, res) => {
+  try {
+    const targetUrl = `http://127.0.0.1:5001/api/admin${req.url}`;
+    
+    const options = {
+      method: req.method,
+      headers: { 
+        'Content-Type': 'application/json',
+        'host': '127.0.0.1:5001'
+      }
+    };
+
+    if (['POST', 'PUT', 'PATCH'].includes(req.method)) {
+      options.body = JSON.stringify(req.body);
+    }
+
+    const response = await fetch(targetUrl, options);
+    const data = await response.json();
+    res.status(response.status).json(data);
+  } catch (error) {
+    console.error('[LOTTERY ENGINE PROXY ERROR]', error);
+    res.status(502).json({ success: false, error: 'Back-office API Gateway Timeout' });
+  }
+});
+
 // Serve frontend build in production
 const distPath = path.join(__dirname, 'dist');
 app.use(express.static(distPath));
@@ -725,32 +751,6 @@ const startServer = async () => {
       env: { ...process.env, PORT: '5002' }
     });
   }
-
-  // Reverse proxy /api/admin requests to the backoffice-api service (port 5001) for Cloud Run single-port routing
-  app.use('/api/admin', async (req, res) => {
-    try {
-      const targetUrl = `http://127.0.0.1:5001/api/admin${req.url}`;
-      
-      const options = {
-        method: req.method,
-        headers: { 
-          'Content-Type': 'application/json',
-          'host': '127.0.0.1:5001'
-        }
-      };
-
-      if (['POST', 'PUT', 'PATCH'].includes(req.method)) {
-        options.body = JSON.stringify(req.body);
-      }
-
-      const response = await fetch(targetUrl, options);
-      const data = await response.json();
-      res.status(response.status).json(data);
-    } catch (error) {
-      console.error('[LOTTERY ENGINE PROXY ERROR]', error);
-      res.status(502).json({ success: false, error: 'Back-office API Gateway Timeout' });
-    }
-  });
 
   const PORT = process.env.PORT || 5000;
   server.listen(PORT, () => {
