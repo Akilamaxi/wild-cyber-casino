@@ -1,0 +1,12 @@
+{
+  "name": "@cyber-casino/backoffice-api",
+  "version": "1.0.0",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "private": true,
+  "dependencies": {
+    "@cyber-casino/shared": "^1.0.0"
+  }
+}

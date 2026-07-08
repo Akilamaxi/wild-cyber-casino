@@ -1,0 +1,28 @@
+{
+  "name": "cyber-casino-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "packages/shared",
+    "apps/lottery-engine",
+    "apps/payout-worker",
+    "apps/backoffice-api"
+  ],
+  "scripts": {
+    "bootstrap": "npm install",
+    "build:frontend": "npm run build --workspace=frontend",
+    "start:engine": "npm start --workspace=apps/lottery-engine",
+    "start:worker": "npm start --workspace=apps/payout-worker",
+    "start:admin": "npm start --workspace=apps/backoffice-api"
+  },
+  "dependencies": {
+    "bullmq": "^5.8.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "ioredis": "^5.4.1",
+    "socket.io": "^4.7.5",
+    "sqlite3": "^5.1.7"
+  }
+}

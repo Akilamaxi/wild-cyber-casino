@@ -1,0 +1,12 @@
+{
+  "name": "@cyber-casino/payout-worker",
+  "version": "1.0.0",
+  "main": "worker.js",
+  "scripts": {
+    "start": "node worker.js"
+  },
+  "private": true,
+  "dependencies": {
+    "@cyber-casino/shared": "^1.0.0"
+  }
+}

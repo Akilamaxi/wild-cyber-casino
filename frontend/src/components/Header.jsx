@@ -5,8 +5,10 @@ function Header({ currentUser, onLogout, onOpenLogin, onOpenSignup, onViewChange
     <header className="casino-header-top">
       {/* Brand logo */}
       <div className="header-logo" onClick={() => onViewChange('landing')}>
-        <span className="logo-text-bold">WILD</span>
-        <span className="logo-text-neon">CYBER</span>
+        <div className="logo-text-wrapper">
+          <span className="logo-text-bold">WILD</span>
+          <span className="logo-text-neon">CYBER</span>
+        </div>
         <span className="logo-icon-spin">🎰</span>
       </div>
 

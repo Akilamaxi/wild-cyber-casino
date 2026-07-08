@@ -1,39 +1,57 @@
 # ==========================================
-# STAGE 1: Build Frontend Assets
+# STAGE 1: Build Frontend SPA assets
 # ==========================================
 FROM node:20-alpine AS frontend-builder
-
-WORKDIR /app/frontend
-
-# Copy dependencies manifest
-COPY frontend/package*.json ./
-RUN npm install
-
-# Copy source and build static assets
-COPY frontend/ ./
-RUN npm run build
-
-# ==========================================
-# STAGE 2: Run Production backend
-# ==========================================
-FROM node:20-alpine
-
 WORKDIR /app
 
-# Copy backend dependencies manifest
-COPY backend/package*.json ./backend/
-RUN cd backend && npm install --only=production
+# Copy root workspace configurations
+COPY package*.json ./
+COPY frontend/package*.json ./frontend/
+COPY packages/shared/package*.json ./packages/shared/
+COPY apps/lottery-engine/package*.json ./apps/lottery-engine/
+COPY apps/payout-worker/package*.json ./apps/payout-worker/
+COPY apps/backoffice-api/package*.json ./apps/backoffice-api/
 
-# Copy backend source
-COPY backend/ ./backend/
+# Bootstrap all monorepo links and install modules
+RUN npm install
 
-# Copy built frontend assets into backend static folder
-COPY --from=frontend-builder /app/frontend/dist ./backend/dist
+# Copy source codes
+COPY packages/ ./packages/
+COPY frontend/ ./frontend/
 
-# Expose server port (Cloud Run dynamically sets PORT env var)
+# Compile frontend production bundle
+RUN npm run build:frontend
+
+# ==========================================
+# STAGE 2: Build slim production runner
+# ==========================================
+FROM node:20-alpine
+WORKDIR /app
+
+# Copy root configurations and workspace lists
+COPY package*.json ./
+COPY packages/shared/package*.json ./packages/shared/
+COPY apps/lottery-engine/package*.json ./apps/lottery-engine/
+COPY apps/payout-worker/package*.json ./packages/payout-worker/
+
+# Install only production dependencies
+RUN npm install --omit=dev
+
+# Copy server packages source codes
+COPY packages/ ./packages/
+COPY apps/ ./apps/
+
+# Copy built frontend bundle from Stage 1 into main server static assets
+COPY --from=frontend-builder /app/frontend/dist ./apps/lottery-engine/dist
+
+# Expose port (Cloud Run sets PORT env, defaults to 8080)
 EXPOSE 8080
 
-# Run backend server
-WORKDIR /app/backend
+# Configure production environment execution variables
+WORKDIR /app/apps/lottery-engine
 ENV PORT=8080
+ENV NODE_ENV=production
+ENV RUN_WORKER_CONCURRENTLY=true
+
+# Start API server (which forks scheduling worker process on boot)
 CMD ["node", "server.js"]

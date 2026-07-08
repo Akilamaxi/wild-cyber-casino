@@ -161,9 +161,11 @@ body {
 }
 
 .sidebar-lock-badge {
-  font-size: 0.65rem;
+  font-size: 0.82rem;
   margin-left: auto;
-  opacity: 0.4;
+  opacity: 1; /* Bright gold and high contrast icon */
+  filter: sepia(100%) saturate(1000%) hue-rotate(5deg) brightness(1.3);
+  text-shadow: 0 0 10px rgba(255, 215, 0, 0.6);
 }
 
 .sidebar-menu-btn:hover {
@@ -206,12 +208,17 @@ body {
 .header-logo {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 12px; /* Increased gap spacing for slot machine icon */
   cursor: pointer;
   font-family: 'Orbitron', sans-serif;
   font-weight: 900;
   font-size: 1.5rem;
   letter-spacing: 1px;
+}
+
+.logo-text-wrapper {
+  display: flex;
+  gap: 5px; /* Spacing between WILD and CYBER */
 }
 
 .logo-text-bold {
@@ -2281,17 +2288,19 @@ body {
 
 .payout-icons {
   font-size: 1rem;
-  flex: 1.1;
+  width: 140px; /* Fixed width for the dot groups */
+  flex: 0 0 140px; /* Ensure labels start at the exact same horizontal position on every row */
   text-shadow: 0 0 5px rgba(255, 255, 255, 0.2);
 }
 
 .payout-label {
   color: var(--text-gray);
-  flex: 2;
+  flex: 1;
   font-family: 'Orbitron', sans-serif;
   font-weight: 800;
   font-size: 0.72rem;
   letter-spacing: 0.5px;
+  text-align: left; /* Perfect vertical column start */
 }
 
 .payout-mult {
@@ -2390,18 +2399,13 @@ body {
 
 
 /* 9. CYBER LOTTERY 49 GAME STYLING */
-.lottery-page-container {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 10px 0;
-}
+/* Cleared legacy clashing lottery container wrapper */
 
 .lottery-main-layout {
   display: flex;
   gap: 40px;
   justify-content: center;
-  align-items: flex-start;
+  align-items: flex-start !important; /* Forces top edges to align perfectly horizontally */
   max-width: 1050px;
   width: 100%;
   flex-wrap: wrap;
@@ -2417,6 +2421,9 @@ body {
   padding: 40px;
   text-align: center;
   backdrop-filter: blur(15px);
+  height: auto; /* Border completely wraps the bottom of the number grid */
+  padding-bottom: 40px; /* Proper bottom padding so it is not cut off */
+  margin-bottom: 25px; /* Offset spacing from bottom items */
 }
 
 .ticket-header h2 {
@@ -2779,4 +2786,764 @@ body {
   color: var(--neon-green);
   box-shadow: 0 0 8px rgba(0, 255, 102, 0.15);
 }
+
+/* ============================================================================
+   LOTTERY MONOREPO EXTENSIONS
+   ============================================================================ */
+
+.lottery-page-container {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  padding-top: 45px; /* Compact top spacing clearing fixed top header */
+}
+
+/* Symmetrical Center-Aligned Lobby Header */
+.lottery-lobby-header {
+  text-align: center;
+  margin-bottom: 25px;
+}
+
+.lottery-lobby-header h2 {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 1.8rem;
+  font-weight: 900;
+  color: #fff;
+  letter-spacing: 1.5px;
+  margin-bottom: 8px;
+  text-shadow: 0 0 10px rgba(255, 255, 255, 0.1);
+}
+
+.lottery-lobby-header .panel-subtitle {
+  text-align: center;
+  margin: 0 auto;
+  color: var(--text-gray);
+  font-size: 0.9rem;
+}
+
+/* 3D Neon Hero Banner */
+.lottery-hero-banner {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: radial-gradient(circle at top left, #0e2b14, #050d07 80%);
+  border: 1px solid var(--forest-gold);
+  border-radius: 20px;
+  padding: 35px 40px;
+  overflow: hidden;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5), inset 0 0 20px rgba(197, 160, 89, 0.15);
+  min-height: 200px;
+  gap: 20px;
+}
+
+.hero-banner-content {
+  flex: 1;
+  text-align: left;
+  z-index: 10; /* Ensure content is layered strictly on top of floaters */
+  position: relative;
+}
+
+.hero-subtitle {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.65rem;
+  font-weight: 900;
+  color: var(--forest-gold);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+.lottery-hero-banner h1 {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 2.2rem;
+  font-weight: 900;
+  color: #fff;
+  margin-top: 10px;
+  margin-bottom: 12px;
+  letter-spacing: 1px;
+  text-shadow: 0 0 15px rgba(255,255,255,0.2), 0 0 30px var(--forest-gold);
+}
+
+.hero-banner-content p {
+  font-size: 0.85rem;
+  color: var(--text-gray);
+  line-height: 1.6;
+  max-width: 580px;
+  margin-bottom: 20px;
+}
+
+.hero-badges {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.hero-badge-item {
+  background: rgba(197, 160, 89, 0.08);
+  border: 1px solid rgba(197, 160, 89, 0.25);
+  color: var(--forest-gold);
+  font-size: 0.7rem;
+  font-weight: bold;
+  padding: 4px 10px;
+  border-radius: 6px;
+}
+
+/* Floating 3D Balls decoration */
+.hero-balls-decoration {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.deco-ball {
+  position: absolute;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  font-family: 'Orbitron', sans-serif;
+  font-weight: 800;
+  font-size: 0.95rem;
+  color: #000;
+  box-shadow: inset -6px -6px 12px rgba(0,0,0,0.4), inset 6px 6px 12px rgba(255,255,255,0.4), 0 8px 16px rgba(0,0,0,0.5);
+  animation: float-slow 4s infinite ease-in-out alternate;
+}
+
+.ball-1 {
+  background: radial-gradient(circle at 12px 12px, #ffd000, #ff8000);
+  top: 20px;
+  left: 8%; /* Shifted far left */
+  animation-delay: 0s;
+}
+
+.ball-2 {
+  background: radial-gradient(circle at 12px 12px, #00ffcc, #008060);
+  bottom: 25px;
+  left: 18%; /* Shifted left margins */
+  animation-delay: 1.5s;
+}
+
+.ball-3 {
+  background: radial-gradient(circle at 12px 12px, #ff0077, #990044);
+  top: 40px;
+  left: 88%; /* Shifted to the far right */
+  animation-delay: 0.8s;
+}
+
+.ball-4 {
+  background: radial-gradient(circle at 12px 12px, #ffffff, #888888);
+  bottom: 40px;
+  left: 5%; /* Shifted far left */
+  animation-delay: 2.2s;
+}
+
+.ball-5 {
+  background: radial-gradient(circle at 12px 12px, #3399ff, #0044aa);
+  top: 30px;
+  left: 78%; /* Shifted right margins */
+  animation-delay: 1.2s;
+}
+
+/* 3D Tickets illustration in Hero */
+.hero-ticket-illustration {
+  position: relative;
+  width: 140px;
+  height: 140px;
+  z-index: 10; /* Keep tickets layering correctly on top */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.illust-ticket {
+  position: absolute;
+  width: 85px;
+  height: 120px;
+  border-radius: 10px;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.6);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 10px;
+  font-family: 'Orbitron', sans-serif;
+  font-weight: 800;
+  font-size: 0.7rem;
+}
+
+.blue-ticket {
+  background: linear-gradient(135deg, #0044aa, #002266);
+  border: 1.5px dashed rgba(0, 255, 255, 0.4);
+  color: #00ffff;
+  transform: rotate(-12deg) translate(-15px, -5px);
+  z-index: 2;
+}
+
+.red-ticket {
+  background: linear-gradient(135deg, #aa0033, #660011);
+  border: 1.5px dashed rgba(255, 0, 85, 0.4);
+  color: #ff0055;
+  transform: rotate(15deg) translate(15px, 5px);
+  z-index: 1;
+}
+
+.ticket-title-illust {
+  border-bottom: 1px dashed rgba(255,255,255,0.15);
+  padding-bottom: 4px;
+}
+
+.ticket-dots-illust {
+  font-size: 0.6rem;
+  letter-spacing: 1px;
+}
+
+/* Games Selector Grid Layout (Rows and Columns Mode) */
+.lottery-lobby-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+  gap: 25px;
+  margin: 30px auto;
+  max-width: 1100px;
+  width: 100%;
+  justify-content: center;
+  padding: 5px;
+}
+
+.lottery-lobby-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 380px; /* Uniform card height prevents cut-offs */
+  background: rgba(14, 38, 20, 0.45);
+  border: 1px solid rgba(197, 160, 89, 0.2);
+  border-radius: 16px;
+  padding: 24px;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  text-align: left;
+  overflow: hidden;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+}
+
+.lottery-lobby-card:hover {
+  transform: translateY(-6px);
+  border-color: var(--forest-gold);
+  background: rgba(14, 38, 20, 0.75);
+  box-shadow: 0 12px 35px rgba(197, 160, 89, 0.2);
+}
+
+.lottery-badge-wrap {
+  display: flex;
+  margin-bottom: 10px;
+}
+
+.lottery-card-badge {
+  background: var(--forest-gold);
+  color: var(--forest-dark);
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.65rem;
+  font-weight: 900;
+  padding: 4px 10px;
+  border-radius: 4px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.lottery-lobby-card h3 {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 1.25rem; /* Bold, uniform game title */
+  font-weight: 900;
+  color: #fff;
+  margin-bottom: 8px;
+  letter-spacing: 0.5px;
+}
+
+.lottery-card-desc {
+  font-size: 0.8rem;
+  color: var(--text-gray);
+  line-height: 1.5;
+  margin-bottom: 15px;
+  height: 52px; /* Fixed height protects from layout shifting */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.lottery-card-footer {
+  display: flex;
+  justify-content: space-between;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  padding-top: 16px;
+  margin-bottom: 18px;
+}
+
+.info-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.info-label {
+  font-size: 0.72rem; /* Increased font size for micro-labels by 1.5px */
+  color: #b5c2ba; /* Lightened text color with higher contrast gray */
+  letter-spacing: 0.5px;
+  font-weight: 600;
+}
+
+.info-value {
+  font-size: 0.85rem;
+  color: var(--forest-gold);
+  font-weight: bold;
+}
+
+
+.lottery-play-now-btn {
+  background: linear-gradient(135deg, var(--forest-gold), #dfb665);
+  color: var(--forest-dark);
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 800;
+  border: none;
+  border-radius: 8px;
+  padding: 12px;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  letter-spacing: 1px;
+  box-shadow: 0 4px 12px rgba(197, 160, 89, 0.25);
+  text-align: center;
+}
+
+.lottery-lobby-card:hover .lottery-play-now-btn {
+  background: #fff;
+  color: var(--forest-dark);
+  box-shadow: 0 4px 15px rgba(255, 255, 255, 0.25);
+}
+
+/* Navigation Banner on ticket screen */
+.lottery-navigation-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 15px;
+  background: rgba(14, 38, 20, 0.95);
+  border: 1px solid var(--forest-gold);
+  border-radius: 12px;
+  padding: 12px 24px;
+  margin-bottom: 20px;
+  box-shadow: 0 0 15px rgba(14, 38, 20, 0.3);
+}
+
+.back-lobby-btn {
+  background: transparent;
+  color: var(--forest-gold);
+  border: 1px solid var(--forest-gold);
+  border-radius: 6px;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.75rem;
+  font-weight: bold;
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.back-lobby-btn:hover {
+  background: var(--forest-gold);
+  color: var(--forest-dark);
+  box-shadow: 0 0 10px rgba(197, 160, 89, 0.2);
+}
+
+.nav-details {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.8rem;
+  letter-spacing: 0.5px;
+  color: var(--text-gray);
+}
+
+.divider-dot {
+  color: var(--forest-gold);
+  opacity: 0.5;
+}
+
+.status-open {
+  color: var(--neon-green);
+  text-shadow: 0 0 8px rgba(0, 255, 102, 0.3);
+}
+
+.status-locked {
+  color: #ff9900;
+  text-shadow: 0 0 8px rgba(255, 153, 0, 0.3);
+}
+
+.status-drawing {
+  color: #ff0055;
+  text-shadow: 0 0 8px rgba(255, 0, 85, 0.3);
+  animation: pulse-red 1s infinite alternate;
+}
+
+.status-completed {
+  color: #00ffff;
+  text-shadow: 0 0 8px rgba(0, 255, 255, 0.3);
+}
+
+/* Horizontal Tickets Row at Bottom */
+.lottery-active-tickets-shelf-bottom {
+  margin-top: 30px;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  padding: 24px;
+  text-align: left;
+}
+
+.lottery-active-tickets-shelf-bottom h4 {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: 1px;
+  margin-bottom: 8px;
+}
+
+.tickets-scroll-row {
+  display: flex;
+  gap: 20px;
+  overflow-x: auto;
+  padding: 15px 5px 25px 5px;
+}
+
+.tickets-scroll-row::-webkit-scrollbar {
+  height: 6px;
+}
+.tickets-scroll-row::-webkit-scrollbar-thumb {
+  background: var(--forest-gold);
+  border-radius: 3px;
+}
+
+.ticket-row-card {
+  min-width: 250px;
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  background: linear-gradient(135deg, #1b3d22, #0d1e11);
+  border: 1.5px dashed rgba(197, 160, 89, 0.35);
+  border-radius: 14px;
+  padding: 16px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+  transition: all 0.25s ease;
+}
+
+.ticket-row-card.won {
+  border-color: var(--forest-gold);
+  background: linear-gradient(135deg, #2b220e, #1a1407);
+  box-shadow: 0 0 15px rgba(197, 160, 89, 0.25);
+}
+
+.ticket-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.65rem;
+  font-weight: bold;
+  color: #777;
+}
+
+.card-logo {
+  color: var(--forest-gold);
+  letter-spacing: 0.5px;
+}
+
+.ticket-card-numbers {
+  display: flex;
+  gap: 8px;
+  margin: 15px 0;
+  flex-wrap: wrap;
+}
+
+.ticket-card-num-badge {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 28px;
+  height: 28px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 50%;
+  font-size: 0.75rem;
+  font-family: 'Orbitron', sans-serif;
+  font-weight: 700;
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.08);
+}
+
+.ticket-card-num-badge.matched {
+  background: var(--forest-gold);
+  color: var(--forest-dark);
+  border-color: var(--forest-gold);
+  font-weight: 800;
+  box-shadow: 0 0 8px var(--forest-gold);
+}
+
+.ticket-card-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.75rem;
+  color: var(--text-gray);
+  border-bottom: 1.5px dashed rgba(255, 255, 255, 0.08);
+  padding-bottom: 12px;
+}
+
+.ticket-barcode {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 12px;
+}
+
+.barcode-strip {
+  width: 100%;
+  height: 22px;
+  background: repeating-linear-gradient(90deg, 
+    #fff 0px, #fff 2px, 
+    transparent 2px, transparent 4px, 
+    #fff 4px, #fff 5px, 
+    transparent 5px, transparent 8px, 
+    #fff 8px, #fff 11px, 
+    transparent 11px, transparent 13px
+  );
+  opacity: 0.75;
+}
+
+.barcode-numbers {
+  font-family: monospace;
+  font-size: 0.55rem;
+  color: #555;
+  text-align: center;
+  letter-spacing: 1px;
+}
+
+.font-gold {
+  color: var(--forest-gold);
+  font-weight: bold;
+}
+
+.font-gray {
+  color: #777;
+}
+
+/* Toast Notifications styling */
+.lottery-toasts-container {
+  position: fixed;
+  top: 24px;
+  right: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 10000;
+  max-width: 360px;
+}
+
+.lottery-toast-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background: rgba(14, 38, 20, 0.95);
+  border-left: 4px solid var(--forest-gold);
+  border-radius: 8px;
+  padding: 16px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4), 0 0 15px rgba(197, 160, 89, 0.1);
+  animation: slide-in 0.3s cubic-bezier(0.25, 0.8, 0.25, 1) forwards;
+}
+
+.toast-icon {
+  font-size: 1.1rem;
+}
+
+.toast-text {
+  font-size: 0.8rem;
+  color: #fff;
+  text-align: left;
+  line-height: 1.4;
+  font-weight: 500;
+}
+
+@keyframes slide-in {
+  from {
+    transform: translateX(120%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes float-slow {
+  0% { transform: translateY(0px) rotate(0deg); }
+  50% { transform: translateY(-10px) rotate(5deg); }
+  100% { transform: translateY(0px) rotate(-5deg); }
+}
+
+@keyframes pulse-red {
+  from { opacity: 0.6; }
+  to { opacity: 1; }
+}
+
+
+/* ============================================================================
+   LOTTERY RESPONSIVE BREAKPOINTS
+   ============================================================================ */
+
+@media (max-width: 768px) {
+  .lottery-hero-banner {
+    flex-direction: column;
+    padding: 24px 20px;
+    align-items: center;
+    text-align: center;
+    min-height: auto;
+  }
+  
+  .lottery-hero-banner h1 {
+    font-size: 1.6rem;
+  }
+  
+  .hero-banner-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  
+  .hero-banner-content p {
+    font-size: 0.78rem;
+    margin-bottom: 15px;
+  }
+
+  .hero-balls-decoration {
+    display: none; /* Hide floating elements on mobile to prevent clutter */
+  }
+
+  .hero-ticket-illustration {
+    margin-top: 15px;
+    transform: scale(0.8);
+  }
+
+  .lottery-lobby-grid {
+    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+    gap: 16px;
+  }
+
+  .lottery-lobby-card {
+    padding: 16px;
+  }
+
+  .lottery-lobby-card h3 {
+    font-size: 1rem;
+  }
+
+  .lottery-card-desc {
+    font-size: 0.72rem;
+    min-height: 40px;
+  }
+
+  .lottery-navigation-banner {
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 15px;
+  }
+
+  .nav-details {
+    flex-direction: column;
+    gap: 6px;
+    align-items: center;
+  }
+
+  .lottery-main-layout {
+    gap: 20px;
+  }
+
+  .lottery-ticket-box {
+    min-width: 100%;
+    padding: 24px 16px;
+    border-radius: 16px;
+  }
+
+  .ticket-header h2 {
+    font-size: 1.6rem;
+  }
+
+  .lottery-numbers-grid {
+    grid-template-columns: repeat(7, 1fr);
+    gap: 6px;
+  }
+
+  .grid-number-btn {
+    width: 32px;
+    height: 32px;
+    font-size: 0.75rem;
+  }
+
+  .draw-ball {
+    width: 36px;
+    height: 36px;
+    font-size: 0.9rem;
+  }
+
+  .lottery-draw-results-shelf {
+    padding: 12px;
+  }
+
+  .lottery-controls-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 15px;
+  }
+
+  .lottery-bet-group {
+    align-items: center;
+  }
+
+  .lottery-draw-action-btn {
+    width: 100%;
+    min-width: unset;
+    font-size: 1rem;
+    padding: 12px 20px;
+  }
+
+  .lottery-payout-panel {
+    min-width: 100%;
+    padding: 20px 15px;
+    border-radius: 16px;
+  }
+
+  .lottery-active-tickets-shelf-bottom {
+    padding: 16px 12px;
+    border-radius: 12px;
+  }
+
+  .ticket-row-card {
+    min-width: 210px;
+    padding: 12px;
+  }
+}
+
+
+
+
+
 
