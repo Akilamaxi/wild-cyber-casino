@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
-const BACKOFFICE_API = 'http://localhost:5001';
+const BACKOFFICE_API = window.location.hostname === 'localhost' ? 'http://localhost:5001' : '';
 
 function BackofficeDashboard({ currentUser }) {
   const [games, setGames] = useState([]);
