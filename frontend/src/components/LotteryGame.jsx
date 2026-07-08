@@ -78,6 +78,21 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
     fetchGames();
   }, []);
 
+  // Synchronize active selectedGame configuration when lobbyGames is reloaded (e.g. from back-office updates)
+  useEffect(() => {
+    if (selectedGame && lobbyGames.length > 0) {
+      const updated = lobbyGames.find(g => g.id === selectedGame.id);
+      if (updated) {
+        if (updated.draw_interval_ms !== selectedGame.draw_interval_ms || 
+            updated.ticket_price !== selectedGame.ticket_price || 
+            updated.name !== selectedGame.name ||
+            updated.status !== selectedGame.status) {
+          setSelectedGame(updated);
+        }
+      }
+    }
+  }, [lobbyGames, selectedGame]);
+
   // Fetch status and ticket pool on selected game changes
   useEffect(() => {
     if (selectedGame) {
@@ -145,7 +160,7 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
           // Complete reveal sequence
           await new Promise(resolve => setTimeout(resolve, 500));
           setIsDrawing(false);
-          setCountdown(30); // Reset local timer
+          setCountdown(activeGame.draw_interval_ms / 1000); // Reset local timer dynamically
 
           // Re-fetch status
           await fetchStatus(activeGame.name);
@@ -189,10 +204,27 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
         }
       } 
       // 2. Event belongs to background game - trigger top Toast Notification
-      else if (event.type === 'DRAW_COMPLETED') {
-        const matchingGame = lobbyGamesRef.current.find(g => g.name === event.lotteryName);
-        const nameLabel = matchingGame ? matchingGame.name : event.lotteryName;
-        addToast(`📢 DRAW COMPLETED: ${nameLabel} winning balls: [${event.winningNumbers.join(', ')}]!`);
+      else if (currentUserRef.current) {
+        if (event.type === 'DRAW_COMPLETED') {
+          // Check if user had tickets in that background draw
+          try {
+            const checkRes = await fetch(`${API_BASE}/api/lottery/status?lotteryName=${encodeURIComponent(event.lotteryName)}&email=${currentUserRef.current.email}`);
+            const checkData = await checkRes.json();
+            if (checkData.success && checkData.tickets && checkData.tickets.length > 0) {
+              let backgroundWinnings = 0;
+              checkData.tickets.forEach(t => {
+                if (t.claimed === 1 && t.payout > 0) {
+                  backgroundWinnings += t.payout;
+                }
+              });
+              if (backgroundWinnings > 0) {
+                addToast(`🏆 Background Draw Completed: You won $${backgroundWinnings} on "${event.lotteryName}"!`);
+              }
+            }
+          } catch (err) {
+            console.error(err);
+          }
+        }
       }
     });
 
@@ -203,14 +235,17 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
 
   // Visual countdown ticker timer
   useEffect(() => {
+    if (!selectedGame) return;
+    setCountdown(selectedGame.draw_interval_ms / 1000);
+
     const timer = setInterval(() => {
       setCountdown(prev => {
-        if (prev <= 1) return 30;
+        if (prev <= 1) return selectedGame.draw_interval_ms / 1000;
         return prev - 1;
       });
     }, 1000);
     return () => clearInterval(timer);
-  }, []);
+  }, [selectedGame]);
 
   // 30-Second Reservation Timer
   useEffect(() => {
