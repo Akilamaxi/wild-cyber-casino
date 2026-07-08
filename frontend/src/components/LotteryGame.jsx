@@ -11,7 +11,10 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
   // Selection and Reservation States
   const [poolTickets, setPoolTickets] = useState([]);
   const [loadingPool, setLoadingPool] = useState(false);
-  const [reservedTicket, setReservedTicket] = useState(null);
+  
+  // Multi-ticket selection
+  const [selectedTicketIds, setSelectedTicketIds] = useState([]);
+  const [reservedTickets, setReservedTickets] = useState([]); // array of reserved tickets
   const [checkoutTimer, setCheckoutTimer] = useState(0);
 
   const [isDrawing, setIsDrawing] = useState(false);
@@ -111,10 +114,10 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
           if (event.state === 'LOCKED' || event.state === 'DRAWING') {
             setIsDrawing(true);
             // Forcefully clear reservation if sales lock for drawing
-            if (reservedTicket) {
-              setReservedTicket(null);
+            if (reservedTickets.length > 0) {
+              setReservedTickets([]);
               setCheckoutTimer(0);
-              alert("Drawing in progress! Active checkout ticket reservation has expired.");
+              alert("Drawing in progress! Active checkout ticket reservations have expired.");
             }
           } else if (event.state === 'OPEN') {
             setIsDrawing(false);
@@ -127,8 +130,9 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
           setDrawResults(event.winningNumbers);
           
           // Clear checkout if drawing complete
-          setReservedTicket(null);
+          setReservedTickets([]);
           setCheckoutTimer(0);
+          setSelectedTicketIds([]);
 
           // Trigger sequential ball reveal animation
           let revealed = [];
@@ -143,9 +147,11 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
           setIsDrawing(false);
           setCountdown(30); // Reset local timer
 
-          // Re-fetch status and reload pool
+          // Re-fetch status
           fetchStatus(activeGame.name);
-          fetchPoolTickets(activeGame.name);
+          
+          // CRITICAL REQUIREMENT: Clear the ticket selection cards after a draw, forcing player to refresh options
+          setPoolTickets([]);
           
           // Calculate matches and display banner
           if (currentUserRef.current) {
@@ -201,7 +207,7 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
   // 30-Second Reservation Timer
   useEffect(() => {
     let interval = null;
-    if (reservedTicket && checkoutTimer > 0) {
+    if (reservedTickets.length > 0 && checkoutTimer > 0) {
       interval = setInterval(() => {
         setCheckoutTimer(prev => {
           if (prev <= 1) {
@@ -213,20 +219,21 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
       }, 1000);
     }
     return () => clearInterval(interval);
-  }, [reservedTicket, checkoutTimer]);
+  }, [reservedTickets, checkoutTimer]);
 
   const handleReservationTimeout = async () => {
-    if (!reservedTicket) return;
-    const ticketId = reservedTicket.id;
-    setReservedTicket(null);
+    if (reservedTickets.length === 0) return;
+    const ticketIds = reservedTickets.map(t => t.id);
+    setReservedTickets([]);
     setCheckoutTimer(0);
-    alert("30-Second Checkout reservation has expired! The ticket is thrown back into the pool.");
+    setSelectedTicketIds([]);
+    alert("30-Second Checkout reservation has expired! Reserved tickets have been returned to the pool.");
     
     try {
       await fetch(`${API_BASE}/api/lottery/release`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: currentUser.email, ticketId })
+        body: JSON.stringify({ email: currentUser.email, ticketIds })
       });
     } catch (err) {
       console.error(err);
@@ -280,6 +287,7 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
       const data = await response.json();
       if (data.success) {
         setPoolTickets(data.tickets);
+        setSelectedTicketIds([]);
       }
     } catch (err) {
       console.error('Failed to fetch pool tickets:', err);
@@ -312,26 +320,44 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
     setPayoutAmount(0);
   };
 
-  const handleReserve = async (ticket) => {
+  const toggleSelectTicket = (id) => {
+    setSelectedTicketIds(prev => 
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    );
+  };
+
+  const triggerReserve = async (clickedId) => {
     if (!currentUser) {
       alert("Please log in to purchase tickets.");
       return;
     }
     if (isDrawing || drawState !== 'OPEN') return;
 
+    // Collect checkout targets
+    let targets = [...selectedTicketIds];
+    if (clickedId && !targets.includes(clickedId)) {
+      targets.push(clickedId);
+    }
+
+    if (targets.length === 0) {
+      alert("Please check/select at least one ticket to checkout.");
+      return;
+    }
+
     try {
       const response = await fetch(`${API_BASE}/api/lottery/reserve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: currentUser.email, ticketId: ticket.id })
+        body: JSON.stringify({ email: currentUser.email, ticketIds: targets })
       });
       const data = await response.json();
 
       if (data.success) {
-        setReservedTicket(ticket);
+        const matches = poolTickets.filter(t => targets.includes(t.id));
+        setReservedTickets(matches);
         setCheckoutTimer(30);
       } else {
-        alert(data.error || 'Failed to reserve ticket.');
+        alert(data.error || 'Failed to reserve selected tickets.');
         fetchPoolTickets(selectedGame.name);
       }
     } catch (err) {
@@ -341,16 +367,17 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
   };
 
   const handleCancelCheckout = async () => {
-    if (!reservedTicket) return;
-    const ticketId = reservedTicket.id;
-    setReservedTicket(null);
+    if (reservedTickets.length === 0) return;
+    const ticketIds = reservedTickets.map(t => t.id);
+    setReservedTickets([]);
     setCheckoutTimer(0);
+    setSelectedTicketIds([]);
 
     try {
       await fetch(`${API_BASE}/api/lottery/release`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: currentUser.email, ticketId })
+        body: JSON.stringify({ email: currentUser.email, ticketIds })
       });
     } catch (err) {
       console.error('Release error:', err);
@@ -362,9 +389,10 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
   };
 
   const handleCheckout = async () => {
-    if (!reservedTicket || !currentUser || !selectedGame) return;
+    if (reservedTickets.length === 0 || !currentUser || !selectedGame) return;
 
-    if (currentUser.balance < selectedGame.ticket_price) {
+    const totalPrice = selectedGame.ticket_price * reservedTickets.length;
+    if (currentUser.balance < totalPrice) {
       alert("Insufficient funds! Deposit cash inside your Wallet first.");
       return;
     }
@@ -373,14 +401,15 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
       const response = await fetch(`${API_BASE}/api/lottery/checkout`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: currentUser.email, ticketId: reservedTicket.id })
+        body: JSON.stringify({ email: currentUser.email, ticketIds: reservedTickets.map(t => t.id) })
       });
       const data = await response.json();
 
       if (data.success) {
-        alert(`Ticket #${reservedTicket.id} successfully purchased for ${selectedGame.name}!`);
-        setReservedTicket(null);
+        alert(`Successfully purchased ${reservedTickets.length} ticket(s) for ${selectedGame.name}!`);
+        setReservedTickets([]);
         setCheckoutTimer(0);
+        setSelectedTicketIds([]);
         fetchStatus(selectedGame.name);
         fetchPoolTickets(selectedGame.name);
       } else {
@@ -547,10 +576,10 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
           <div className="hero-banner-content">
             <span className="hero-subtitle">CYBERPUNK CASINO DRAW GAMES</span>
             <h1>MEGA LOTTERY 49</h1>
-            <p>Ready pool-ticket allocations secured with SHA-256 integrity checks. Reserve your lottery numbers instantly and execute secure ledger checkouts.</p>
+            <p>Ready pool-ticket allocations secured with SHA-256 integrity checks. Select multiple tickets and execute secure batch reservations.</p>
             <div className="hero-badges">
               <span className="hero-badge-item">🛡️ Provably Fair</span>
-              <span className="hero-badge-item">⚡ 30s Lockouts</span>
+              <span className="hero-badge-item">⚡ Multi-Select</span>
               <span className="hero-badge-item">🔐 Ledger Verified</span>
             </div>
           </div>
@@ -647,33 +676,31 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
         <div className="lottery-ticket-box" style={{ position: 'relative' }}>
           
           {/* Reservation Lock Overlay (CHECKOUT PHASE) */}
-          {reservedTicket && (
+          {reservedTickets.length > 0 && (
             <div className="checkout-lock-overlay">
-              <div className="checkout-box">
+              <div className="checkout-box" style={{ maxWidth: '420px' }}>
                 <div className="checkout-header">
                   <span className="lock-tag">🔒 SECURE 30s RESERVATION LOCK</span>
-                  <h3>COMPLETE CHECKOUT</h3>
+                  <h3>COMPLETE BATCH CHECKOUT</h3>
                   <div className="countdown-ring">
                     EXPIRES IN: <span className="timer-sec">{checkoutTimer}s</span>
                   </div>
                 </div>
                 
-                <div className="checkout-ticket-details">
-                  <div className="ticket-detail-row">
-                    <span>TICKET ID:</span>
-                    <strong>#{reservedTicket.id}</strong>
-                  </div>
-                  <div className="ticket-detail-row">
-                    <span>NUMBERS:</span>
-                    <div className="checkout-nums">
-                      {reservedTicket.chosenNumbers.map(n => (
-                        <span key={n} className="checkout-num-badge">{n}</span>
-                      ))}
+                <div className="checkout-ticket-details" style={{ maxHeight: '160px', overflowY: 'auto' }}>
+                  {reservedTickets.map(ticket => (
+                    <div key={ticket.id} className="ticket-detail-row" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '6px', marginBottom: '6px' }}>
+                      <span>Ticket #{ticket.id}:</span>
+                      <div className="checkout-nums">
+                        {ticket.chosenNumbers.map(n => (
+                          <span key={n} className="checkout-num-badge" style={{ width: '20px', height: '20px', fontSize: '0.65rem' }}>{n}</span>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                  <div className="ticket-detail-row">
-                    <span>TOTAL PRICE:</span>
-                    <strong style={{ color: 'var(--forest-gold)', fontSize: '1.25rem' }}>${selectedGame.ticket_price}</strong>
+                  ))}
+                  <div className="ticket-detail-row" style={{ marginTop: '10px' }}>
+                    <span>TOTAL PRICE ({reservedTickets.length} wagers):</span>
+                    <strong style={{ color: 'var(--forest-gold)', fontSize: '1.15rem' }}>${selectedGame.ticket_price * reservedTickets.length}</strong>
                   </div>
                 </div>
 
@@ -710,20 +737,30 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
           {/* Browsing Phase Selector Lobby */}
           <div className="ticket-header">
             <h2>{selectedGame.name.toUpperCase()} LOBBY</h2>
-            <div className="security-tag">Select a pre-generated ticket to begin checkout.</div>
+            <div className="security-tag">Select one or more tickets to batch reserve and purchase wagers.</div>
           </div>
 
           <div className="ticket-helper-bar">
-            <span>Select one of the 5 pre-generated tickets:</span>
+            <span>Select pre-generated tickets: <strong>{selectedTicketIds.length} chosen</strong></span>
             <div className="ticket-quick-actions">
               <button 
                 onClick={() => fetchPoolTickets(selectedGame.name)} 
-                disabled={isDrawing || drawState !== 'OPEN' || reservedTicket} 
+                disabled={isDrawing || drawState !== 'OPEN' || reservedTickets.length > 0} 
                 className="quick-action-btn pick"
                 style={{ background: 'var(--forest-gold)', color: '#000' }}
               >
                 🔄 REFRESH OPTIONS
               </button>
+              {selectedTicketIds.length > 0 && (
+                <button 
+                  onClick={() => triggerReserve()} 
+                  disabled={isDrawing || drawState !== 'OPEN' || reservedTickets.length > 0} 
+                  className="quick-action-btn buy-batch-trigger"
+                  style={{ background: 'var(--neon-green)', color: '#000', fontWeight: 'bold' }}
+                >
+                  🚀 BUY SELECTED ({selectedTicketIds.length})
+                </button>
+              )}
             </div>
           </div>
 
@@ -731,31 +768,55 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
           {loadingPool ? (
             <div className="loader-placeholder">Loading available ticket pool...</div>
           ) : poolTickets.length === 0 ? (
-            <div className="loader-placeholder" style={{ padding: '60px 10px', color: '#ff0055' }}>
-              ⚠️ Generating tickets... Please click Refresh Options!
+            <div className="loader-placeholder" style={{ padding: '60px 10px', textAlign: 'center' }}>
+              <p style={{ color: '#ff0055', marginBottom: '15px' }}>⚠️ tickets cleared following draw completion</p>
+              <button 
+                onClick={() => fetchPoolTickets(selectedGame.name)}
+                className="quick-action-btn pick"
+                style={{ background: 'var(--forest-gold)', color: '#000', margin: '0 auto', display: 'block', padding: '10px 24px' }}
+              >
+                🎰 SPIN NEW TICKETS
+              </button>
             </div>
           ) : (
-            <div className="pool-tickets-selection-grid">
-              {poolTickets.map((t) => (
-                <div key={t.id} className="pool-ticket-option-card">
-                  <div className="option-card-header">
-                    <span>TICKET #{t.id}</span>
-                    <span className="price-tag">${selectedGame.ticket_price}</span>
+            <div className="pool-tickets-selection-grid compact-grid-cards">
+              {poolTickets.map((t) => {
+                const isChecked = selectedTicketIds.includes(t.id);
+                return (
+                  <div key={t.id} className={`pool-ticket-option-card compact-card ${isChecked ? 'active-checked' : ''}`}>
+                    <div className="compact-card-left">
+                      <label className="checkbox-select-flag">
+                        <input 
+                          type="checkbox" 
+                          checked={isChecked}
+                          onChange={() => toggleSelectTicket(t.id)}
+                          disabled={isDrawing || drawState !== 'OPEN' || reservedTickets.length > 0}
+                        />
+                        <span className="checkbox-custom-display"></span>
+                      </label>
+                      <span className="compact-card-id">#{t.id}</span>
+                    </div>
+
+                    <div className="compact-card-center-numbers">
+                      {t.chosenNumbers.map(n => (
+                        <span key={n} className="option-num-badge small-badge">{n}</span>
+                      ))}
+                    </div>
+
+                    <div className="compact-card-right-actions">
+                      <span className="compact-card-price">${selectedGame.ticket_price}</span>
+                      <button 
+                        disabled={isDrawing || drawState !== 'OPEN' || reservedTickets.length > 0}
+                        onClick={() => triggerReserve(t.id)}
+                        className="pool-select-buy-btn tiny-buy-btn"
+                        title="Instant Buy"
+                      >
+                        Buy
+                      </button>
+                    </div>
                   </div>
-                  <div className="option-card-numbers">
-                    {t.chosenNumbers.map(n => (
-                      <span key={n} className="option-num-badge">{n}</span>
-                    ))}
-                  </div>
-                  <button 
-                    disabled={isDrawing || drawState !== 'OPEN' || reservedTicket}
-                    onClick={() => handleReserve(t)}
-                    className="pool-select-buy-btn"
-                  >
-                    SELECT & BUY 🎟️
-                  </button>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
 

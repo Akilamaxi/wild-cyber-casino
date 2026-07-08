@@ -513,8 +513,9 @@ app.get('/api/lottery/pool-tickets', async (req, res) => {
 
 app.post('/api/lottery/reserve', checkKillSwitch, async (req, res) => {
   try {
-    const { email, ticketId } = req.body;
-    if (!email || !ticketId) {
+    const { email, ticketId, ticketIds } = req.body;
+    const ids = Array.isArray(ticketIds) ? ticketIds : (ticketId ? [ticketId] : []);
+    if (!email || ids.length === 0) {
       return res.status(400).json({ success: false, error: 'Missing reservation parameters.' });
     }
 
@@ -522,33 +523,37 @@ app.post('/api/lottery/reserve', checkKillSwitch, async (req, res) => {
     const reservedUntil = new Date(Date.now() + 30000).toISOString(); // 30-Second Rule Lock
 
     const result = await db.executeTransaction(async (tx) => {
-      // Find ticket and check availability
-      const ticket = await tx.get(
-        "SELECT * FROM lottery_ticket_pool WHERE id = ?",
-        [ticketId]
-      );
-      if (!ticket) throw new Error('Ticket not found in pool.');
-      
-      const isAvailable = ticket.status === 'AVAILABLE' || 
-                          (ticket.status === 'RESERVED' && ticket.reservedUntil < nowIso);
-      
-      if (!isAvailable) {
-        throw new Error('This ticket has already been reserved by another player.');
+      // Find all tickets and check availability
+      for (const id of ids) {
+        const ticket = await tx.get(
+          "SELECT * FROM lottery_ticket_pool WHERE id = ?",
+          [id]
+        );
+        if (!ticket) throw new Error(`Ticket #${id} not found in pool.`);
+        
+        const isAvailable = ticket.status === 'AVAILABLE' || 
+                            (ticket.status === 'RESERVED' && ticket.reservedUntil < nowIso);
+        
+        if (!isAvailable) {
+          throw new Error(`Ticket #${id} has already been reserved by another player.`);
+        }
+
+        // Check draw state
+        const draw = await tx.get("SELECT state FROM lottery_draws WHERE id = ?", [ticket.drawId]);
+        if (!draw || draw.state !== 'OPEN') {
+          throw new Error('Draw session is locked or drawing. Reservation denied.');
+        }
       }
 
-      // Check draw state
-      const draw = await tx.get("SELECT state FROM lottery_draws WHERE id = ?", [ticket.drawId]);
-      if (!draw || draw.state !== 'OPEN') {
-        throw new Error('Draw session is locked or drawing. Reservation denied.');
+      // Perform reservation lock on all
+      for (const id of ids) {
+        await tx.run(
+          "UPDATE lottery_ticket_pool SET status = 'RESERVED', reservedBy = ?, reservedUntil = ? WHERE id = ?",
+          [email.toLowerCase(), reservedUntil, id]
+        );
       }
 
-      // Perform reservation lock
-      await tx.run(
-        "UPDATE lottery_ticket_pool SET status = 'RESERVED', reservedBy = ?, reservedUntil = ? WHERE id = ?",
-        [email.toLowerCase(), reservedUntil, ticketId]
-      );
-
-      return { ticketId, reservedUntil };
+      return { ticketIds: ids, reservedUntil };
     });
 
     res.json({ success: true, ...result });
@@ -559,15 +564,18 @@ app.post('/api/lottery/reserve', checkKillSwitch, async (req, res) => {
 
 app.post('/api/lottery/release', async (req, res) => {
   try {
-    const { email, ticketId } = req.body;
-    if (!email || !ticketId) {
+    const { email, ticketId, ticketIds } = req.body;
+    const ids = Array.isArray(ticketIds) ? ticketIds : (ticketId ? [ticketId] : []);
+    if (!email || ids.length === 0) {
       return res.status(400).json({ success: false, error: 'Missing release parameters.' });
     }
 
-    await db.run(
-      "UPDATE lottery_ticket_pool SET status = 'AVAILABLE', reservedBy = NULL, reservedUntil = NULL WHERE id = ? AND LOWER(reservedBy) = ?",
-      [ticketId, email.toLowerCase()]
-    );
+    for (const id of ids) {
+      await db.run(
+        "UPDATE lottery_ticket_pool SET status = 'AVAILABLE', reservedBy = NULL, reservedUntil = NULL WHERE id = ? AND LOWER(reservedBy) = ?",
+        [id, email.toLowerCase()]
+      );
+    }
 
     res.json({ success: true });
   } catch (error) {
@@ -577,75 +585,89 @@ app.post('/api/lottery/release', async (req, res) => {
 
 app.post('/api/lottery/checkout', checkKillSwitch, async (req, res) => {
   try {
-    const { email, ticketId } = req.body;
-    if (!email || !ticketId) {
+    const { email, ticketId, ticketIds } = req.body;
+    const ids = Array.isArray(ticketIds) ? ticketIds : (ticketId ? [ticketId] : []);
+    if (!email || ids.length === 0) {
       return res.status(400).json({ success: false, error: 'Missing checkout parameters.' });
     }
 
     const nowIso = new Date().toISOString();
 
     const result = await db.executeTransaction(async (tx) => {
-      // 1. Confirm reservation matches the user and hasn't expired
-      const poolTicket = await tx.get(
-        "SELECT * FROM lottery_ticket_pool WHERE id = ? AND LOWER(reservedBy) = ? AND status = 'RESERVED'",
-        [ticketId, email.toLowerCase()]
-      );
-      if (!poolTicket) {
-        throw new Error('No active reservation found for this ticket.');
-      }
-      if (poolTicket.reservedUntil < nowIso) {
-        throw new Error('Reservation timeout! 30-second checkout lock has expired.');
-      }
+      let totalBetAmount = 0;
+      const verifiedPoolTickets = [];
+      let lotteryName = '';
+      let drawId = null;
 
-      // 2. Fetch game config details
-      const gameConfig = await tx.get('SELECT * FROM games_config WHERE name = ? AND status = ?', [poolTicket.lotteryName, 'ACTIVE']);
-      if (!gameConfig) {
-        throw new Error('Active game configuration not found.');
-      }
+      // 1. Confirm all reservations match the user and haven't expired
+      for (const id of ids) {
+        const poolTicket = await tx.get(
+          "SELECT * FROM lottery_ticket_pool WHERE id = ? AND LOWER(reservedBy) = ? AND status = 'RESERVED'",
+          [id, email.toLowerCase()]
+        );
+        if (!poolTicket) {
+          throw new Error(`No active reservation found for Ticket #${id}.`);
+        }
+        if (poolTicket.reservedUntil < nowIso) {
+          throw new Error(`Reservation timeout! Ticket #${id} reservation has expired.`);
+        }
 
-      const betAmount = gameConfig.ticket_price;
+        // 2. Fetch game config details
+        const gameConfig = await tx.get('SELECT * FROM games_config WHERE name = ? AND status = ?', [poolTicket.lotteryName, 'ACTIVE']);
+        if (!gameConfig) {
+          throw new Error(`Active game configuration not found for ${poolTicket.lotteryName}.`);
+        }
+
+        totalBetAmount += gameConfig.ticket_price;
+        verifiedPoolTickets.push(poolTicket);
+        lotteryName = poolTicket.lotteryName;
+        drawId = poolTicket.drawId;
+      }
 
       // 3. Confirm draw is still open for wagers
-      const draw = await tx.get('SELECT * FROM lottery_draws WHERE id = ? AND state = ?', [poolTicket.drawId, 'OPEN']);
-      if (!draw) {
-        throw new Error('The draw session has locked or finished. Checkout failed.');
+      if (drawId) {
+        const draw = await tx.get('SELECT * FROM lottery_draws WHERE id = ? AND state = ?', [drawId, 'OPEN']);
+        if (!draw) {
+          throw new Error('The draw session has locked or finished. Checkout failed.');
+        }
       }
 
       // 4. Verify wallet balance
       const user = await tx.get('SELECT balance, gamesPlayed FROM users WHERE LOWER(email) = ?', [email.toLowerCase()]);
       if (!user) throw new Error('User not found.');
-      if (user.balance < betAmount) throw new Error('Insufficient wallet funds to complete purchase.');
+      if (user.balance < totalBetAmount) throw new Error('Insufficient wallet funds to complete purchase.');
 
       // 5. Update user balance
-      const newBalance = user.balance - betAmount;
-      const gamesPlayed = user.gamesPlayed + 1;
+      const newBalance = user.balance - totalBetAmount;
+      const gamesPlayed = user.gamesPlayed + ids.length;
       await tx.run('UPDATE users SET balance = ?, gamesPlayed = ? WHERE LOWER(email) = ?', [newBalance, gamesPlayed, email.toLowerCase()]);
 
-      // 6. Update ticket pool status to PURCHASED
-      await tx.run("UPDATE lottery_ticket_pool SET status = 'PURCHASED' WHERE id = ?", [ticketId]);
+      // 6. Complete purchase for each ticket
+      for (const poolTicket of verifiedPoolTickets) {
+        await tx.run("UPDATE lottery_ticket_pool SET status = 'PURCHASED' WHERE id = ?", [poolTicket.id]);
 
-      // 7. Clone wager to central wagers log lottery_tickets
-      const ticketResult = await tx.run(
-        'INSERT INTO lottery_tickets (email, lotteryName, drawId, chosenNumbers, betAmount, claimed, payout, timestamp) VALUES (?, ?, ?, ?, ?, 0, 0.0, ?)',
-        [email.toLowerCase(), poolTicket.lotteryName, poolTicket.drawId, poolTicket.chosenNumbers, betAmount, new Date().toISOString()]
-      );
+        await tx.run(
+          'INSERT INTO lottery_tickets (email, lotteryName, drawId, chosenNumbers, betAmount, claimed, payout, timestamp) VALUES (?, ?, ?, ?, ?, 0, 0.0, ?)',
+          [email.toLowerCase(), poolTicket.lotteryName, poolTicket.drawId, poolTicket.chosenNumbers, totalBetAmount / ids.length, new Date().toISOString()]
+        );
+      }
 
-      // 8. Add ledger transaction
+      // 7. Add ledger transaction
       const txId = generateTxId();
       await tx.run(
         'INSERT INTO transactions (id, email, type, amount, balanceAfter, timestamp) VALUES (?, ?, ?, ?, ?, ?)',
-        [txId, email.toLowerCase(), 'LOTTERY_PLAY', -betAmount, newBalance, new Date().toISOString()]
+        [txId, email.toLowerCase(), 'LOTTERY_PLAY', -totalBetAmount, newBalance, new Date().toISOString()]
       );
 
-      return { ticketId: ticketResult.lastID, newBalance, drawId: poolTicket.drawId, chosenNumbers: JSON.parse(poolTicket.chosenNumbers) };
+      return { newBalance, drawId, lotteryName, totalBetAmount };
     });
 
     // Publish event for Gamification Engine
     await pubsub.publish({
       type: 'TICKET_PURCHASED',
       email: email.toLowerCase(),
-      lotteryName: result.lotteryName || 'Sugar Rush 15',
-      amount: result.betAmount || 5.0,
+      lotteryName: result.lotteryName,
+      amount: result.totalBetAmount,
       timestamp: new Date().toISOString()
     });
 
