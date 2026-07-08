@@ -56,19 +56,20 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
     lobbyGamesRef.current = lobbyGames;
   }, [lobbyGames]);
 
+  const fetchGames = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/api/lottery/games`);
+      const data = await response.json();
+      if (data.success) {
+        setLobbyGames(data.games);
+      }
+    } catch (err) {
+      console.error('Failed to fetch active games:', err);
+    }
+  };
+
   // Fetch active games configurations from the database on mount
   useEffect(() => {
-    const fetchGames = async () => {
-      try {
-        const response = await fetch(`${API_BASE}/api/lottery/games`);
-        const data = await response.json();
-        if (data.success) {
-          setLobbyGames(data.games);
-        }
-      } catch (err) {
-        console.error('Failed to fetch active games:', err);
-      }
-    };
     fetchGames();
   }, []);
 
@@ -92,6 +93,12 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
 
     socketRef.current.on('lottery_events', async (event) => {
       console.log('[WS] Multi-game Event received:', event);
+
+      if (event.type === 'GAME_CONFIG_UPDATED') {
+        console.log('[WS] Hot-reloading games configuration list...');
+        fetchGames();
+        return;
+      }
 
       const activeGame = selectedGameRef.current;
 
