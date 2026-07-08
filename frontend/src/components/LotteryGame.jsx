@@ -148,7 +148,7 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
           setCountdown(30); // Reset local timer
 
           // Re-fetch status
-          fetchStatus(activeGame.name);
+          await fetchStatus(activeGame.name);
           
           // CRITICAL REQUIREMENT: Clear the ticket selection cards after a draw, forcing player to refresh options
           setPoolTickets([]);
@@ -178,6 +178,14 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
               setWinMessage(`NO WIN on ${activeGame.name} (Max Match: ${bestMatchCount} numbers). Try another ticket!`);
             }
           }
+
+          // Show resolved wagers for exactly 5 seconds, then auto-clear them
+          setTimeout(() => {
+            setMyTickets([]);
+            setWinMessage('');
+            setPayoutAmount(0);
+            console.log('[WS] Wagers and outcome banners auto-cleared 5 seconds post-draw.');
+          }, 5000);
         }
       } 
       // 2. Event belongs to background game - trigger top Toast Notification
