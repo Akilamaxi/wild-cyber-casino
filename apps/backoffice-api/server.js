@@ -49,6 +49,48 @@ app.post('/api/admin/kill-switch', async (req, res) => {
   }
 });
 
+// --- Game Configuration CRUD ---
+app.get('/api/admin/games', async (req, res) => {
+  try {
+    const games = await db.all('SELECT * FROM games_config');
+    res.json({ success: true, games });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Internal Server Error' });
+  }
+});
+
+app.post('/api/admin/games', async (req, res) => {
+  try {
+    const { id, name, draw_interval_ms, ticket_price, max_tickets_per_user, house_edge_percentage, status } = req.body;
+    
+    await db.run(
+      'INSERT INTO games_config (id, name, draw_interval_ms, ticket_price, max_tickets_per_user, house_edge_percentage, status) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [id, name, draw_interval_ms, ticket_price, max_tickets_per_user || 100, house_edge_percentage || 0.30, status || 'ACTIVE']
+    );
+    
+    await pubsub.publish({ type: 'GAME_CONFIG_UPDATED' });
+    res.json({ success: true });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+});
+
+app.put('/api/admin/games/:id', async (req, res) => {
+  try {
+    const { name, draw_interval_ms, ticket_price, max_tickets_per_user, house_edge_percentage, status } = req.body;
+    
+    await db.run(
+      'UPDATE games_config SET name = ?, draw_interval_ms = ?, ticket_price = ?, max_tickets_per_user = ?, house_edge_percentage = ?, status = ? WHERE id = ?',
+      [name, draw_interval_ms, ticket_price, max_tickets_per_user, house_edge_percentage, status, req.params.id]
+    );
+    
+    await pubsub.publish({ type: 'GAME_CONFIG_UPDATED' });
+    res.json({ success: true });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+});
+
 // 2. RNG Audit Verification
 app.get('/api/admin/audit-verify/:drawId', async (req, res) => {
   try {

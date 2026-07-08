@@ -68,6 +68,11 @@ class PubSubManager extends EventEmitter {
     } else {
       // Local emit fallback
       this.emit('message', event);
+      
+      // Node.js IPC fallback if running as a child process
+      if (typeof process !== 'undefined' && process.send) {
+        process.send(event);
+      }
     }
   }
 }

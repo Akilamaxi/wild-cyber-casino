@@ -61,7 +61,18 @@ const initDatabase = async () => {
       password TEXT NOT NULL,
       balance REAL DEFAULT 1000.0,
       gamesPlayed INTEGER DEFAULT 0,
-      totalWon REAL DEFAULT 0.0
+      totalWon REAL DEFAULT 0.0,
+      role TEXT DEFAULT 'USER'
+    )
+  `);
+
+  // Gamification Profiles
+  await run(`
+    CREATE TABLE IF NOT EXISTS loyalty_profiles (
+      email TEXT PRIMARY KEY,
+      points INTEGER DEFAULT 0,
+      tier TEXT DEFAULT 'BRONZE',
+      FOREIGN KEY(email) REFERENCES users(email)
     )
   `);
 
@@ -126,15 +137,51 @@ const initDatabase = async () => {
     )
   `);
 
+  // 7. Dynamic Games Configuration
+  await run(`
+    CREATE TABLE IF NOT EXISTS games_config (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      draw_interval_ms INTEGER NOT NULL,
+      ticket_price REAL NOT NULL,
+      max_tickets_per_user INTEGER DEFAULT 100,
+      house_edge_percentage REAL DEFAULT 0.30,
+      status TEXT DEFAULT 'ACTIVE'
+    )
+  `);
+
   // Seed default Settings
   await run(`
     INSERT OR IGNORE INTO game_settings (key, value) VALUES ('kill_switch_active', 'false')
   `);
 
-  // Seed default Demo user
+  // Seed default Games configurations
+  const defaultGames = [
+    { id: 'GAME-1', name: 'Sugar Rush 15', interval: 15000, price: 5.0 },
+    { id: 'GAME-2', name: 'Sweet Treat 30', interval: 30000, price: 10.0 },
+    { id: 'GAME-3', name: 'Glazed Gold', interval: 60000, price: 20.0 },
+    { id: 'GAME-4', name: 'The Daily Dollop', interval: 120000, price: 50.0 },
+    { id: 'GAME-5', name: 'The Weekly Whiff', interval: 300000, price: 100.0 },
+    { id: 'GAME-6', name: 'The Grand Ganache', interval: 600000, price: 250.0 },
+    { id: 'GAME-7', name: 'The Quarterly Banquet', interval: 900000, price: 500.0 }
+  ];
+
+  for (const g of defaultGames) {
+    await run(`
+      INSERT OR IGNORE INTO games_config (id, name, draw_interval_ms, ticket_price, house_edge_percentage, status)
+      VALUES (?, ?, ?, ?, 0.30, 'ACTIVE')
+    `, [g.id, g.name, g.interval, g.price]);
+  }
+
+  // Seed default Demo user and Admin
   await run(`
-    INSERT OR IGNORE INTO users (email, username, password, balance, gamesPlayed, totalWon) 
-    VALUES ('demo@casino.com', 'DemoPlayer', 'password123', 1000.0, 0, 0.0)
+    INSERT OR IGNORE INTO users (email, username, password, balance, gamesPlayed, totalWon, role) 
+    VALUES ('demo@casino.com', 'DemoPlayer', 'password123', 1000.0, 0, 0.0, 'USER')
+  `);
+  
+  await run(`
+    INSERT OR IGNORE INTO users (email, username, password, balance, gamesPlayed, totalWon, role) 
+    VALUES ('admin@casino.com', 'SuperAdmin', 'admin123', 99999.0, 0, 0.0, 'ADMIN')
   `);
 
   console.log('[DB] SQLite migrations completed successfully.');

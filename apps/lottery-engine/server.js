@@ -48,7 +48,7 @@ app.post('/api/auth/login', async (req, res) => {
     }
 
     const user = await db.get(
-      'SELECT email, username, balance, gamesPlayed, totalWon FROM users WHERE LOWER(email) = ? AND password = ?',
+      'SELECT email, username, balance, gamesPlayed, totalWon, role FROM users WHERE LOWER(email) = ? AND password = ?',
       [email.toLowerCase(), password]
     );
 
@@ -90,7 +90,7 @@ app.post('/api/auth/register', async (req, res) => {
         [txId, email.toLowerCase(), 'WELCOME_BONUS', new Date().toISOString()]
       );
 
-      return { email: email.toLowerCase(), username, balance: 1000.0, gamesPlayed: 0, totalWon: 0.0 };
+      return { email: email.toLowerCase(), username, balance: 1000.0, gamesPlayed: 0, totalWon: 0.0, role: 'USER' };
     });
 
     res.json({ success: true, user: result });
@@ -349,15 +349,15 @@ app.post('/api/slots/spin', async (req, res) => {
 // --- Cyber Lottery Game ---
 // Expose endpoints for buying tickets and checking status
 
-const GAME_STAKES = {
-  'Sugar Rush 15': [5, 10],
-  'Sweet Treat 30': [10, 25],
-  'Glazed Gold': [20, 50],
-  'The Daily Dollop': [50, 100],
-  'The Weekly Whiff': [100, 250],
-  'The Grand Ganache': [250, 500],
-  'The Quarterly Banquet': [500, 1000]
-};
+// Dynamic Games Configurations are read from the database now.
+app.get('/api/lottery/games', async (req, res) => {
+  try {
+    const games = await db.all("SELECT * FROM games_config WHERE status = 'ACTIVE'");
+    res.json({ success: true, games });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Internal Server Error' });
+  }
+});
 
 app.get('/api/lottery/status', async (req, res) => {
   try {
@@ -384,10 +384,25 @@ app.get('/api/lottery/status', async (req, res) => {
 
     let tickets = [];
     if (email) {
+      // 1. Fetch tickets for active draw
       tickets = await db.all(
         'SELECT id, chosenNumbers, betAmount, claimed, payout, timestamp FROM lottery_tickets WHERE LOWER(email) = ? AND drawId = ? AND lotteryName = ? ORDER BY id DESC',
         [email.toLowerCase(), currentDraw.id, name]
       );
+
+      // 2. Fallback to last completed draw if active draw has no tickets yet
+      if (tickets.length === 0) {
+        const lastCompletedDraw = await db.get(
+          "SELECT id FROM lottery_draws WHERE lotteryName = ? AND state = 'COMPLETED' ORDER BY id DESC LIMIT 1",
+          [name]
+        );
+        if (lastCompletedDraw) {
+          tickets = await db.all(
+            'SELECT id, chosenNumbers, betAmount, claimed, payout, timestamp FROM lottery_tickets WHERE LOWER(email) = ? AND drawId = ? AND lotteryName = ? ORDER BY id DESC',
+            [email.toLowerCase(), lastCompletedDraw.id, name]
+          );
+        }
+      }
     }
 
     res.json({ 
@@ -467,13 +482,15 @@ app.post('/api/lottery/buy', checkKillSwitch, async (req, res) => {
       return res.status(400).json({ success: false, error: 'Invalid bet details.' });
     }
 
-    // Validate Stakes tiers
-    const allowedStakes = GAME_STAKES[name];
-    if (!allowedStakes) {
-      return res.status(400).json({ success: false, error: 'Invalid lottery name requested.' });
+    // Fetch dynamic game config
+    const gameConfig = await db.get('SELECT * FROM games_config WHERE name = ? AND status = ?', [name, 'ACTIVE']);
+    
+    if (!gameConfig) {
+      return res.status(400).json({ success: false, error: 'Invalid or inactive lottery game requested.' });
     }
-    if (!allowedStakes.includes(betAmount)) {
-      return res.status(400).json({ success: false, error: `Invalid stake size. Allowed bets for ${name}: $${allowedStakes.join(', $')}` });
+
+    if (betAmount !== gameConfig.ticket_price) {
+      return res.status(400).json({ success: false, error: `Invalid stake size. Ticket price for ${name} is $${gameConfig.ticket_price}` });
     }
 
     if (!Array.isArray(chosenNumbers) || chosenNumbers.length !== 6) {
@@ -526,6 +543,15 @@ app.post('/api/lottery/buy', checkKillSwitch, async (req, res) => {
       );
 
       return { ticketId: ticketResult.lastID, newBalance, drawId: draw.id };
+    });
+
+    // Publish event for Gamification Engine
+    await pubsub.publish({
+      type: 'TICKET_PURCHASED',
+      email: email.toLowerCase(),
+      lotteryName: name,
+      amount: betAmount,
+      timestamp: new Date().toISOString()
     });
 
     res.json({ success: true, ...result });
@@ -679,11 +705,15 @@ const startServer = async () => {
   const gs = await db.get("SELECT value FROM game_settings WHERE key = 'kill_switch_active'");
   isKillSwitchActive = gs ? (gs.value === 'true') : false;
 
-  // Spawns background payout worker concurrently inside single-node setups (e.g. Cloud Run)
   if (process.env.RUN_WORKER_CONCURRENTLY === 'true') {
     const { fork } = require('child_process');
     console.log('[LOTTERY ENGINE] Spawning concurrent background payout worker process...');
-    fork(path.join(__dirname, '..', 'payout-worker', 'worker.js'));
+    const workerProcess = fork(path.join(__dirname, '..', 'payout-worker', 'worker.js'));
+    
+    workerProcess.on('message', (message) => {
+      console.log(`[LOTTERY ENGINE] Received IPC event from worker: ${message.type}`);
+      pubsub.emit('message', message);
+    });
   }
 
   const PORT = process.env.PORT || 5000;

@@ -3,19 +3,12 @@ import io from 'socket.io-client';
 
 const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:5000' : '';
 
-const LOTTERY_GAMES = [
-  { name: 'Sugar Rush 15', desc: 'Micro-draw; rapid turnover', bets: [5, 10], interval: '15 Min', badge: '⚡ FAST' },
-  { name: 'Sweet Treat 30', desc: 'High-frequency accumulator', bets: [10, 25], interval: '30 Min', badge: '🔥 HOT' },
-  { name: 'Glazed Gold', desc: 'Standard hourly jackpot', bets: [20, 50], interval: '1 Hour', badge: '⭐ hourly' },
-  { name: 'The Daily Dollop', desc: 'Daily engagement anchor', bets: [50, 100], interval: '1 Day', badge: '🏆 DAILY' },
-  { name: 'The Weekly Whiff', desc: 'Mid-tier anticipation event', bets: [100, 250], interval: '1 Week', badge: '💎 WEEKLY' },
-  { name: 'The Grand Ganache', desc: 'High-stakes monthly draw', bets: [250, 500], interval: '1 Month', badge: '👑 MONTHLY' },
-  { name: 'The Quarterly Banquet', desc: 'Massive seasonal jackpot', bets: [500, 1000], interval: '3 Months', badge: '🌟 MEGA' }
-];
+// Game configurations are now loaded dynamically from the backend database.
 
 function LotteryGame({ currentUser, onBalanceUpdate }) {
   // Navigation State: null = Games Lobby, otherwise active game object
   const [selectedGame, setSelectedGame] = useState(null);
+  const [lobbyGames, setLobbyGames] = useState([]);
   
   const [selectedNumbers, setSelectedNumbers] = useState([]);
   const [betSize, setBetSize] = useState(5);
@@ -41,22 +34,55 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
   // Background Toasts Alerts
   const [toasts, setToasts] = useState([]);
   const socketRef = useRef(null);
+  const myTicketsRef = useRef([]);
+  const currentUserRef = useRef(null);
+  const selectedGameRef = useRef(null);
+  const lobbyGamesRef = useRef([]);
 
-  // Reset bet sizes and ticket board when active game changes
+  // Keep refs up-to-date
+  useEffect(() => {
+    myTicketsRef.current = myTickets;
+  }, [myTickets]);
+
+  useEffect(() => {
+    currentUserRef.current = currentUser;
+  }, [currentUser]);
+
+  useEffect(() => {
+    selectedGameRef.current = selectedGame;
+  }, [selectedGame]);
+
+  useEffect(() => {
+    lobbyGamesRef.current = lobbyGames;
+  }, [lobbyGames]);
+
+  // Fetch active games configurations from the database on mount
+  useEffect(() => {
+    const fetchGames = async () => {
+      try {
+        const response = await fetch(`${API_BASE}/api/lottery/games`);
+        const data = await response.json();
+        if (data.success) {
+          setLobbyGames(data.games);
+        }
+      } catch (err) {
+        console.error('Failed to fetch active games:', err);
+      }
+    };
+    fetchGames();
+  }, []);
+
+  // Fetch status on selected game changes
   useEffect(() => {
     if (selectedGame) {
-      setBetSize(selectedGame.bets[0]);
+      setBetSize(selectedGame.ticket_price);
       handleClear();
       fetchStatus(selectedGame.name);
     }
   }, [selectedGame]);
 
-  // Load status on mount and connect WebSockets
+  // Connect WebSockets EXACTLY ONCE on mount
   useEffect(() => {
-    const targetGameName = selectedGame ? selectedGame.name : 'Sugar Rush 15';
-    fetchStatus(targetGameName);
-    
-    // Connect WebSockets to unified API server
     socketRef.current = io(API_BASE);
 
     socketRef.current.on('connect', () => {
@@ -67,8 +93,10 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
     socketRef.current.on('lottery_events', async (event) => {
       console.log('[WS] Multi-game Event received:', event);
 
+      const activeGame = selectedGameRef.current;
+
       // 1. Event belongs to the active selected game
-      if (selectedGame && event.lotteryName === selectedGame.name) {
+      if (activeGame && event.lotteryName === activeGame.name) {
         if (event.type === 'DRAW_STATE_CHANGED') {
           setDrawState(event.state);
           if (event.state === 'LOCKED' || event.state === 'DRAWING') {
@@ -96,14 +124,14 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
           setCountdown(30); // Reset local timer
 
           // Re-fetch status to update wallet balance and tickets payouts
-          fetchStatus(selectedGame.name);
+          fetchStatus(activeGame.name);
           
           // Calculate matches and display banner
-          if (currentUser) {
+          if (currentUserRef.current) {
             let totalWonThisDraw = 0;
             let bestMatchCount = 0;
 
-            myTickets.forEach(t => {
+            myTicketsRef.current.forEach(t => {
               const matches = t.chosenNumbers.filter(n => event.winningNumbers.includes(n));
               bestMatchCount = Math.max(bestMatchCount, matches.length);
               
@@ -118,16 +146,16 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
 
             if (totalWonThisDraw > 0) {
               setPayoutAmount(totalWonThisDraw);
-              setWinMessage(`🎉 YOU WON $${totalWonThisDraw} on ${selectedGame.name} (Max Match: ${bestMatchCount} numbers)! 🎉`);
+              setWinMessage(`🎉 YOU WON $${totalWonThisDraw} on ${activeGame.name} (Max Match: ${bestMatchCount} numbers)! 🎉`);
             } else {
-              setWinMessage(`NO WIN on ${selectedGame.name} (Max Match: ${bestMatchCount} numbers). Try another ticket!`);
+              setWinMessage(`NO WIN on ${activeGame.name} (Max Match: ${bestMatchCount} numbers). Try another ticket!`);
             }
           }
         }
       } 
       // 2. Event belongs to background game - trigger top Toast Notification
       else if (event.type === 'DRAW_COMPLETED') {
-        const matchingGame = LOTTERY_GAMES.find(g => g.name === event.lotteryName);
+        const matchingGame = lobbyGamesRef.current.find(g => g.name === event.lotteryName);
         const nameLabel = matchingGame ? matchingGame.name : event.lotteryName;
         addToast(`📢 DRAW COMPLETED: ${nameLabel} winning balls: [${event.winningNumbers.join(', ')}]!`);
       }
@@ -136,7 +164,7 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
     return () => {
       if (socketRef.current) socketRef.current.disconnect();
     };
-  }, [currentUser, selectedGame, myTickets]);
+  }, []); // Empty dependency array to connect only once!
 
   // Visual countdown ticker timer
   useEffect(() => {
@@ -159,19 +187,21 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
 
   const fetchStatus = async (gameName) => {
     try {
-      const emailParam = currentUser ? `&email=${currentUser.email}` : '';
+      const activeUser = currentUserRef.current;
+      const emailParam = activeUser ? `&email=${activeUser.email}` : '';
       const response = await fetch(`${API_BASE}/api/lottery/status?lotteryName=${encodeURIComponent(gameName)}${emailParam}`);
       const data = await response.json();
       if (data.success) {
-        if (selectedGame && gameName === selectedGame.name) {
+        const activeGame = selectedGameRef.current;
+        if (activeGame && gameName === activeGame.name) {
           setActiveDrawId(data.draw.id);
           setDrawState(data.draw.state);
           setMyTickets(data.tickets || []);
         }
         
         // Sync user balance with DB
-        if (currentUser) {
-          const walletRes = await fetch(`${API_BASE}/api/user/wallet?email=${currentUser.email}`);
+        if (activeUser) {
+          const walletRes = await fetch(`${API_BASE}/api/user/wallet?email=${activeUser.email}`);
           const walletData = await walletRes.json();
           if (walletData.success) {
             onBalanceUpdate(walletData.balance);
@@ -464,27 +494,27 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
 
         {/* Games Selector Grid (Arranged in Rows and Columns Grid Mode) */}
         <div className="lottery-lobby-grid">
-          {LOTTERY_GAMES.map(game => (
+          {lobbyGames.map(game => (
             <div 
               key={game.name} 
               className="lottery-lobby-card"
               onClick={() => setSelectedGame(game)}
             >
               <div className="lottery-badge-wrap">
-                <span className="lottery-card-badge">{game.badge}</span>
+                <span className="lottery-card-badge">⚡ ACTIVE</span>
               </div>
               <div className="lottery-card-main">
                 <h3>{game.name}</h3>
-                <p className="lottery-card-desc">{game.desc}</p>
+                <p className="lottery-card-desc">Interval: {game.draw_interval_ms / 1000} seconds. Sustaining payout system.</p>
               </div>
               <div className="lottery-card-footer">
                 <div className="info-stat">
-                  <span className="info-label">DRAW TIMELINE</span>
-                  <span className="info-value">⏱️ {game.interval}</span>
+                  <span className="info-label">TICKET VALUE</span>
+                  <span className="info-value">${game.ticket_price}</span>
                 </div>
                 <div className="info-stat">
-                  <span className="info-label">WAGER LIMITS</span>
-                  <span className="info-value">${game.bets[0]} - ${game.bets[1]}</span>
+                  <span className="info-label">HOUSE EDGE</span>
+                  <span className="info-value">{(game.house_edge_percentage * 100).toFixed(0)}%</span>
                 </div>
               </div>
               <button className="lottery-play-now-btn">PLAY TICKET 🚀</button>
@@ -594,16 +624,12 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
             <div className="lottery-bet-group">
               <label>TICKET VALUE</label>
               <div className="bet-toggles">
-                {selectedGame.bets.map(tier => (
-                  <button 
-                    key={tier}
-                    onClick={() => !isDrawing && setBetSize(tier)} 
-                    disabled={isDrawing || drawState !== 'OPEN'} 
-                    className={`bet-toggle-btn ${betSize === tier ? 'active' : ''}`}
-                  >
-                    ${tier}
-                  </button>
-                ))}
+                <button 
+                  disabled
+                  className="bet-toggle-btn active"
+                >
+                  ${betSize}
+                </button>
               </div>
             </div>
 
@@ -656,21 +682,32 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
         ) : (
           <div className="tickets-scroll-row">
             {myTickets.map(t => {
+              const isResolved = t.claimed === 1;
               const matchesCount = drawResults.length > 0 ? t.chosenNumbers.filter(n => drawResults.includes(n)).length : null;
+              
               return (
-                <div key={t.id} className={`ticket-row-card ${t.payout > 0 ? 'won' : ''}`}>
+                <div key={t.id} className={`ticket-row-card ${isResolved && t.payout > 0 ? 'won' : ''} ${isResolved && t.payout === 0 ? 'loss-card' : ''}`}>
                   <div className="ticket-card-header">
                     <span className="card-logo">CYBER LOTTO</span>
                     <span className="card-tx-id">#{t.id}</span>
                   </div>
                   <div className="ticket-card-numbers">
-                    {t.chosenNumbers.map(n => (
-                      <span key={n} className={`ticket-card-num-badge ${drawResults.includes(n) ? 'matched' : ''}`}>{n}</span>
-                    ))}
+                    {t.chosenNumbers.map(n => {
+                      const matched = drawResults.includes(n);
+                      return <span key={n} className={`ticket-card-num-badge ${matched ? 'matched' : ''}`}>{n}</span>;
+                    })}
                   </div>
                   <div className="ticket-card-meta">
                     <span>Bet: ${t.betAmount}</span>
-                    {matchesCount !== null ? (
+                    {isResolved ? (
+                      t.payout > 0 ? (
+                        <span className="ticket-status-label font-gold">
+                          WIN (+${t.payout})
+                        </span>
+                      ) : (
+                        <span className="ticket-status-badge loss">LOSS</span>
+                      )
+                    ) : matchesCount !== null ? (
                       <span className="ticket-status-label font-gold">
                         Matched {matchesCount} (+${t.payout})
                       </span>

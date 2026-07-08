@@ -5,44 +5,7 @@ const { db, cryptoRng, pubsub } = require('@cyber-casino/shared');
 const REDIS_URL = process.env.REDIS_URL || 'redis://127.0.0.1:6379';
 const IS_PROD = process.env.NODE_ENV === 'production';
 
-// Configurations for all 7 lottery games
-const LOTTERY_GAMES = [
-  {
-    name: 'Sugar Rush 15',
-    devInterval: 15000,      // 15 seconds
-    prodInterval: 900000     // 15 minutes
-  },
-  {
-    name: 'Sweet Treat 30',
-    devInterval: 30000,      // 30 seconds
-    prodInterval: 1800000    // 30 minutes
-  },
-  {
-    name: 'Glazed Gold',
-    devInterval: 60000,      // 1 minute
-    prodInterval: 3600000    // 1 hour
-  },
-  {
-    name: 'The Daily Dollop',
-    devInterval: 120000,     // 2 minutes
-    prodInterval: 86400000   // 1 day
-  },
-  {
-    name: 'The Weekly Whiff',
-    devInterval: 300000,     // 5 minutes
-    prodInterval: 604800000  // 1 week
-  },
-  {
-    name: 'The Grand Ganache',
-    devInterval: 600000,     // 10 minutes
-    prodInterval: 2592000000 // 1 month
-  },
-  {
-    name: 'The Quarterly Banquet',
-    devInterval: 900000,     // 15 minutes
-    prodInterval: 7776000000 // 3 months
-  }
-];
+// Dynamic configurations are loaded from the database
 
 // Track local active in-memory schedules
 const activeLocalWorkers = {};
@@ -113,24 +76,38 @@ const executeLotteryDraw = async (lotteryName) => {
       [activeDraw.id, lotteryName, seed, serverSalt, hash, JSON.stringify(winningNumbers), new Date().toISOString()]
     );
 
-    // 6. Process Payouts
+    // 6. Process Dynamic Payouts
     const tickets = await db.all("SELECT * FROM lottery_tickets WHERE drawId = ? AND claimed = 0", [activeDraw.id]);
     console.log(`[SCHEDULER] ["${lotteryName}"] Evaluating ${tickets.length} wagers...`);
+
+    const gameConfig = await db.get("SELECT house_edge_percentage FROM games_config WHERE name = ?", [lotteryName]);
+    const houseEdge = gameConfig ? gameConfig.house_edge_percentage : 0.30;
+
+    let totalBetsCollected = 0;
+    const winningTickets = [];
+
+    // Calculate total pool and isolate winners
+    for (const ticket of tickets) {
+      totalBetsCollected += ticket.betAmount;
+      const chosenNumbers = JSON.parse(ticket.chosenNumbers);
+      const matched = chosenNumbers.filter(num => winningNumbers.includes(num));
+      if (matched.length >= 3) {
+        winningTickets.push({ ...ticket, matchCount: matched.length });
+      }
+    }
+
+    const prizePool = totalBetsCollected * (1 - houseEdge);
+    let payoutPerWinner = 0;
+    if (winningTickets.length > 0) {
+      // Split pool equally among winners for simplicity in this MVP
+      payoutPerWinner = prizePool / winningTickets.length;
+    }
 
     let totalPayoutsCredited = 0;
 
     for (const ticket of tickets) {
-      const chosenNumbers = JSON.parse(ticket.chosenNumbers);
-      const matched = chosenNumbers.filter(num => winningNumbers.includes(num));
-      const matchCount = matched.length;
-
-      let multiplier = 0;
-      if (matchCount === 3) multiplier = 2;
-      else if (matchCount === 4) multiplier = 10;
-      else if (matchCount === 5) multiplier = 100;
-      else if (matchCount === 6) multiplier = 10000;
-
-      const payout = ticket.betAmount * multiplier;
+      const isWinner = winningTickets.some(w => w.id === ticket.id);
+      const payout = isWinner ? payoutPerWinner : 0;
 
       // Update ticket status
       await db.run(
@@ -198,72 +175,60 @@ const executeLotteryDraw = async (lotteryName) => {
 };
 
 /**
- * Launch Schedulers for all games
+ * Launch Dynamic Schedulers
  */
 const startScheduler = async () => {
   await db.initDatabase();
   await pubsub.connect(REDIS_URL);
 
-  for (const game of LOTTERY_GAMES) {
-    const intervalTime = IS_PROD ? game.prodInterval : game.devInterval;
+  const syncDynamicWorkers = async () => {
+    const gamesConfig = await db.all("SELECT * FROM games_config WHERE status = 'ACTIVE'");
     
-    // Auto-create initial open draw rows if missing
-    let currentDraw = await db.get(
-      "SELECT id FROM lottery_draws WHERE state = 'OPEN' AND lotteryName = ? LIMIT 1",
-      [game.name]
-    );
-    if (!currentDraw) {
-      await db.run(
-        'INSERT INTO lottery_draws (lotteryName, state, timestamp) VALUES (?, ?, ?)',
-        [game.name, 'OPEN', new Date().toISOString()]
+    // Clear legacy workers
+    Object.keys(activeLocalWorkers).forEach(gameName => {
+      if (activeLocalWorkers[gameName].intervalId) {
+         clearInterval(activeLocalWorkers[gameName].intervalId);
+      }
+    });
+
+    for (const game of gamesConfig) {
+      const intervalTime = game.draw_interval_ms;
+      
+      let currentDraw = await db.get(
+        "SELECT id FROM lottery_draws WHERE state = 'OPEN' AND lotteryName = ? LIMIT 1",
+        [game.name]
       );
-    }
+      if (!currentDraw) {
+        await db.run(
+          'INSERT INTO lottery_draws (lotteryName, state, timestamp) VALUES (?, ?, ?)',
+          [game.name, 'OPEN', new Date().toISOString()]
+        );
+      }
 
-    if (pubsub.isRedisConnected) {
-      console.log(`[SCHEDULER] Redis active. Configuring BullMQ repeatable loop for "${game.name}"...`);
+      console.log(`[SCHEDULER] Configuring local interval loop for "${game.name}" (${intervalTime / 1000}s)`);
       
-      const lotteryQueue = new Queue(`lottery-${game.name.replace(/\s+/g, '-').toLowerCase()}`, { 
-        connection: pubsub.redisPublisher 
-      });
+      activeLocalWorkers[game.name] = { active: false };
       
-      await lotteryQueue.add(
-        'run-draw',
-        { lotteryName: game.name },
-        {
-          repeat: { every: intervalTime },
-          removeOnComplete: true,
-          removeOnFail: true
-        }
-      );
-
-      const worker = new Worker(
-        `lottery-${game.name.replace(/\s+/g, '-').toLowerCase()}`,
-        async (job) => {
-          if (job.name === 'run-draw') {
-            await executeLotteryDraw(job.data.lotteryName);
-          }
-        },
-        { connection: pubsub.redisSubscriber }
-      );
-
-      worker.on('failed', (job, err) => {
-        console.error(`[BullMQ Worker] ["${game.name}"] Job failed:`, err);
-      });
-
-    } else {
-      // In-Memory Fallback Interval loops
-      console.log(`[SCHEDULER] Redis offline. Configuring local interval loop for "${game.name}" (${intervalTime / 1000}s)`);
-      
-      activeLocalWorkers[game.name] = false;
-      
-      setInterval(async () => {
-        if (activeLocalWorkers[game.name]) return; // Prevent overlapping runs
-        activeLocalWorkers[game.name] = true;
+      const intervalId = setInterval(async () => {
+        if (activeLocalWorkers[game.name].active) return;
+        activeLocalWorkers[game.name].active = true;
         await executeLotteryDraw(game.name);
-        activeLocalWorkers[game.name] = false;
+        activeLocalWorkers[game.name].active = false;
       }, intervalTime);
+
+      activeLocalWorkers[game.name].intervalId = intervalId;
     }
-  }
+  };
+
+  await syncDynamicWorkers();
+
+  // Listen to configuration updates from Backoffice API
+  pubsub.on('message', async (event) => {
+    if (event.type === 'GAME_CONFIG_UPDATED') {
+      console.log('[SCHEDULER] Game configuration update detected. Resyncing workers...');
+      await syncDynamicWorkers();
+    }
+  });
 };
 
 startScheduler().catch(err => {

@@ -7,14 +7,14 @@
     "packages/shared",
     "apps/lottery-engine",
     "apps/payout-worker",
-    "apps/backoffice-api"
+    "apps/backoffice-api",
+    "apps/loyalty-engine"
   ],
   "scripts": {
     "bootstrap": "npm install",
-    "build:frontend": "npm run build --workspace=frontend",
-    "start:engine": "npm start --workspace=apps/lottery-engine",
-    "start:worker": "npm start --workspace=apps/payout-worker",
-    "start:admin": "npm start --workspace=apps/backoffice-api"
+    "start:engine": "npx concurrently \"npm run start --workspace=@cyber-casino/lottery-engine\" \"npm run start --workspace=@cyber-casino/payout-worker\" \"npm run start --workspace=@cyber-casino/backoffice-api\" \"npm run start --workspace=@cyber-casino/loyalty-engine\"",
+    "build": "npm run build --workspace=@cyber-casino/frontend",
+    "start:frontend": "npm start --workspace=@cyber-casino/frontend"
   },
   "dependencies": {
     "bullmq": "^5.8.3",
