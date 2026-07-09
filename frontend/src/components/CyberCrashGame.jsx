@@ -156,6 +156,9 @@ export default function CyberCrashGame({ currentUser, onBalanceUpdate }) {
     
     // Inject Canvas
     if (canvasRef.current) {
+      app.view.style.width = '100%';
+      app.view.style.height = '100%';
+      app.view.style.display = 'block';
       canvasRef.current.appendChild(app.view);
     }
     appRef.current = app;
@@ -547,25 +550,17 @@ export default function CyberCrashGame({ currentUser, onBalanceUpdate }) {
   }
 
   return (
-    <div style={{ 
-      display: 'grid', 
-      gridTemplateColumns: '320px 1fr', 
-      gap: '20px', 
-      background: '#020704', 
-      padding: '20px', 
-      minHeight: 'calc(100vh - 80px)',
-      fontFamily: 'Outfit, sans-serif' 
-    }}>
+    <div className="crash-game-container">
       {/* Left Sidebar - Active Bets */}
-      <div style={{ gridColumn: '1 / 2', height: '100%', maxHeight: 'calc(100vh - 120px)' }}>
+      <div className="crash-sidebar-area">
         <CrashPlayersTable activeBets={activeBets} />
       </div>
 
       {/* Main Center Area - Canvas & Bottom Area */}
-      <div style={{ gridColumn: '2 / 3', display: 'flex', flexDirection: 'column', gap: '20px', overflow: 'hidden' }}>
+      <div className="crash-main-area">
         
         {/* Top: Canvas Area */}
-        <div style={{ position: 'relative', height: '400px', flex: 'none', border: '1px solid #1a1e23', borderRadius: '16px', overflow: 'hidden', background: '#0a0d10' }}>
+        <div className="crash-canvas-wrapper">
           
           <div style={{ 
             position: 'absolute', top: '15px', right: '20px', 
@@ -625,13 +620,13 @@ export default function CyberCrashGame({ currentUser, onBalanceUpdate }) {
         </div>
 
         {/* Bottom: My Bets + Wager Amount */}
-        <div style={{ display: 'flex', gap: '20px', flex: 1, overflow: 'hidden' }}>
+        <div className="crash-game-bottom">
           
           <div style={{ flex: 1, overflow: 'hidden' }}>
             <CrashHistoryTable history={history} />
           </div>
 
-          <div style={{ width: '300px', display: 'flex', flexDirection: 'column' }}>
+          <div className="crash-bet-panel-col">
             <BettingPanel id={1} state={panel1} setState={setPanel1} onBet={handleBet} onCashOut={handleCashOut} gameState={gameState} currentUser={currentUser} />
           </div>
           

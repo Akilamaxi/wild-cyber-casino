@@ -5222,5 +5222,77 @@ body {
   padding: 30px 10px;
 }
 
+/* --- Crash Game Responsive Layout --- */
+.crash-game-container {
+  display: grid;
+  grid-template-areas: "sidebar main";
+  grid-template-columns: 320px 1fr;
+  gap: 20px;
+  background: #020704;
+  padding: 20px;
+  min-height: calc(100vh - 80px);
+  font-family: 'Outfit', sans-serif;
+}
+
+.crash-sidebar-area {
+  grid-area: sidebar;
+  height: 100%;
+  max-height: calc(100vh - 120px);
+}
+
+.crash-main-area {
+  grid-area: main;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  overflow: hidden;
+}
+
+.crash-canvas-wrapper {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 2 / 1;
+  max-height: 400px;
+  border: 1px solid #1a1e23;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #0a0d10;
+}
+
+.crash-game-bottom {
+  display: flex;
+  gap: 20px;
+  flex: 1;
+  overflow: hidden;
+}
+
+.crash-bet-panel-col {
+  width: 300px;
+  display: flex;
+  flex-direction: column;
+}
+
+@media (max-width: 1024px) {
+  .crash-game-container {
+    grid-template-areas: 
+      "main"
+      "sidebar";
+    grid-template-columns: 1fr;
+    padding: 10px;
+  }
+  .crash-sidebar-area {
+    max-height: 400px;
+  }
+}
+
+@media (max-width: 768px) {
+  .crash-game-bottom {
+    flex-direction: column-reverse;
+  }
+  .crash-bet-panel-col {
+    width: 100%;
+  }
+}
+
 
 
