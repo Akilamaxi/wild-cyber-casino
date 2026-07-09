@@ -12,6 +12,10 @@ class CrashDaemon {
     this.tickInterval = null;
     this.lobbyTimeMs = 5000;
     this.houseEdge = 0.01;
+    this.minBet = 1;
+    this.maxBet = 1000;
+    this.maxMultiplier = 10000;
+    this.crashDelayMs = 3000;
     this.initPubSub();
   }
 
@@ -25,6 +29,10 @@ class CrashDaemon {
         configRows.forEach(r => cfg[r.key] = r.value);
         if (cfg.lobby_time_ms) this.lobbyTimeMs = parseInt(cfg.lobby_time_ms, 10);
         if (cfg.house_edge) this.houseEdge = parseFloat(cfg.house_edge);
+        if (cfg.min_bet) this.minBet = parseFloat(cfg.min_bet);
+        if (cfg.max_bet) this.maxBet = parseFloat(cfg.max_bet);
+        if (cfg.max_multiplier) this.maxMultiplier = parseFloat(cfg.max_multiplier);
+        if (cfg.crash_delay_ms) this.crashDelayMs = parseInt(cfg.crash_delay_ms, 10);
       }
     } catch (err) {
       console.error('[CRASH DAEMON] Error loading config, using defaults:', err);
@@ -52,7 +60,8 @@ class CrashDaemon {
     // RNG to calculate crash point
     const rawRng = crypto.randomInt(0, 10000) / 10000;
     const safeEdge = 1.00 - this.houseEdge;
-    const calculatedPoint = Math.max(1.00, safeEdge / (1.00001 - rawRng));
+    let calculatedPoint = Math.max(1.00, safeEdge / (1.00001 - rawRng));
+    calculatedPoint = Math.min(calculatedPoint, this.maxMultiplier);
     this.crashPoint = Math.floor(calculatedPoint * 100) / 100;
 
     try {
@@ -127,7 +136,7 @@ class CrashDaemon {
     });
 
     // Reset loop
-    setTimeout(() => this.start(), 3000);
+    setTimeout(() => this.start(), this.crashDelayMs);
   }
 
   broadcastState(payload) {

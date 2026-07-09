@@ -315,10 +315,14 @@ app.get('/api/admin/crash/config', async (req, res) => {
 
 app.put('/api/admin/crash/config', async (req, res) => {
   try {
-    const { lobby_time_ms, house_edge } = req.body;
+    const { lobby_time_ms, house_edge, min_bet, max_bet, max_multiplier, crash_delay_ms } = req.body;
     await db.executeTransaction(async (tx) => {
       if (lobby_time_ms !== undefined) await tx.run('INSERT OR REPLACE INTO crash_config (key, value) VALUES ("lobby_time_ms", ?)', [lobby_time_ms.toString()]);
       if (house_edge !== undefined) await tx.run('INSERT OR REPLACE INTO crash_config (key, value) VALUES ("house_edge", ?)', [house_edge.toString()]);
+      if (min_bet !== undefined) await tx.run('INSERT OR REPLACE INTO crash_config (key, value) VALUES ("min_bet", ?)', [min_bet.toString()]);
+      if (max_bet !== undefined) await tx.run('INSERT OR REPLACE INTO crash_config (key, value) VALUES ("max_bet", ?)', [max_bet.toString()]);
+      if (max_multiplier !== undefined) await tx.run('INSERT OR REPLACE INTO crash_config (key, value) VALUES ("max_multiplier", ?)', [max_multiplier.toString()]);
+      if (crash_delay_ms !== undefined) await tx.run('INSERT OR REPLACE INTO crash_config (key, value) VALUES ("crash_delay_ms", ?)', [crash_delay_ms.toString()]);
     });
     await pubsub.publish({ type: 'CRASH_CONFIG_UPDATED' });
     res.json({ success: true });

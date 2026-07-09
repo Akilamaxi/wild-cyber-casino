@@ -333,7 +333,11 @@ const initDatabase = async () => {
   if (crashCfgCount.count === 0) {
     const defaultCrashConfigs = [
       { key: 'lobby_time_ms', value: '5000' },
-      { key: 'house_edge', value: '0.01' }
+      { key: 'house_edge', value: '0.01' },
+      { key: 'min_bet', value: '1' },
+      { key: 'max_bet', value: '1000' },
+      { key: 'max_multiplier', value: '10000' },
+      { key: 'crash_delay_ms', value: '3000' }
     ];
     for (const cfg of defaultCrashConfigs) {
       await run(`

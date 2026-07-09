@@ -64,7 +64,11 @@ function App() {
   // --- Crash States ---
   const [crashConfig, setCrashConfig] = useState({
     lobby_time_ms: 5000,
-    house_edge: 0.01
+    house_edge: 0.01,
+    min_bet: 1,
+    max_bet: 1000,
+    max_multiplier: 10000,
+    crash_delay_ms: 3000
   });
   const [loadingCrash, setLoadingCrash] = useState(true);
 
@@ -221,7 +225,11 @@ function App() {
       if (data.success && data.config) {
         setCrashConfig({
           lobby_time_ms: parseInt(data.config.lobby_time_ms, 10) || 5000,
-          house_edge: parseFloat(data.config.house_edge) || 0.01
+          house_edge: parseFloat(data.config.house_edge) || 0.01,
+          min_bet: parseFloat(data.config.min_bet) || 1,
+          max_bet: parseFloat(data.config.max_bet) || 1000,
+          max_multiplier: parseFloat(data.config.max_multiplier) || 10000,
+          crash_delay_ms: parseInt(data.config.crash_delay_ms, 10) || 3000
         });
       }
     } catch (err) {
@@ -238,7 +246,11 @@ function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           lobby_time_ms: crashConfig.lobby_time_ms,
-          house_edge: crashConfig.house_edge
+          house_edge: crashConfig.house_edge,
+          min_bet: crashConfig.min_bet,
+          max_bet: crashConfig.max_bet,
+          max_multiplier: crashConfig.max_multiplier,
+          crash_delay_ms: crashConfig.crash_delay_ms
         })
       });
       const data = await res.json();
@@ -1180,6 +1192,26 @@ function App() {
                       <small style={{display: 'block', marginTop: '5px', color: '#888'}}>
                         Example: 0.01 means 1% house edge. A higher edge causes earlier random crashes.
                       </small>
+                    </div>
+                    <div className="form-group inline-color-inputs" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                      <div>
+                        <label>Min Bet ($)</label>
+                        <input type="number" step="1" value={crashConfig.min_bet} onChange={e => setCrashConfig({ ...crashConfig, min_bet: parseFloat(e.target.value) })} required />
+                      </div>
+                      <div>
+                        <label>Max Bet ($)</label>
+                        <input type="number" step="1" value={crashConfig.max_bet} onChange={e => setCrashConfig({ ...crashConfig, max_bet: parseFloat(e.target.value) })} required />
+                      </div>
+                    </div>
+                    <div className="form-group inline-color-inputs" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                      <div>
+                        <label>Max Multiplier Cap (x)</label>
+                        <input type="number" step="1" value={crashConfig.max_multiplier} onChange={e => setCrashConfig({ ...crashConfig, max_multiplier: parseFloat(e.target.value) })} required />
+                      </div>
+                      <div>
+                        <label>Post-Crash Delay (ms)</label>
+                        <input type="number" step="100" value={crashConfig.crash_delay_ms} onChange={e => setCrashConfig({ ...crashConfig, crash_delay_ms: parseInt(e.target.value) })} required />
+                      </div>
                     </div>
                     <div className="button-group">
                       <button type="submit" className="primary-btn">UPDATE CRASH LOGIC</button>

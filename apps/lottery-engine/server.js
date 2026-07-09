@@ -1184,6 +1184,15 @@ app.post('/api/crash/bet', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Invalid bet details.' });
     }
 
+    if (globalCrashDaemon) {
+      if (betAmount < globalCrashDaemon.minBet) {
+         return res.status(400).json({ success: false, error: `Minimum bet is $${globalCrashDaemon.minBet}.` });
+      }
+      if (betAmount > globalCrashDaemon.maxBet) {
+         return res.status(400).json({ success: false, error: `Maximum bet is $${globalCrashDaemon.maxBet}.` });
+      }
+    }
+
     const result = await db.executeTransaction(async (tx) => {
       const user = await tx.get('SELECT balance, username FROM users WHERE LOWER(email) = ?', [email.toLowerCase()]);
       if (!user) throw new Error('User not found.');
