@@ -5228,7 +5228,7 @@ body {
   grid-template-areas: "sidebar main";
   grid-template-columns: 320px 1fr;
   gap: 20px;
-  background: #020704;
+  background: transparent; /* Changed to transparent to inherit body gradients */
   padding: 20px;
   min-height: calc(100vh - 80px);
   font-family: 'Outfit', sans-serif;
