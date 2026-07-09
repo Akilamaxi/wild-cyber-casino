@@ -359,40 +359,10 @@ app.post('/api/slots/spin', async (req, res) => {
 
       // Helper to calculate payout for a given reel outcome
       const calculatePayout = (outcome, symsList, betVal) => {
-        const counts = {};
-        outcome.forEach(sym => counts[sym] = (counts[sym] || 0) + 1);
-
-        const multipliers = {};
-        symsList.forEach(s => multipliers[s.name] = s.multiplier);
-
-        const wildCount = counts['WILD'] || 0;
-        const nonWilds = Object.keys(counts).filter(sym => sym !== 'WILD');
-
-        let maxNonWildCount = 0;
-        let maxNonWildSymbol = null;
-        nonWilds.forEach(sym => {
-          if (counts[sym] > maxNonWildCount) {
-            maxNonWildCount = counts[sym];
-            maxNonWildSymbol = sym;
-          }
-        });
-
-        if (wildCount === 3) {
-          return betVal * multipliers['WILD'];
-        } else if (wildCount === 2) {
-          return betVal * multipliers[maxNonWildSymbol || 'WILD'];
-        } else if (wildCount === 1) {
-          if (maxNonWildCount === 2) {
-            return betVal * multipliers[maxNonWildSymbol];
-          } else {
-            return betVal * 2; // Consolation matching 2 symbols
-          }
-        } else {
-          if (maxNonWildCount === 3) {
-            return betVal * multipliers[maxNonWildSymbol];
-          } else if (maxNonWildCount === 2) {
-            return betVal * 2;
-          }
+        if (outcome[0] === outcome[1] && outcome[1] === outcome[2]) {
+          const multipliers = {};
+          symsList.forEach(s => multipliers[s.name] = s.multiplier);
+          return betVal * (multipliers[outcome[0]] || 0);
         }
         return 0;
       };
@@ -1055,6 +1025,220 @@ setInterval(() => {
     timestamp: new Date().toISOString()
   });
 }, 45000);
+
+// --- Dice Game Endpoints ---
+app.get('/api/dice/config', async (req, res) => {
+  try {
+    const config = await db.all('SELECT * FROM dice_config');
+    const configMap = {};
+    config.forEach(c => configMap[c.key] = c.value);
+    res.json({ success: true, config: configMap });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Internal Server Error' });
+  }
+});
+
+app.post('/api/dice/roll-single', async (req, res) => {
+  try {
+    const { email, bet, prediction } = req.body;
+    const betAmount = parseFloat(bet);
+    if (!email || isNaN(betAmount) || betAmount <= 0 || !prediction) {
+      return res.status(400).json({ success: false, error: 'Invalid dice bet details.' });
+    }
+
+    const result = await db.executeTransaction(async (tx) => {
+      const user = await tx.get('SELECT balance, gamesPlayed, totalWon FROM users WHERE LOWER(email) = ?', [email.toLowerCase()]);
+      if (!user) throw new Error('User not found.');
+      if (user.balance < betAmount) throw new Error('Insufficient wallet funds.');
+
+      const die1 = crypto.randomInt(1, 7);
+      const die2 = crypto.randomInt(1, 7);
+      const sum = die1 + die2;
+      const isDouble = die1 === die2;
+
+      let balance = user.balance - betAmount;
+      const gamesPlayed = user.gamesPlayed + 1;
+      await tx.run('UPDATE users SET balance = ?, gamesPlayed = ? WHERE LOWER(email) = ?', [balance, gamesPlayed, email.toLowerCase()]);
+
+      const multUnderRow = await tx.get("SELECT value FROM dice_config WHERE key = 'mult_under_7'");
+      const multExactRow = await tx.get("SELECT value FROM dice_config WHERE key = 'mult_exact_7'");
+      const multOverRow = await tx.get("SELECT value FROM dice_config WHERE key = 'mult_over_7'");
+      const multDoublesRow = await tx.get("SELECT value FROM dice_config WHERE key = 'mult_doubles'");
+
+      const multUnder = multUnderRow ? parseFloat(multUnderRow.value) : 2.3;
+      const multExact = multExactRow ? parseFloat(multExactRow.value) : 5.8;
+      const multOver = multOverRow ? parseFloat(multOverRow.value) : 2.3;
+      const multDoubles = multDoublesRow ? parseFloat(multDoublesRow.value) : 5.8;
+
+      let win = false;
+      let multiplier = 0;
+      if (prediction === 'UNDER_7' && sum < 7) {
+        win = true;
+        multiplier = multUnder;
+      } else if (prediction === 'EXACT_7' && sum === 7) {
+        win = true;
+        multiplier = multExact;
+      } else if (prediction === 'OVER_7' && sum > 7) {
+        win = true;
+        multiplier = multOver;
+      } else if (prediction === 'DOUBLES' && isDouble) {
+        win = true;
+        multiplier = multDoubles;
+      }
+
+      let payout = win ? betAmount * multiplier : 0;
+      let totalWon = user.totalWon;
+
+      if (payout > 0) {
+        balance += payout;
+        totalWon += payout;
+        await tx.run('UPDATE users SET balance = ?, totalWon = ? WHERE LOWER(email) = ?', [balance, totalWon, email.toLowerCase()]);
+
+        const winTxId = generateTxId();
+        await tx.run(
+          'INSERT INTO transactions (id, email, type, amount, balanceAfter, timestamp) VALUES (?, ?, ?, ?, ?, ?)',
+          [winTxId, email.toLowerCase(), 'DICE_WIN', payout, balance, new Date().toISOString()]
+        );
+      }
+
+      const playTxId = generateTxId();
+      await tx.run(
+        'INSERT INTO transactions (id, email, type, amount, balanceAfter, timestamp) VALUES (?, ?, ?, ?, ?, ?)',
+        [playTxId, email.toLowerCase(), 'DICE_PLAY', -betAmount, balance - payout, new Date().toISOString()]
+      );
+
+      return {
+        die1,
+        die2,
+        sum,
+        payout,
+        win,
+        newBalance: balance
+      };
+    });
+
+    res.json({ success: true, ...result });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/dice/tournaments', async (req, res) => {
+  try {
+    const tournaments = await db.all('SELECT * FROM dice_tournaments ORDER BY id DESC');
+    res.json({ success: true, tournaments });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Internal Server Error' });
+  }
+});
+
+app.post('/api/dice/tournament/join', async (req, res) => {
+  try {
+    const { email, tournamentId } = req.body;
+    const tourneyIdInt = parseInt(tournamentId, 10);
+    if (!email || isNaN(tourneyIdInt)) {
+      return res.status(400).json({ success: false, error: 'Invalid details.' });
+    }
+
+    const result = await db.executeTransaction(async (tx) => {
+      const tourney = await tx.get('SELECT * FROM dice_tournaments WHERE id = ? AND status = "ACTIVE"', [tourneyIdInt]);
+      if (!tourney) throw new Error('Active tournament not found.');
+
+      const participant = await tx.get('SELECT * FROM dice_tournament_participants WHERE tournament_id = ? AND LOWER(email) = ?', [tourneyIdInt, email.toLowerCase()]);
+      if (participant) return { alreadyJoined: true };
+
+      const user = await tx.get('SELECT balance FROM users WHERE LOWER(email) = ?', [email.toLowerCase()]);
+      if (!user) throw new Error('User not found.');
+      if (user.balance < tourney.entry_fee) throw new Error('Insufficient balance for entry fee.');
+
+      const balance = user.balance - tourney.entry_fee;
+      await tx.run('UPDATE users SET balance = ? WHERE LOWER(email) = ?', [balance, email.toLowerCase()]);
+
+      const newPrizePool = tourney.prize_pool + tourney.entry_fee;
+      await tx.run('UPDATE dice_tournaments SET prize_pool = ? WHERE id = ?', [newPrizePool, tourneyIdInt]);
+
+      await tx.run('INSERT INTO dice_tournament_participants (tournament_id, email, rolls_left, total_score, completed) VALUES (?, ?, 10, 0, 0)', [tourneyIdInt, email.toLowerCase()]);
+
+      const txId = generateTxId();
+      await tx.run(
+        'INSERT INTO transactions (id, email, type, amount, balanceAfter, timestamp) VALUES (?, ?, "DICE_TOURNEY_ENTRY", ?, ?, ?)',
+        [txId, email.toLowerCase(), -tourney.entry_fee, balance, new Date().toISOString()]
+      );
+
+      return { success: true, newBalance: balance, alreadyJoined: false };
+    });
+
+    res.json({ success: true, ...result });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/dice/tournament/roll', async (req, res) => {
+  try {
+    const { email, tournamentId } = req.body;
+    const tourneyIdInt = parseInt(tournamentId, 10);
+    if (!email || isNaN(tourneyIdInt)) {
+      return res.status(400).json({ success: false, error: 'Invalid details.' });
+    }
+
+    const result = await db.executeTransaction(async (tx) => {
+      const tourney = await tx.get('SELECT * FROM dice_tournaments WHERE id = ? AND status = "ACTIVE"', [tourneyIdInt]);
+      if (!tourney) throw new Error('Tournament is no longer active.');
+
+      const participant = await tx.get('SELECT * FROM dice_tournament_participants WHERE tournament_id = ? AND LOWER(email) = ?', [tourneyIdInt, email.toLowerCase()]);
+      if (!participant) throw new Error('You are not registered in this tournament.');
+      if (participant.rolls_left <= 0) throw new Error('No rolls remaining for this tournament.');
+
+      const die1 = crypto.randomInt(1, 7);
+      const die2 = crypto.randomInt(1, 7);
+      const sum = die1 + die2;
+
+      const newRollsLeft = participant.rolls_left - 1;
+      const newScore = participant.total_score + sum;
+      const isCompleted = newRollsLeft === 0 ? 1 : 0;
+
+      await tx.run(
+        'UPDATE dice_tournament_participants SET rolls_left = ?, total_score = ?, completed = ? WHERE tournament_id = ? AND LOWER(email) = ?',
+        [newRollsLeft, newScore, isCompleted, tourneyIdInt, email.toLowerCase()]
+      );
+
+      return {
+        die1,
+        die2,
+        sum,
+        rollsLeft: newRollsLeft,
+        totalScore: newScore,
+        completed: isCompleted
+      };
+    });
+
+    res.json({ success: true, ...result });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/dice/tournament/leaderboard/:tournamentId', async (req, res) => {
+  try {
+    const tourneyIdInt = parseInt(req.params.tournamentId, 10);
+    if (isNaN(tourneyIdInt)) {
+      return res.status(400).json({ success: false, error: 'Invalid tournament ID.' });
+    }
+
+    const leaderboard = await db.all(`
+      SELECT p.email, p.total_score, p.rolls_left, p.completed, u.username
+      FROM dice_tournament_participants p
+      JOIN users u ON LOWER(p.email) = LOWER(u.email)
+      WHERE p.tournament_id = ?
+      ORDER BY p.total_score DESC, p.rolls_left ASC
+    `, [tourneyIdInt]);
+
+    res.json({ success: true, leaderboard });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Internal Server Error' });
+  }
+});
 
 // Reverse proxy /api/admin requests to the backoffice-api service (port 5001) for Cloud Run single-port routing
 app.use('/api/admin', async (req, res) => {

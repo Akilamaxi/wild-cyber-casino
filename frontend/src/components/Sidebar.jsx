@@ -6,6 +6,7 @@ function Sidebar({ currentView, onViewChange, currentUser, onOpenLogin, isCollap
     { id: 'slots', label: 'Slots', icon: '🍒', playable: true },
     { id: 'game', label: 'Spin Wheel', icon: '🎡', playable: true },
     { id: 'lottery', label: 'Cyber Lottery', icon: '🎟️', playable: true },
+    { id: 'dice', label: 'Rolling Dice', icon: '🎲', playable: true },
     { id: 'blackjack', label: 'Blackjack', icon: '🃏', playable: false },
     { id: 'roulette', label: 'Table Games', icon: '🎲', playable: false },
     { id: 'leaderboard', label: 'Leaderboard', icon: '🏆', playable: true },

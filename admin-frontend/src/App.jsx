@@ -21,7 +21,7 @@ function App() {
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [loginError, setLoginError] = useState('');
-  const [activeTab, setActiveTab] = useState('lottery'); // 'lottery' | 'spinwheel' | 'slots'
+  const [activeTab, setActiveTab] = useState('lottery'); // 'lottery' | 'spinwheel' | 'slots' | 'dice'
 
   // --- Lottery Configurations States ---
   const [games, setGames] = useState([]);
@@ -48,6 +48,19 @@ function App() {
   const [slotsSymbols, setSlotsSymbols] = useState([]);
   const [loadingSlots, setLoadingSlots] = useState(true);
 
+  // --- Dice States ---
+  const [diceConfig, setDiceConfig] = useState({
+    mult_under_7: '2.3',
+    mult_exact_7: '5.8',
+    mult_over_7: '2.3',
+    mult_doubles: '5.8'
+  });
+  const [tournamentsList, setTournamentsList] = useState([]);
+  const [loadingDice, setLoadingDice] = useState(true);
+  const [diceFormData, setDiceFormData] = useState({
+    name: '', entry_fee: 10, prize_pool: 100
+  });
+
   const canvasRef = useRef(null);
   const socketRef = useRef(null);
 
@@ -57,6 +70,7 @@ function App() {
       fetchGames();
       fetchPrizes();
       fetchSlotsConfig();
+      fetchDiceAdminData();
 
       // Connect WebSockets for real-time config updates
       socketRef.current = io(API_BASE);
@@ -73,6 +87,9 @@ function App() {
         }
         if (event.type === 'SLOTS_CONFIG_UPDATED') {
           fetchSlotsConfig();
+        }
+        if (event.type === 'DICE_CONFIG_UPDATED') {
+          fetchDiceAdminData();
         }
       });
 
@@ -163,6 +180,26 @@ function App() {
       console.error(err);
     }
     setLoadingSlots(false);
+  };
+
+  const fetchDiceAdminData = async () => {
+    setLoadingDice(true);
+    try {
+      const resCfg = await fetch(`${API_BASE}/api/dice/config`);
+      const dataCfg = await resCfg.json();
+      if (dataCfg.success && dataCfg.config) {
+        setDiceConfig(dataCfg.config);
+      }
+
+      const resTr = await fetch(`${API_BASE}/api/dice/tournaments`);
+      const dataTr = await resTr.json();
+      if (dataTr.success) {
+        setTournamentsList(dataTr.tournaments);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+    setLoadingDice(false);
   };
 
   // --- Lottery CRUD Operations ---
@@ -324,6 +361,79 @@ function App() {
     setSlotsSymbols(updated);
   };
 
+  // --- Dice Submit Operations ---
+  const handleDiceConfigSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/dice/config`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mult_under_7: parseFloat(diceConfig.mult_under_7),
+          mult_exact_7: parseFloat(diceConfig.mult_exact_7),
+          mult_over_7: parseFloat(diceConfig.mult_over_7),
+          mult_doubles: parseFloat(diceConfig.mult_doubles)
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert('🎲 Dice multipliers updated successfully!');
+        fetchDiceAdminData();
+      } else {
+        alert('Error: ' + data.error);
+      }
+    } catch (err) {
+      alert('Failed to update config.');
+    }
+  };
+
+  const handleCreateTournament = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/dice/tournaments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(diceFormData)
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert('🏆 New dice clash tournament spawned!');
+        setDiceFormData({ name: '', entry_fee: 10, prize_pool: 100 });
+        fetchDiceAdminData();
+      } else {
+        alert('Error: ' + data.error);
+      }
+    } catch (err) {
+      alert('Failed to create tournament');
+    }
+  };
+
+  const handleCompleteTournament = async (id) => {
+    if (!window.confirm('Complete this tournament? Top 3 leaderboard positions will be awarded payouts automatically.')) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/dice/tournaments/${id}/complete`, {
+        method: 'POST'
+      });
+      const data = await res.json();
+      if (data.success) {
+        let msg = '🏆 Tournament Completed!\n\nPayouts distributed:\n';
+        if (data.payouts && data.payouts.length > 0) {
+          data.payouts.forEach(p => {
+            msg += `- Rank ${p.rank}: ${p.email} won $${p.amount.toFixed(2)}\n`;
+          });
+        } else {
+          msg += 'No participants joined; prize pool was not distributed.';
+        }
+        alert(msg);
+        fetchDiceAdminData();
+      } else {
+        alert('Error: ' + data.error);
+      }
+    } catch (err) {
+      alert('Failed to complete tournament');
+    }
+  };
+
   // Draw Interactive Preview Wheel on Admin Dashboard
   const drawWheel = () => {
     const canvas = canvasRef.current;
@@ -459,6 +569,14 @@ function App() {
                 className={`menu-btn ${activeTab === 'slots' ? 'active' : ''}`}
               >
                 🎰 Slots Control Desk
+              </button>
+            </li>
+            <li>
+              <button 
+                onClick={() => setActiveTab('dice')} 
+                className={`menu-btn ${activeTab === 'dice' ? 'active' : ''}`}
+              >
+                🎲 Dice Arena Controller
               </button>
             </li>
           </ul>
@@ -823,6 +941,154 @@ function App() {
                   💡 <strong>Multiplier:</strong> Configures payout multiple (e.g. 50x bet for 777). <br/>
                   💡 <strong>Weight:</strong> Higher weights increase roll probability.
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 4: DICE ARENA CONTROLLER */}
+          {activeTab === 'dice' && (
+            <div className="workspace-flex">
+              {/* Left Side: Create Tournaments & Edit Multipliers */}
+              <div className="editor-card-holder" style={{ display: 'flex', flexDirection: 'column', gap: '30px', flex: 1 }}>
+                
+                {/* 1. Multipliers Form */}
+                <div className="editor-card" style={{ maxWidth: '100%', width: '100%' }}>
+                  <h2>🎲 DICE PAYOUT MULTIPLIERS</h2>
+                  {loadingDice ? <div className="loader">Loading dice details...</div> : (
+                    <form onSubmit={handleDiceConfigSubmit} className="admin-form">
+                      <div className="form-group inline-color-inputs" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                        <div>
+                          <label>Under 7 (Sum 2-6)</label>
+                          <input 
+                            type="number" 
+                            step="0.1" 
+                            value={diceConfig.mult_under_7} 
+                            onChange={e => setDiceConfig({ ...diceConfig, mult_under_7: e.target.value })} 
+                            required 
+                          />
+                        </div>
+                        <div>
+                          <label>Lucky 7 (Exact)</label>
+                          <input 
+                            type="number" 
+                            step="0.1" 
+                            value={diceConfig.mult_exact_7} 
+                            onChange={e => setDiceConfig({ ...diceConfig, mult_exact_7: e.target.value })} 
+                            required 
+                          />
+                        </div>
+                      </div>
+                      <div className="form-group inline-color-inputs" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginTop: '10px' }}>
+                        <div>
+                          <label>Over 7 (Sum 8-12)</label>
+                          <input 
+                            type="number" 
+                            step="0.1" 
+                            value={diceConfig.mult_over_7} 
+                            onChange={e => setDiceConfig({ ...diceConfig, mult_over_7: e.target.value })} 
+                            required 
+                          />
+                        </div>
+                        <div>
+                          <label>Doubles</label>
+                          <input 
+                            type="number" 
+                            step="0.1" 
+                            value={diceConfig.mult_doubles} 
+                            onChange={e => setDiceConfig({ ...diceConfig, mult_doubles: e.target.value })} 
+                            required 
+                          />
+                        </div>
+                      </div>
+                      <button type="submit" className="primary-btn" style={{ marginTop: '15px' }}>UPDATE MULTIPLIERS</button>
+                    </form>
+                  )}
+                </div>
+
+                {/* 2. Spawn Tournament Form */}
+                <div className="editor-card" style={{ maxWidth: '100%', width: '100%' }}>
+                  <h2>🏆 INITIALIZE DICE TOURNAMENT</h2>
+                  <form onSubmit={handleCreateTournament} className="admin-form">
+                    <div className="form-group">
+                      <label>Tournament Name</label>
+                      <input 
+                        type="text" 
+                        placeholder="e.g., Summer Dice Championship" 
+                        value={diceFormData.name} 
+                        onChange={e => setDiceFormData({ ...diceFormData, name: e.target.value })} 
+                        required 
+                      />
+                    </div>
+                    <div className="form-group inline-color-inputs" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                      <div>
+                        <label>Entry Fee ($)</label>
+                        <input 
+                          type="number" 
+                          value={diceFormData.entry_fee} 
+                          onChange={e => setDiceFormData({ ...diceFormData, entry_fee: parseFloat(e.target.value) || 0 })} 
+                          required 
+                        />
+                      </div>
+                      <div>
+                        <label>Initial Prize Pool ($)</label>
+                        <input 
+                          type="number" 
+                          value={diceFormData.prize_pool} 
+                          onChange={e => setDiceFormData({ ...diceFormData, prize_pool: parseFloat(e.target.value) || 0 })} 
+                          required 
+                        />
+                      </div>
+                    </div>
+                    <button type="submit" className="primary-btn" style={{ marginTop: '15px' }}>SPAWN TOURNAMENT</button>
+                  </form>
+                </div>
+              </div>
+
+              {/* Right Side: Tournaments list */}
+              <div className="data-table-card" style={{ flex: 1.2 }}>
+                <h2>DICE TOURNAMENTS LIST</h2>
+                {loadingDice ? <div className="loader">Loading tournament configurations...</div> : (
+                  <table className="admin-table">
+                    <thead>
+                      <tr>
+                        <th>ID</th>
+                        <th>Name</th>
+                        <th>Entry Fee</th>
+                        <th>Prize Pool</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {tournamentsList.map(t => (
+                        <tr key={t.id}>
+                          <td>{t.id}</td>
+                          <td><strong>{t.name}</strong></td>
+                          <td>${t.entry_fee}</td>
+                          <td><strong>${t.prize_pool}</strong></td>
+                          <td>
+                            <span className={t.status === 'ACTIVE' ? 'status-active' : 'status-paused'}>
+                              {t.status}
+                            </span>
+                          </td>
+                          <td>
+                            {t.status === 'ACTIVE' ? (
+                              <button 
+                                onClick={() => handleCompleteTournament(t.id)} 
+                                className="delete-btn"
+                                style={{ background: '#ff0055', color: '#fff', fontSize: '0.75rem', padding: '5px 10px', borderRadius: '4px', border: 'none', cursor: 'pointer' }}
+                              >
+                                Complete & Payout
+                              </button>
+                            ) : (
+                              <span style={{ color: '#888', fontSize: '0.75rem' }}>Closed</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
               </div>
             </div>
           )}

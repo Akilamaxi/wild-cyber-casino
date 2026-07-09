@@ -188,6 +188,119 @@ app.put('/api/admin/slots/config', async (req, res) => {
   }
 });
 
+// --- Dice Admin Endpoints ---
+app.get('/api/admin/dice/config', async (req, res) => {
+  try {
+    const config = await db.all('SELECT * FROM dice_config');
+    const configMap = {};
+    config.forEach(c => configMap[c.key] = c.value);
+    res.json({ success: true, config: configMap });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Internal Server Error' });
+  }
+});
+
+app.put('/api/admin/dice/config', async (req, res) => {
+  try {
+    const { mult_under_7, mult_exact_7, mult_over_7, mult_doubles } = req.body;
+    await db.executeTransaction(async (tx) => {
+      if (mult_under_7 !== undefined) await tx.run('INSERT OR REPLACE INTO dice_config (key, value) VALUES ("mult_under_7", ?)', [mult_under_7.toString()]);
+      if (mult_exact_7 !== undefined) await tx.run('INSERT OR REPLACE INTO dice_config (key, value) VALUES ("mult_exact_7", ?)', [mult_exact_7.toString()]);
+      if (mult_over_7 !== undefined) await tx.run('INSERT OR REPLACE INTO dice_config (key, value) VALUES ("mult_over_7", ?)', [mult_over_7.toString()]);
+      if (mult_doubles !== undefined) await tx.run('INSERT OR REPLACE INTO dice_config (key, value) VALUES ("mult_doubles", ?)', [mult_doubles.toString()]);
+    });
+    await pubsub.publish({ type: 'DICE_CONFIG_UPDATED' });
+    res.json({ success: true });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/admin/dice/tournaments', async (req, res) => {
+  try {
+    const { name, entry_fee, prize_pool } = req.body;
+    const fee = parseFloat(entry_fee);
+    const pool = parseFloat(prize_pool);
+    if (!name || isNaN(fee) || isNaN(pool) || fee < 0 || pool < 0) {
+      return res.status(400).json({ success: false, error: 'Invalid tournament details.' });
+    }
+
+    await db.run(
+      'INSERT INTO dice_tournaments (name, entry_fee, prize_pool, status, created_at) VALUES (?, ?, ?, "ACTIVE", ?)',
+      [name, fee, pool, new Date().toISOString()]
+    );
+    await pubsub.publish({ type: 'DICE_CONFIG_UPDATED' });
+    res.json({ success: true });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/admin/dice/tournaments/:id/complete', async (req, res) => {
+  try {
+    const tourneyId = parseInt(req.params.id, 10);
+    if (isNaN(tourneyId)) {
+      return res.status(400).json({ success: false, error: 'Invalid tournament ID.' });
+    }
+
+    const result = await db.executeTransaction(async (tx) => {
+      const tourney = await tx.get('SELECT * FROM dice_tournaments WHERE id = ? AND status = "ACTIVE"', [tourneyId]);
+      if (!tourney) throw new Error('Active tournament not found.');
+
+      // Fetch leaderboard sorted by score DESC, rolls left ASC
+      const leaderboard = await tx.all(`
+        SELECT email, total_score
+        FROM dice_tournament_participants
+        WHERE tournament_id = ?
+        ORDER BY total_score DESC, rolls_left ASC
+      `, [tourneyId]);
+
+      const payoutsLog = [];
+
+      if (leaderboard.length > 0) {
+        const pool = tourney.prize_pool;
+        let distributions = [];
+        if (leaderboard.length === 1) {
+          distributions = [1.0];
+        } else if (leaderboard.length === 2) {
+          distributions = [0.70, 0.30];
+        } else {
+          distributions = [0.60, 0.30, 0.10];
+        }
+
+        for (let i = 0; i < Math.min(leaderboard.length, distributions.length); i++) {
+          const share = distributions[i];
+          const amount = pool * share;
+          const participant = leaderboard[i];
+
+          const user = await tx.get('SELECT balance, totalWon FROM users WHERE LOWER(email) = ?', [participant.email.toLowerCase()]);
+          if (user) {
+            const newBalance = user.balance + amount;
+            const newTotalWon = user.totalWon + amount;
+            await tx.run('UPDATE users SET balance = ?, totalWon = ? WHERE LOWER(email) = ?', [newBalance, newTotalWon, participant.email.toLowerCase()]);
+
+            const winTxId = 'DICE-T-WIN-' + Math.random().toString(36).substr(2, 9).toUpperCase();
+            await tx.run(
+              'INSERT INTO transactions (id, email, type, amount, balanceAfter, timestamp) VALUES (?, ?, "DICE_TOURNEY_PRIZE", ?, ?, ?)',
+              [winTxId, participant.email.toLowerCase(), amount, newBalance, new Date().toISOString()]
+            );
+
+            payoutsLog.push({ email: participant.email, amount, rank: i + 1 });
+          }
+        }
+      }
+
+      await tx.run('UPDATE dice_tournaments SET status = "COMPLETED" WHERE id = ?', [tourneyId]);
+      return { payouts: payoutsLog };
+    });
+
+    await pubsub.publish({ type: 'DICE_CONFIG_UPDATED' });
+    res.json({ success: true, payouts: result.payouts });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+});
+
 // 2. RNG Audit Verification
 app.get('/api/admin/audit-verify/:drawId', async (req, res) => {
   try {

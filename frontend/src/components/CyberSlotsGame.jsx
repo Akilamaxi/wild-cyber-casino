@@ -5,11 +5,11 @@ const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:50
 
 const SYMBOL_MAP = {
   'BAR': { emoji: '➖', label: 'BAR', color: '#a5a2c2' },
-  'CHERRY': { emoji: '🍒', label: 'NEON CHERRY', color: '#ff0055' },
-  'BELL': { emoji: '🔔', label: 'GOLD BELL', color: '#ffcc00' },
-  'DIAMOND': { emoji: '💎', label: 'CYBER DIAMOND', color: '#00ffcc' },
-  'SEVEN': { emoji: '7️⃣', label: 'LUCKY SEVEN', color: '#b500ff' },
-  'WILD': { emoji: '🎰', label: 'WILD JACKPOT', color: '#00ffcc' }
+  'CHERRY': { emoji: '🍒', label: 'CHERRY', color: '#ff0055' },
+  'BELL': { emoji: '🔔', label: 'BELL', color: '#ffcc00' },
+  'DIAMOND': { emoji: '💎', label: 'DIAMOND', color: '#00ffcc' },
+  'SEVEN': { emoji: '7️⃣', label: 'SEVEN', color: '#b500ff' },
+  'WILD': { emoji: '🎰', label: 'WILD', color: '#00ffcc' }
 };
 
 const FALLBACK_SYMBOLS = [
@@ -49,11 +49,10 @@ function CyberSlotsGame({ currentUser, onBalanceUpdate }) {
   useEffect(() => {
     fetchConfig();
 
-    // Listen to WebSocket configuration updates
     const socket = io(API_BASE);
     socket.on('lottery_events', (event) => {
       if (event.type === 'SLOTS_CONFIG_UPDATED') {
-        console.log('[WS] Slots configuration updated. Refreshing payouts table...');
+        console.log('[WS] Slots config updated. Refreshing payouts...');
         fetchConfig();
       }
     });
@@ -78,7 +77,6 @@ function CyberSlotsGame({ currentUser, onBalanceUpdate }) {
     setIsSpinning(true);
     setSpinningReels([true, true, true]);
 
-    // Optimistically deduct the bet amount client-side
     onBalanceUpdate(currentUser.balance - betSize);
 
     try {
@@ -101,7 +99,6 @@ function CyberSlotsGame({ currentUser, onBalanceUpdate }) {
       const finalPayout = data.payout;
       const serverBalance = data.newBalance;
 
-      // Cycle reels animation using dynamic symbols
       let intervals = [];
       const symbolsList = symbols.map(s => s.name);
       
@@ -120,21 +117,18 @@ function CyberSlotsGame({ currentUser, onBalanceUpdate }) {
       intervals[1] = runReelCycle(1);
       intervals[2] = runReelCycle(2);
 
-      // Stop Reel 1 Stops at 1500ms
       setTimeout(() => {
         clearInterval(intervals[0]);
         setReels(prev => [targetReels[0], prev[1], prev[2]]);
         setSpinningReels(prev => [false, prev[1], prev[2]]);
       }, 1500);
 
-      // Stop Reel 2 Stops at 2300ms
       setTimeout(() => {
         clearInterval(intervals[1]);
         setReels(prev => [prev[0], targetReels[1], prev[2]]);
         setSpinningReels(prev => [prev[0], false, prev[2]]);
       }, 2300);
 
-      // Stop Reel 3 Stops at 3100ms
       setTimeout(() => {
         clearInterval(intervals[2]);
         setReels(prev => [prev[0], prev[1], targetReels[2]]);
@@ -168,61 +162,70 @@ function CyberSlotsGame({ currentUser, onBalanceUpdate }) {
   };
 
   return (
-    <div className="game-view-wrapper">
-      <div className={`slots-game-container ${flashWin ? 'slots-win-flash' : ''}`}>
+    <div className="slots-page-container">
+      <div className="slots-main-layout">
         
-        {/* Left Side: Slots Machine reels & controls */}
-        <div className="slots-machine-card">
-          <div className="slots-header">
+        {/* Left Side: Game Machine */}
+        <div className={`slots-machine-box ${flashWin ? 'jackpot-flash' : ''}`}>
+          <div className="machine-header">
             <h2>CYBER SLOTS 777</h2>
-            <p className="slots-subtitle">PROVABLY FAIR DECENTRALIZED COMPLIANT RNG</p>
+            <div className="security-tag">🔐 SECURE DECENTRALIZED COMPLIANT</div>
           </div>
 
-          {/* Slots Reels Display */}
-          <div className="slots-window">
-            <div className="winline-indicator"></div>
-            <div className="reels-row">
-              {reels.map((symbolName, idx) => {
-                const s = SYMBOL_MAP[symbolName] || { emoji: '❓', label: symbolName, color: '#fff' };
-                const isSpin = spinningReels[idx];
+          {/* Reels Display */}
+          <div className="reels-outer-container">
+            <div className="reels-glass-overlay"></div>
+            <div className="win-line-indicator"></div>
+            
+            <div className="reels-inner-grid">
+              {reels.map((symbolKey, index) => {
+                const sym = SYMBOL_MAP[symbolKey] || { emoji: '❓', label: symbolKey, color: '#fff' };
+                const isReelSpinning = spinningReels[index];
                 return (
-                  <div 
-                    key={idx} 
-                    className={`slots-reel-box ${isSpin ? 'reel-blur-anim' : ''}`}
-                    style={{ borderTopColor: s.color }}
-                  >
-                    <span className="reel-emoji">{s.emoji}</span>
-                    <span className="reel-label" style={{ color: s.color }}>{s.label}</span>
+                  <div key={index} className={`slots-reel ${isReelSpinning ? 'spinning-blur' : ''}`}>
+                    <div className="reel-symbol-wrap" style={{ color: sym.color }}>
+                      <span className="reel-emoji">{sym.emoji}</span>
+                      <span className="reel-label">{sym.label}</span>
+                    </div>
                   </div>
                 );
               })}
             </div>
           </div>
 
-          {/* Win popups */}
+          {/* Winning Screen Banner */}
           {winMessage && (
-            <div className={`slots-outcome-banner ${payoutAmount > 0 ? 'win' : 'lose'}`}>
+            <div className={`slots-result-banner ${payoutAmount > 0 ? 'win-banner' : 'lose-banner'}`}>
               {winMessage}
             </div>
           )}
 
-          {/* Spin controls */}
-          <div className="slots-actions">
-            <div className="bet-adjuster">
-              <span className="bet-label">BET SIZE</span>
-              <div className="bet-btn-row">
-                <button disabled={isSpinning} onClick={() => setBetSize(Math.max(5, betSize - 5))}>-</button>
-                <span className="bet-val">${betSize}</span>
-                <button disabled={isSpinning} onClick={() => setBetSize(betSize + 5)}>+</button>
+          {/* Machine Controls */}
+          <div className="slots-controls-wrapper">
+            {/* Bet selector */}
+            <div className="bet-select-group">
+              <label>SELECT BET SIZE</label>
+              <div className="bet-buttons">
+                {[5, 10, 25, 50].map((size) => (
+                  <button 
+                    key={size}
+                    type="button"
+                    className={`bet-btn ${betSize === size ? 'active' : ''}`}
+                    onClick={() => !isSpinning && setBetSize(size)}
+                    disabled={isSpinning}
+                  >
+                    ${size}
+                  </button>
+                ))}
               </div>
             </div>
 
             <button 
-              className="slots-spin-btn" 
+              className="slots-spin-lever-btn" 
               onClick={startSlotsSpin} 
               disabled={isSpinning}
             >
-              {isSpinning ? 'SPINNING...' : '🎰 SPIN REELS'}
+              {isSpinning ? 'ROLLING...' : 'PULL LEVER 🚀'}
             </button>
           </div>
         </div>
@@ -245,15 +248,6 @@ function CyberSlotsGame({ currentUser, onBalanceUpdate }) {
                 </div>
               );
             })}
-            <div className="payout-row double-row">
-              <span className="payout-icons">🔹🔹◽</span>
-              <span className="payout-label">ANY 2 MATCHING</span>
-              <span className="payout-mult">2x Bet</span>
-            </div>
-          </div>
-
-          <div className="slots-game-info">
-            ℹ️ Wild symbols 🎰 substitute for any symbol on the winline to complete winning sequences!
           </div>
         </div>
       </div>

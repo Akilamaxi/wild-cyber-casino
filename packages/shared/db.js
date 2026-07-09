@@ -248,8 +248,8 @@ const initDatabase = async () => {
   const slotsCfgCount = await get('SELECT COUNT(*) as count FROM slots_config');
   if (slotsCfgCount.count === 0) {
     const defaultSlotsConfigs = [
-      { key: 'payout_strategy', value: 'FAIR_RNG' }, // 'FAIR_RNG' | 'CONTROLLED_RTP' | 'NEAR_MISS_TEASER'
-      { key: 'target_rtp', value: '0.90' }, // 90% return to player
+      { key: 'payout_strategy', value: 'FAIR_RNG' },
+      { key: 'target_rtp', value: '0.90' },
       { key: 'symbols_config', value: JSON.stringify([
         { name: 'BAR', multiplier: 3, weight: 30, color: '#ff0055' },
         { name: 'CHERRY', multiplier: 5, weight: 25, color: '#ffcc00' },
@@ -263,6 +263,60 @@ const initDatabase = async () => {
     for (const cfg of defaultSlotsConfigs) {
       await run(`
         INSERT INTO slots_config (key, value) VALUES (?, ?)
+      `, [cfg.key, cfg.value]);
+    }
+  }
+
+  // 10. Dice Tournaments Configuration
+  await run(`
+    CREATE TABLE IF NOT EXISTS dice_tournaments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      entry_fee REAL NOT NULL,
+      prize_pool REAL NOT NULL,
+      status TEXT DEFAULT 'ACTIVE',
+      created_at TEXT NOT NULL
+    )
+  `);
+
+  await run(`
+    CREATE TABLE IF NOT EXISTS dice_tournament_participants (
+      tournament_id INTEGER,
+      email TEXT,
+      rolls_left INTEGER DEFAULT 10,
+      total_score INTEGER DEFAULT 0,
+      completed INTEGER DEFAULT 0,
+      PRIMARY KEY (tournament_id, email)
+    )
+  `);
+
+  const tourneyCount = await get('SELECT COUNT(*) as count FROM dice_tournaments');
+  if (tourneyCount.count === 0) {
+    await run(`
+      INSERT INTO dice_tournaments (name, entry_fee, prize_pool, status, created_at)
+      VALUES (?, ?, ?, ?, ?)
+    `, ['🎰 NEON SHIELD DICE CLASH', 10.0, 100.0, 'ACTIVE', new Date().toISOString()]);
+  }
+
+  // 11. Dice Configuration Settings
+  await run(`
+    CREATE TABLE IF NOT EXISTS dice_config (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    )
+  `);
+
+  const diceCfgCount = await get('SELECT COUNT(*) as count FROM dice_config');
+  if (diceCfgCount.count === 0) {
+    const defaultDiceConfigs = [
+      { key: 'mult_under_7', value: '2.3' },
+      { key: 'mult_exact_7', value: '5.8' },
+      { key: 'mult_over_7', value: '2.3' },
+      { key: 'mult_doubles', value: '5.8' }
+    ];
+    for (const cfg of defaultDiceConfigs) {
+      await run(`
+        INSERT INTO dice_config (key, value) VALUES (?, ?)
       `, [cfg.key, cfg.value]);
     }
   }
