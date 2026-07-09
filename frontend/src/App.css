@@ -4497,6 +4497,27 @@ body {
   color: var(--neon-gold);
   text-shadow: 0 0 5px rgba(255, 204, 0, 0.4);
   box-shadow: 0 0 10px rgba(255, 204, 0, 0.15), inset 0 0 5px rgba(255, 204, 0, 0.05);
+  animation: countdown-pulse 1s infinite ease-in-out;
+}
+
+@keyframes countdown-pulse {
+  0% { transform: scale(1); box-shadow: 0 0 10px rgba(255, 204, 0, 0.15); }
+  50% { transform: scale(1.05); box-shadow: 0 0 15px rgba(255, 204, 0, 0.4); }
+  100% { transform: scale(1); box-shadow: 0 0 10px rgba(255, 204, 0, 0.15); }
+}
+
+.lottery-navigation-banner .countdown-circle.low-time-pulse {
+  border-color: var(--neon-pink) !important;
+  color: var(--neon-pink) !important;
+  animation: countdown-fast-pulse 0.5s infinite ease-in-out !important;
+  text-shadow: 0 0 5px rgba(255, 0, 85, 0.6) !important;
+  box-shadow: 0 0 12px rgba(255, 0, 85, 0.3) !important;
+}
+
+@keyframes countdown-fast-pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.1); box-shadow: 0 0 25px var(--neon-pink); }
+  100% { transform: scale(1); }
 }
 
 .lottery-navigation-banner .countdown-label {
@@ -4514,7 +4535,7 @@ body {
 
 .official-draw-balls-section .section-title {
   font-family: 'Orbitron', sans-serif;
-  font-size: 1.1rem;
+  font-size: 1rem;
   font-weight: 800;
   color: #fff;
   letter-spacing: 1.5px;
@@ -4555,11 +4576,11 @@ body {
 
 .active-wagers-title {
   font-family: 'Orbitron', sans-serif;
-  font-size: 0.9rem;
+  font-size: 0.78rem !important;
   font-weight: 800;
   color: var(--neon-gold) !important;
-  letter-spacing: 1px;
-  margin-bottom: 15px;
+  letter-spacing: 0.5px;
+  margin-bottom: 12px;
   text-transform: uppercase;
 }
 
@@ -4588,7 +4609,7 @@ body {
   background: rgba(0, 0, 0, 0.35);
   border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: 8px;
-  padding: 16px;
+  padding: 10px 12px !important;
   transition: all 0.25s ease;
 }
 
@@ -4606,14 +4627,14 @@ body {
 
 .wager-game-title {
   font-family: 'Orbitron', sans-serif;
-  font-size: 0.85rem;
+  font-size: 0.72rem !important;
   font-weight: 800;
   color: #ff9900;
   letter-spacing: 0.5px;
 }
 
 .wager-ticket-id {
-  font-size: 0.8rem;
+  font-size: 0.7rem !important;
   color: var(--text-gray);
 }
 
@@ -4624,15 +4645,15 @@ body {
 }
 
 .wager-num-badge {
-  width: 28px;
-  height: 28px;
+  width: 23px !important;
+  height: 23px !important;
   border-radius: 50%;
   border: 1px solid var(--neon-gold);
   color: var(--neon-gold);
   display: flex;
   justify-content: center;
   align-items: center;
-  font-size: 0.75rem;
+  font-size: 0.68rem !important;
   font-weight: bold;
 }
 
@@ -4650,14 +4671,14 @@ body {
 }
 
 .wager-bet-amount {
-  font-size: 0.85rem;
+  font-size: 0.72rem !important;
   color: var(--text-gray);
 }
 
 .wager-status-badge {
-  padding: 4px 10px;
+  padding: 3px 8px !important;
   border-radius: 12px;
-  font-size: 0.75rem;
+  font-size: 0.68rem !important;
   font-weight: bold;
   letter-spacing: 0.5px;
 }

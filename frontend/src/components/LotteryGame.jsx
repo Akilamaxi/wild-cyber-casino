@@ -24,6 +24,7 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
   const [payoutAmount, setPayoutAmount] = useState(0);
   const [showHistory, setShowHistory] = useState(false);
   const [ticketHistory, setTicketHistory] = useState([]);
+  const [recentDraws, setRecentDraws] = useState([]);
   
   // History View Controls
   const [historyPage, setHistoryPage] = useState(1);
@@ -99,6 +100,7 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
       handleClear();
       fetchStatus(selectedGame.name);
       fetchPoolTickets(selectedGame.name);
+      fetchWinners(selectedGame.name);
     }
   }, [selectedGame]);
 
@@ -164,6 +166,7 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
 
           // Re-fetch status
           await fetchStatus(activeGame.name);
+          fetchWinners(activeGame.name);
           
           // CRITICAL REQUIREMENT: Clear the ticket selection cards after a draw, forcing player to refresh options
           setPoolTickets([]);
@@ -336,6 +339,18 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
       console.error('Failed to fetch pool tickets:', err);
     } finally {
       setLoadingPool(false);
+    }
+  };
+
+  const fetchWinners = async (gameName) => {
+    try {
+      const res = await fetch(`${API_BASE}/api/lottery/winners/${encodeURIComponent(gameName)}`);
+      const data = await res.json();
+      if (data.success && data.draws) {
+        setRecentDraws(data.draws);
+      }
+    } catch (err) {
+      console.error('Error fetching winners:', err);
     }
   };
 
@@ -710,7 +725,7 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
           </div>
         </div>
         <div className="right-countdown">
-          <div className="countdown-circle">
+          <div className={`countdown-circle ${countdown <= 10 && !isDrawing ? 'low-time-pulse' : ''}`}>
             {isDrawing ? '⏳' : countdown}
           </div>
           <span className="countdown-label">Next draw</span>
@@ -983,6 +998,36 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
               </>
             )}
           </div>
+
+          {/* Previous Winners Section */}
+          <div className="previous-winners-section" style={{ marginTop: '30px' }}>
+            <h3 className="previous-winners-title" style={{ fontFamily: 'Orbitron, sans-serif', fontSize: '0.85rem', color: '#ffcc00', letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: '10px' }}>Previous Winners</h3>
+            <div className="panel-divider" style={{ margin: '10px 0', borderBottom: '1px solid rgba(255,255,255,0.08)' }}></div>
+            {recentDraws.length === 0 ? (
+              <p className="no-wagers-msg" style={{ fontSize: '0.75rem', color: '#888', textAlign: 'center', padding: '15px 0' }}>No completed draws yet.</p>
+            ) : (
+              <div className="previous-winners-scrollable" style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '250px', overflowY: 'auto' }}>
+                {recentDraws.map(draw => (
+                  <div key={draw.drawId} className="winner-row-card" style={{ background: 'rgba(0, 0, 0, 0.25)', border: '1px solid rgba(255,255,255,0.04)', borderRadius: '8px', padding: '12px' }}>
+                    <div className="winner-card-header" style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: '8px' }}>
+                      <span style={{ color: '#00ffcc', fontWeight: 'bold' }}>DRAW #{draw.drawId}</span>
+                      <span style={{ color: '#888' }}>{new Date(draw.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                    </div>
+                    <div className="winner-balls-row" style={{ display: 'flex', gap: '4px', marginBottom: '8px' }}>
+                      {draw.winningNumbers && draw.winningNumbers.map(n => (
+                        <span key={n} className="winner-num-badge" style={{ width: '22px', height: '22px', borderRadius: '50%', border: '1px solid #00ffcc', color: '#00ffcc', display: 'flex', justifyContent: 'center', alignContent: 'center', alignItems: 'center', fontSize: '0.7rem', fontWeight: 'bold' }}>{n}</span>
+                      ))}
+                    </div>
+                    <div className="winner-card-meta" style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem' }}>
+                      <span style={{ color: '#888' }}>Winners: <strong style={{ color: '#fff' }}>{draw.winnersCount}</strong></span>
+                      <span style={{ color: '#888' }}>Payout: <strong style={{ color: 'var(--neon-green)' }}>${draw.totalPaidOut}</strong></span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
         </div>
 
       </div>

@@ -497,6 +497,34 @@ app.get('/api/lottery/history', async (req, res) => {
   }
 });
 
+// Get recent draws & winner aggregates for previous winners shelf
+app.get('/api/lottery/winners/:gameName', async (req, res) => {
+  try {
+    const draws = await db.all(
+      `SELECT d.id as drawId, d.winningNumbers, d.timestamp,
+              (SELECT COUNT(*) FROM lottery_tickets WHERE drawId = d.id AND payout > 0) as winnersCount,
+              (SELECT SUM(payout) FROM lottery_tickets WHERE drawId = d.id) as totalPaidOut
+       FROM lottery_draws d
+       WHERE d.lotteryName = ? AND d.state = 'COMPLETED'
+       ORDER BY d.id DESC LIMIT 5`,
+      [req.params.gameName]
+    );
+
+    const parsedDraws = draws.map(d => ({
+      drawId: d.drawId,
+      winningNumbers: d.winningNumbers ? JSON.parse(d.winningNumbers) : null,
+      timestamp: d.timestamp,
+      winnersCount: d.winnersCount || 0,
+      totalPaidOut: d.totalPaidOut || 0.0
+    }));
+
+    res.json({ success: true, draws: parsedDraws });
+  } catch (error) {
+    console.error('Error fetching draws winners:', error);
+    res.status(500).json({ success: false, error: 'Internal Server Error' });
+  }
+});
+
 app.get('/api/lottery/pool-tickets', async (req, res) => {
   try {
     const { email, lotteryName } = req.query;
