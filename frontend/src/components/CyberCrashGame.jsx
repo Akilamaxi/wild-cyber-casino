@@ -167,8 +167,16 @@ export default function CyberCrashGame({ currentUser, onBalanceUpdate }) {
     bgSprite.height = 800;
     bgSprite.x = -200;
     bgSprite.y = -350;
-    bgSprite.alpha = 0.8;
+    bgSprite.alpha = 0.6; // Darker to make UI pop
+    
+    // Add a dark vignette overlay for better contrast
+    const vignette = new PIXI.Graphics();
+    vignette.beginFill(0x000000, 0.4);
+    vignette.drawRect(0, 0, 800, 400);
+    vignette.endFill();
+    
     app.stage.addChild(bgSprite);
+    app.stage.addChild(vignette);
 
     // 2. Dynamic Trail Curve
     const curve = new PIXI.Graphics();
@@ -189,7 +197,11 @@ export default function CyberCrashGame({ currentUser, onBalanceUpdate }) {
     rocketCore.blendMode = PIXI.BLEND_MODES.SCREEN; 
     rocketCore.width = 120;
     rocketCore.height = 120;
-    rocketCore.rotation = Math.PI / 2; // Default offset if image points UP
+    // The rocket image naturally points DOWN (thrusters at top). 
+    // To make it point RIGHT (angle 0), we rotate by +Math.PI/2.
+    // Wait, if it points DOWN, rotating by PI/2 makes it point LEFT. 
+    // We want it to point RIGHT, so we rotate by -Math.PI/2.
+    rocketCore.rotation = -Math.PI / 2; 
     
     rocketContainer.addChild(rocketCore);
     app.stage.addChild(rocketContainer);
@@ -271,17 +283,19 @@ export default function CyberCrashGame({ currentUser, onBalanceUpdate }) {
       prevX = targetX;
       prevY = targetY;
 
-      // Exhaust Particles (spawn if in flight)
-      if (activeState === 'FLIGHT' && Math.random() > 0.2) {
+      // Exhaust Particles (blue plasma to match realistic rocket)
+      if (activeState === 'FLIGHT' && Math.random() > 0.1) { // spawn more frequently
           const p = new PIXI.Graphics();
-          p.beginFill(Math.random() > 0.5 ? 0xffaa00 : 0xff5500);
-          p.drawCircle(0, 0, Math.random() * 4 + 2);
+          p.beginFill(Math.random() > 0.5 ? 0x00ffff : 0x0088ff);
+          p.drawCircle(0, 0, Math.random() * 5 + 3);
           p.endFill();
+          p.blendMode = PIXI.BLEND_MODES.SCREEN;
+          
           // spawn slightly behind the ship
-          p.x = targetX - Math.cos(currentAngle) * 20;
-          p.y = targetY - Math.sin(currentAngle) * 20;
-          p.vx = -Math.cos(currentAngle) * (Math.random() * 2 + 1);
-          p.vy = -Math.sin(currentAngle) * (Math.random() * 2 + 1) + (Math.random() - 0.5);
+          p.x = targetX - Math.cos(currentAngle) * 30;
+          p.y = targetY - Math.sin(currentAngle) * 30;
+          p.vx = -Math.cos(currentAngle) * (Math.random() * 3 + 2);
+          p.vy = -Math.sin(currentAngle) * (Math.random() * 3 + 2) + (Math.random() - 0.5);
           p.life = 1.0;
           trailContainer.addChild(p);
           trailParticles.push(p);
@@ -292,9 +306,9 @@ export default function CyberCrashGame({ currentUser, onBalanceUpdate }) {
           const p = trailParticles[i];
           p.x += p.vx * delta;
           p.y += p.vy * delta;
-          p.life -= 0.04 * delta;
+          p.life -= 0.03 * delta; // fade slower
           p.alpha = p.life;
-          p.scale.set(p.life);
+          p.scale.set(p.life * 1.5); // expand as they die
           if (p.life <= 0) {
               trailContainer.removeChild(p);
               trailParticles.splice(i, 1);
@@ -303,12 +317,12 @@ export default function CyberCrashGame({ currentUser, onBalanceUpdate }) {
 
       // Draw Flight Curve Line
       curve.clear();
-      // Outer glow
-      curve.lineStyle(8, 0xffaa00, 0.4);
+      // Outer glow (cyan)
+      curve.lineStyle(10, 0x00ffff, 0.3);
       curve.moveTo(0, 400);
       curve.quadraticCurveTo(targetX * 0.5, 400, targetX, targetY);
-      // Inner core
-      curve.lineStyle(3, 0xffffff, 1);
+      // Inner core (bright blue)
+      curve.lineStyle(3, 0xccffff, 1);
       curve.moveTo(0, 400);
       curve.quadraticCurveTo(targetX * 0.5, 400, targetX, targetY);
 
@@ -477,23 +491,33 @@ export default function CyberCrashGame({ currentUser, onBalanceUpdate }) {
           {gameState === 'BETTING' ? (
             <div style={{ 
               position: 'absolute', top: '40%', left: '50%', transform: 'translate(-50%, -50%)', 
-              display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 10 
+              display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 10,
+              background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(10px)', padding: '20px 40px', borderRadius: '24px',
+              border: '1px solid rgba(255,255,255,0.1)'
             }}>
-              <div style={{ fontSize: '1.5rem', color: '#ffaa00', fontFamily: 'Orbitron', marginBottom: '10px' }}>
+              <div style={{ fontSize: '1.5rem', color: '#00ffff', fontFamily: 'Orbitron', marginBottom: '10px', textShadow: '0 0 10px #00ffff' }}>
                 STARTING IN
               </div>
-              <div style={{ fontSize: '5rem', fontFamily: 'Orbitron', fontWeight: 900, color: '#fff', textShadow: '0 0 30px rgba(0,0,0,0.8)' }}>
+              <div style={{ fontSize: '5rem', fontFamily: 'Orbitron', fontWeight: 900, color: '#fff', textShadow: '0 0 30px rgba(0,255,255,0.8)' }}>
                 {countdown.toFixed(1)}s
               </div>
             </div>
           ) : (
             <div style={{ 
               position: 'absolute', top: '40%', left: '50%', transform: 'translate(-50%, -50%)', 
-              fontSize: '5rem', fontFamily: 'Orbitron', fontWeight: 900, 
-              color: gameState === 'CRASHED' ? '#ff0055' : '#fff', 
-              textShadow: '0 0 30px rgba(0,0,0,0.8)', zIndex: 10 
+              display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 10,
+              background: gameState === 'CRASHED' ? 'rgba(255,0,85,0.15)' : 'rgba(0,0,0,0.4)', 
+              backdropFilter: 'blur(10px)', padding: '20px 50px', borderRadius: '30px',
+              border: gameState === 'CRASHED' ? '1px solid rgba(255,0,85,0.3)' : '1px solid rgba(255,255,255,0.1)',
+              boxShadow: gameState === 'CRASHED' ? '0 0 50px rgba(255,0,85,0.2)' : '0 0 50px rgba(0,255,255,0.1)'
             }}>
-              {multiplier.toFixed(2)}x
+              <div style={{
+                fontSize: '6rem', fontFamily: 'Orbitron', fontWeight: 900, 
+                color: gameState === 'CRASHED' ? '#ff0055' : '#fff', 
+                textShadow: gameState === 'CRASHED' ? '0 0 30px rgba(255,0,85,0.8)' : '0 0 30px rgba(0,255,255,0.8)'
+              }}>
+                {multiplier.toFixed(2)}x
+              </div>
             </div>
           )}
 
