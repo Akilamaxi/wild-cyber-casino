@@ -30,29 +30,36 @@ function Header({ currentUser, onLogout, onOpenLogin, onOpenSignup, onViewChange
           style={{
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center',
-            background: 'rgba(0, 255, 102, 0.08)',
-            border: '1px solid var(--neon-green)',
-            borderRadius: '50%',
-            width: '38px',
-            height: '38px',
+            gap: '8px',
+            background: 'rgba(0, 255, 102, 0.05)',
+            border: '1px solid rgba(0, 255, 102, 0.2)',
+            padding: '8px 16px',
+            borderRadius: '20px',
             cursor: 'pointer',
-            boxShadow: '0 0 10px rgba(0, 255, 102, 0.15)',
             transition: 'all 0.2s ease',
-            fontSize: '1.2rem',
+            color: '#fff',
+            fontFamily: 'Orbitron, sans-serif',
+            fontSize: '11px',
+            fontWeight: '900',
+            letterSpacing: '1.5px',
             marginRight: '15px',
             flexShrink: 0
           }}
           onMouseEnter={(e) => {
             e.currentTarget.style.background = 'rgba(0, 255, 102, 0.15)';
+            e.currentTarget.style.borderColor = 'var(--neon-green)';
             e.currentTarget.style.boxShadow = '0 0 15px rgba(0, 255, 102, 0.3)';
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.background = 'rgba(0, 255, 102, 0.08)';
-            e.currentTarget.style.boxShadow = '0 0 10px rgba(0, 255, 102, 0.15)';
+            e.currentTarget.style.background = 'rgba(0, 255, 102, 0.05)';
+            e.currentTarget.style.borderColor = 'rgba(0, 255, 102, 0.2)';
+            e.currentTarget.style.boxShadow = 'none';
           }}
         >
-          💬
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--neon-green)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ filter: 'drop-shadow(0 0 3px var(--neon-green))' }}>
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+          </svg>
+          <span>CHAT</span>
         </div>
 
         {currentUser ? (
