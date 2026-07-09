@@ -1,6 +1,6 @@
 import React from 'react';
 
-function Header({ currentUser, onLogout, onOpenLogin, onOpenSignup, onViewChange }) {
+function Header({ currentUser, onLogout, onOpenLogin, onOpenSignup, onViewChange, onChatToggle }) {
   return (
     <header className="casino-header-top">
       {/* Brand logo */}
@@ -22,6 +22,39 @@ function Header({ currentUser, onLogout, onOpenLogin, onOpenSignup, onViewChange
 
       {/* Auth state triggers */}
       <div className="header-actions">
+        {/* Cyber Chat Toggle Badge */}
+        <div 
+          className="header-chat-badge" 
+          onClick={onChatToggle}
+          title="Open Chat"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'rgba(0, 255, 102, 0.08)',
+            border: '1px solid var(--neon-green)',
+            borderRadius: '50%',
+            width: '38px',
+            height: '38px',
+            cursor: 'pointer',
+            boxShadow: '0 0 10px rgba(0, 255, 102, 0.15)',
+            transition: 'all 0.2s ease',
+            fontSize: '1.2rem',
+            marginRight: '15px',
+            flexShrink: 0
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'rgba(0, 255, 102, 0.15)';
+            e.currentTarget.style.boxShadow = '0 0 15px rgba(0, 255, 102, 0.3)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'rgba(0, 255, 102, 0.08)';
+            e.currentTarget.style.boxShadow = '0 0 10px rgba(0, 255, 102, 0.15)';
+          }}
+        >
+          💬
+        </div>
+
         {currentUser ? (
           <div className="header-user-badge-group">
             {/* Clickable Wallet */}

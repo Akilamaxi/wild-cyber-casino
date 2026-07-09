@@ -97,6 +97,7 @@ function App() {
           onOpenLogin={openLogin}
           onOpenSignup={openSignup}
           onViewChange={setCurrentView}
+          onChatToggle={() => setIsChatOpen(prev => !prev)}
         />
 
         <main className="casino-app-content">
@@ -172,18 +173,6 @@ function App() {
         currentUser={currentUser} 
         onOpenLogin={openLogin} 
       />
-
-      {/* Floating Chat Bubble Toggle Button */}
-      {!isChatOpen && (
-        <button 
-          className="floating-support-widget" 
-          onClick={() => setIsChatOpen(true)}
-          title="Open Cyber Chat"
-          style={{ border: 'none' }}
-        >
-          💬
-        </button>
-      )}
     </div>
   );
 }
