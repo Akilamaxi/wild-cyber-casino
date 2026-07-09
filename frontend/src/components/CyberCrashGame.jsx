@@ -160,27 +160,43 @@ export default function CyberCrashGame({ currentUser, onBalanceUpdate }) {
     }
     appRef.current = app;
 
-    // 1.5 Cute Smooth Vector Background
-    const bgGraphics = new PIXI.Graphics();
-    bgGraphics.beginFill(0x1a1a2e); // smooth dark blue/purple
-    bgGraphics.drawRect(0, 0, 800, 400);
-    bgGraphics.endFill();
-    app.stage.addChild(bgGraphics);
+    // 1.5 Deep Space Parallax (High-tension Cyberpunk)
+    const bgContainer = new PIXI.Container();
+    app.stage.addChild(bgContainer);
     
-    // Parallax Stars
-    const starsContainer = new PIXI.Container();
-    app.stage.addChild(starsContainer);
+    // Deep purple/blue nebula gradient
+    const bgGradient = new PIXI.Graphics();
+    bgGradient.beginFill(0x0a001a); // Very deep purple
+    bgGradient.drawRect(0, 0, 800, 400);
+    bgGradient.endFill();
+    bgContainer.addChild(bgGradient);
+    
+    // Midground Glowing Stars
     const stars = [];
-    for(let i=0; i<30; i++) {
+    for(let i=0; i<50; i++) {
         const star = new PIXI.Graphics();
-        star.beginFill(0xffffff, Math.random() * 0.5 + 0.3);
-        star.drawCircle(0, 0, Math.random() * 2 + 1);
+        star.beginFill(Math.random() > 0.5 ? 0x00ffff : 0xff00ff, Math.random() * 0.5 + 0.3);
+        star.drawCircle(0, 0, Math.random() * 1.5 + 0.5);
         star.endFill();
         star.x = Math.random() * 800;
         star.y = Math.random() * 400;
-        star.speed = Math.random() * 1.5 + 0.5;
+        star.speed = Math.random() * 2 + 0.5;
         stars.push(star);
-        starsContainer.addChild(star);
+        bgContainer.addChild(star);
+    }
+
+    // Foreground Warp Streaks
+    const streaks = [];
+    for(let i=0; i<15; i++) {
+        const streak = new PIXI.Graphics();
+        streak.beginFill(0x00ffff, 0.4);
+        streak.drawRect(0, 0, Math.random() * 40 + 20, 1);
+        streak.endFill();
+        streak.x = Math.random() * 800;
+        streak.y = Math.random() * 400;
+        streak.speed = Math.random() * 15 + 10;
+        streaks.push(streak);
+        bgContainer.addChild(streak);
     }
     
     // 2. Dynamic Trail Curve
@@ -188,48 +204,34 @@ export default function CyberCrashGame({ currentUser, onBalanceUpdate }) {
     app.stage.addChild(curve);
     curveGraphicsRef.current = curve;
     
-    // 2.5 Exhaust Trail Particles (Puffy Clouds)
+    // 2.5 Exhaust Trail Particles (Particle Engine Exhaust)
     const trailParticles = [];
     const trailContainer = new PIXI.Container();
     app.stage.addChild(trailContainer);
 
-    // 3. Cute Vector Airplane
+    // 3. Cyberpunk Rocket Chassis
     const rocketContainer = new PIXI.Container();
-    const rocketCore = new PIXI.Container();
+    const rocketCore = new PIXI.Graphics();
     
-    // Body (capsule)
-    const body = new PIXI.Graphics();
-    body.beginFill(0xffffff);
-    body.drawRoundedRect(-20, -12, 40, 24, 12);
-    body.endFill();
-
-    // Nose
-    const nose = new PIXI.Graphics();
-    nose.beginFill(0xff4444);
-    nose.moveTo(10, -12);
-    nose.lineTo(30, 0);
-    nose.lineTo(10, 12);
-    nose.endFill();
-
-    // Fins
-    const fins = new PIXI.Graphics();
-    fins.beginFill(0x4488ff);
-    fins.moveTo(-10, -12);
-    fins.lineTo(-20, -25);
-    fins.lineTo(-20, -12);
-    fins.moveTo(-10, 12);
-    fins.lineTo(-20, 25);
-    fins.lineTo(-20, 12);
-    fins.endFill();
-
-    // Window
-    const win = new PIXI.Graphics();
-    win.beginFill(0x88ccff);
-    win.lineStyle(2, 0xcccccc);
-    win.drawCircle(5, 0, 6);
-    win.endFill();
-
-    rocketCore.addChild(fins, body, nose, win);
+    // Glowing Neon Chassis
+    rocketCore.lineStyle(6, 0x00ffff, 0.5);
+    rocketCore.moveTo(25, 0);
+    rocketCore.lineTo(-15, -12);
+    rocketCore.lineTo(-5, 0);
+    rocketCore.lineTo(-15, 12);
+    rocketCore.closePath();
+    
+    // Dark core body with neon border
+    rocketCore.beginFill(0x0a001a);
+    rocketCore.lineStyle(2, 0xff00ff, 1);
+    rocketCore.moveTo(25, 0);
+    rocketCore.lineTo(-15, -12);
+    rocketCore.lineTo(-5, 0);
+    rocketCore.lineTo(-15, 12);
+    rocketCore.closePath();
+    
+    // Add slight upward tilt to chassis
+    rocketCore.rotation = -0.15;
     
     rocketContainer.addChild(rocketCore);
     app.stage.addChild(rocketContainer);
@@ -288,17 +290,25 @@ export default function CyberCrashGame({ currentUser, onBalanceUpdate }) {
       const targetX = progress * 750; // Keep slightly away from edge
       const targetY = 400 - Math.pow(progress, 1.8) * 350; // Curve up from bottom
 
-      // Parallax Stars
-      const starSpeedMulti = activeState === 'FLIGHT' ? (1 + progress * 8) : 1;
+      // High-frequency camera shake at 10x
+      let shakeX = 0;
+      let shakeY = 0;
+      if (currentVisMultiplier >= 10.0 && activeState === 'FLIGHT') {
+          shakeX = (Math.random() - 0.5) * 6;
+          shakeY = (Math.random() - 0.5) * 6;
+      }
+      app.stage.x = shakeX;
+      app.stage.y = shakeY;
+
+      // Parallax Stars & Streaks
+      const speedMulti = activeState === 'FLIGHT' ? (1 + progress * 10) : 1;
       stars.forEach(s => {
-          s.x -= s.speed * starSpeedMulti * delta;
-          if (activeState === 'FLIGHT') {
-              s.y += (progress * s.speed * 0.5) * delta;
-          }
-          if (s.x < 0 || s.y > 400) {
-              s.x = 800 + Math.random() * 50;
-              s.y = Math.random() * 400;
-          }
+          s.x -= s.speed * speedMulti * delta;
+          if (s.x < 0) s.x = 800 + Math.random() * 50;
+      });
+      streaks.forEach(s => {
+          s.x -= s.speed * speedMulti * delta * 2;
+          if (s.x < 0) s.x = 800 + Math.random() * 100;
       });
 
       let currentAngle = rocketContainer.rotation;
@@ -315,31 +325,35 @@ export default function CyberCrashGame({ currentUser, onBalanceUpdate }) {
       prevX = targetX;
       prevY = targetY;
 
-      // Exhaust Particles (Cute puffy clouds)
-      if (activeState === 'FLIGHT' && Math.random() > 0.1) {
-          const p = new PIXI.Graphics();
-          p.beginFill(0xffffff, 0.7);
-          p.drawCircle(0, 0, Math.random() * 6 + 4);
-          p.endFill();
-          
-          // spawn slightly behind the ship
-          p.x = targetX - Math.cos(currentAngle) * 20;
-          p.y = targetY - Math.sin(currentAngle) * 20;
-          p.vx = -Math.cos(currentAngle) * (Math.random() * 2 + 1);
-          p.vy = -Math.sin(currentAngle) * (Math.random() * 2 + 1) + (Math.random() - 0.5);
-          p.life = 1.0;
-          trailContainer.addChild(p);
-          trailParticles.push(p);
+      // Dynamic Particle Engine Exhaust (Pulsating Bloom)
+      const bloomIntensity = currentVisMultiplier >= 2.0 ? 1.5 : 1.0;
+      if (activeState === 'FLIGHT') {
+          for(let k=0; k<2; k++) {
+              const p = new PIXI.Graphics();
+              p.beginFill(Math.random() > 0.5 ? 0x00ffff : 0x00ffaa); // Cyan or Blue/Green
+              p.drawCircle(0, 0, Math.random() * 4 * bloomIntensity + 2);
+              p.endFill();
+              p.blendMode = PIXI.BLEND_MODES.SCREEN;
+              
+              // spawn slightly behind the ship
+              p.x = targetX - Math.cos(currentAngle) * 15;
+              p.y = targetY - Math.sin(currentAngle) * 15;
+              p.vx = -Math.cos(currentAngle) * (Math.random() * 6 * bloomIntensity + 2);
+              p.vy = -Math.sin(currentAngle) * (Math.random() * 6 * bloomIntensity + 2) + (Math.random() - 0.5);
+              p.life = 1.0;
+              trailContainer.addChild(p);
+              trailParticles.push(p);
+          }
       }
 
-      // Update exhaust
+      // Update exhaust (Shrink and fade to zero)
       for (let i = trailParticles.length - 1; i >= 0; i--) {
           const p = trailParticles[i];
           p.x += p.vx * delta;
           p.y += p.vy * delta;
-          p.life -= 0.03 * delta; // fade slower
+          p.life -= 0.05 * delta;
           p.alpha = p.life;
-          p.scale.set(p.life * 1.5); // expand as they die
+          p.scale.set(p.life); // Shrink dynamically
           if (p.life <= 0) {
               trailContainer.removeChild(p);
               trailParticles.splice(i, 1);
@@ -348,8 +362,10 @@ export default function CyberCrashGame({ currentUser, onBalanceUpdate }) {
 
       // Draw Flight Curve Line
       curve.clear();
-      // Thick smooth cute line
-      curve.lineStyle(6, 0xff4444, 1); // smooth cute red
+      curve.lineStyle(8, 0x00ffff, 0.4); // Neon Cyan glow
+      curve.moveTo(0, 400);
+      curve.quadraticCurveTo(targetX * 0.5, 400, targetX, targetY);
+      curve.lineStyle(3, 0xffffff, 1); // Bright core
       curve.moveTo(0, 400);
       curve.quadraticCurveTo(targetX * 0.5, 400, targetX, targetY);
 
@@ -485,6 +501,20 @@ export default function CyberCrashGame({ currentUser, onBalanceUpdate }) {
     }
   };
 
+  // Dynamic color for multiplier text based on tension
+  let multColor = '#00ffff'; // Neon Cyan
+  let multShadow = 'rgba(0, 255, 255, 0.8)';
+  if (gameState === 'CRASHED') {
+    multColor = '#ff0055'; // Danger Red
+    multShadow = 'rgba(255, 0, 85, 0.8)';
+  } else if (multiplier >= 10) {
+    multColor = '#ff0055'; // Danger Red
+    multShadow = 'rgba(255, 0, 85, 0.8)';
+  } else if (multiplier >= 2) {
+    multColor = '#ffaa00'; // Yellow
+    multShadow = 'rgba(255, 170, 0, 0.8)';
+  }
+
   return (
     <div style={{ 
       display: 'grid', 
@@ -508,10 +538,13 @@ export default function CyberCrashGame({ currentUser, onBalanceUpdate }) {
           
           <div style={{ 
             position: 'absolute', top: '15px', right: '20px', 
-            fontSize: '14px', color: '#ffaa00', fontFamily: 'Orbitron', fontWeight: 'bold', zIndex: 10,
-            display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(255,170,0,0.1)', padding: '5px 12px', borderRadius: '20px'
+            fontSize: '14px', color: '#00ffff', fontFamily: 'Orbitron', fontWeight: 'bold', zIndex: 10,
+            display: 'flex', alignItems: 'center', gap: '8px', 
+            background: 'rgba(0, 0, 0, 0.6)', backdropFilter: 'blur(4px)',
+            padding: '5px 12px', borderRadius: '20px', border: '1px solid #00ffff',
+            boxShadow: '0 0 10px rgba(0, 255, 255, 0.2)'
           }}>
-            <div style={{ width: 8, height: 8, borderRadius: '50%', background: gameState === 'CRASHED' ? '#ff0055' : '#ffaa00', boxShadow: '0 0 10px #ffaa00' }}></div>
+            <div style={{ width: 8, height: 8, borderRadius: '50%', background: gameState === 'CRASHED' ? '#ff0055' : '#00ffff', boxShadow: `0 0 10px ${gameState === 'CRASHED' ? '#ff0055' : '#00ffff'}` }}></div>
             {gameState}
           </div>
 
@@ -519,8 +552,8 @@ export default function CyberCrashGame({ currentUser, onBalanceUpdate }) {
             <div style={{ 
               position: 'absolute', top: '40%', left: '50%', transform: 'translate(-50%, -50%)', 
               display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 10,
-              background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(10px)', padding: '20px 40px', borderRadius: '24px',
-              border: '1px solid rgba(255,255,255,0.1)'
+              background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(12px)', padding: '20px 40px', borderRadius: '24px',
+              border: '1px solid rgba(0, 255, 255, 0.5)', boxShadow: 'inset 0 0 10px rgba(0,255,255,0.3)'
             }}>
               <div style={{ fontSize: '1.5rem', color: '#00ffff', fontFamily: 'Orbitron', marginBottom: '10px', textShadow: '0 0 10px #00ffff' }}>
                 STARTING IN
@@ -533,15 +566,15 @@ export default function CyberCrashGame({ currentUser, onBalanceUpdate }) {
             <div style={{ 
               position: 'absolute', top: '40%', left: '50%', transform: 'translate(-50%, -50%)', 
               display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 10,
-              background: gameState === 'CRASHED' ? 'rgba(255,0,85,0.15)' : 'rgba(0,0,0,0.4)', 
-              backdropFilter: 'blur(10px)', padding: '20px 50px', borderRadius: '30px',
-              border: gameState === 'CRASHED' ? '1px solid rgba(255,0,85,0.3)' : '1px solid rgba(255,255,255,0.1)',
-              boxShadow: gameState === 'CRASHED' ? '0 0 50px rgba(255,0,85,0.2)' : '0 0 50px rgba(0,255,255,0.1)'
+              background: 'rgba(0,0,0,0.5)', 
+              backdropFilter: 'blur(12px)', padding: '20px 50px', borderRadius: '30px',
+              border: `1px solid ${multColor}`,
+              boxShadow: `inset 0 0 15px ${multShadow}`
             }}>
               <div style={{
                 fontSize: '6rem', fontFamily: 'Orbitron', fontWeight: 900, 
-                color: gameState === 'CRASHED' ? '#ff0055' : '#fff', 
-                textShadow: gameState === 'CRASHED' ? '0 0 30px rgba(255,0,85,0.8)' : '0 0 30px rgba(0,255,255,0.8)'
+                color: multColor, 
+                textShadow: `0 0 30px ${multShadow}`
               }}>
                 {multiplier.toFixed(2)}x
               </div>
