@@ -10,14 +10,14 @@ function BettingPanel({ id, state, setState, onBet, onCashOut, gameState, curren
   const { betAmount, isBetPlaced, isCashedOut, winnings } = state;
 
   return (
-    <div style={{ background: '#0a0d10', padding: '20px', borderRadius: '16px', border: '1px solid #1a1e23', flex: 1, display: 'flex', flexDirection: 'column' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px', color: '#6b7280', fontSize: '14px' }}>
+    <div style={{ background: '#0a0d10', padding: '15px', borderRadius: '16px', border: '1px solid #1a1e23', flex: 1, display: 'flex', flexDirection: 'column' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', color: '#6b7280', fontSize: '14px' }}>
         <span>Wager Amount</span>
         <span>${currentUser.balance.toFixed(2)}</span>
       </div>
       
-      <div style={{ display: 'flex', background: '#12161b', borderRadius: '8px', border: '1px solid #1a1e23', padding: '5px' }}>
-        <span style={{ padding: '10px', color: '#ffaa00' }}>$</span>
+      <div style={{ display: 'flex', background: '#12161b', borderRadius: '8px', border: '1px solid #1a1e23', padding: '3px' }}>
+        <span style={{ padding: '8px', color: '#ffaa00' }}>$</span>
         <input 
           type="number" 
           value={betAmount} 
@@ -27,59 +27,59 @@ function BettingPanel({ id, state, setState, onBet, onCashOut, gameState, curren
         />
       </div>
 
-      <div style={{ display: 'flex', gap: '5px', marginTop: '10px' }}>
+      <div style={{ display: 'flex', gap: '4px', marginTop: '8px' }}>
         {[10, 50, 100, 500].map(amt => (
           <button 
             key={amt} 
             onClick={() => setState({ ...state, betAmount: amt })}
             disabled={gameState !== 'BETTING' || isBetPlaced}
-            style={{ flex: 1, background: '#12161b', color: '#6b7280', border: '1px solid #1a1e23', borderRadius: '4px', padding: '8px 0', cursor: 'pointer', transition: 'all 0.2s' }}
+            style={{ flex: 1, background: '#12161b', color: '#6b7280', border: '1px solid #1a1e23', borderRadius: '4px', padding: '6px 0', cursor: 'pointer', transition: 'all 0.2s' }}
           >
             +{amt}
           </button>
         ))}
       </div>
 
-      <div style={{ marginTop: '20px' }}>
+      <div style={{ marginTop: '12px' }}>
         {gameState === 'BETTING' && !isBetPlaced && (
-          <button onClick={() => onBet(id)} style={{ width: '100%', padding: '18px', fontSize: '1.1rem', background: '#ffaa00', color: '#000', fontWeight: 'bold', border: 'none', borderRadius: '8px', cursor: 'pointer', boxShadow: '0 4px 15px rgba(255, 170, 0, 0.2)' }}>
+          <button onClick={() => onBet(id)} style={{ width: '100%', padding: '12px', fontSize: '0.95rem', background: '#ffaa00', color: '#000', fontWeight: 'bold', border: 'none', borderRadius: '8px', cursor: 'pointer', boxShadow: '0 4px 15px rgba(255, 170, 0, 0.2)' }}>
             BET
           </button>
         )}
 
         {gameState === 'BETTING' && isBetPlaced && (
-          <button disabled style={{ width: '100%', padding: '18px', fontSize: '1.1rem', background: 'rgba(255, 170, 0, 0.2)', color: '#ffaa00', fontWeight: 'bold', border: '1px solid #ffaa00', borderRadius: '8px' }}>
+          <button disabled style={{ width: '100%', padding: '12px', fontSize: '0.95rem', background: 'rgba(255, 170, 0, 0.2)', color: '#ffaa00', fontWeight: 'bold', border: '1px solid #ffaa00', borderRadius: '8px' }}>
             WAITING FOR FLIGHT...
           </button>
         )}
 
         {gameState === 'FLIGHT' && isBetPlaced && !isCashedOut && (
-          <button onClick={() => onCashOut(id)} style={{ width: '100%', padding: '18px', fontSize: '1.2rem', background: '#00ff66', color: '#000', fontWeight: '900', border: 'none', borderRadius: '8px', cursor: 'pointer', boxShadow: '0 0 20px rgba(0,255,102,0.4)' }}>
+          <button onClick={() => onCashOut(id)} style={{ width: '100%', padding: '12px', fontSize: '0.95rem', background: '#00ff66', color: '#000', fontWeight: '900', border: 'none', borderRadius: '8px', cursor: 'pointer', boxShadow: '0 0 20px rgba(0,255,102,0.4)' }}>
             CASH OUT
           </button>
         )}
 
         {gameState === 'FLIGHT' && isCashedOut && (
-          <div style={{ textAlign: 'center', background: 'rgba(0, 255, 102, 0.1)', color: '#00ff66', fontWeight: 'bold', padding: '15px', border: '1px solid #00ff66', borderRadius: '8px' }}>
+          <div style={{ textAlign: 'center', background: 'rgba(0, 255, 102, 0.1)', color: '#00ff66', fontWeight: 'bold', padding: '10px', border: '1px solid #00ff66', borderRadius: '8px' }}>
             CASHED OUT<br/>
             <span style={{ fontSize: '1.2rem' }}>+${winnings?.toFixed(2)}</span>
           </div>
         )}
 
         {gameState === 'FLIGHT' && !isBetPlaced && (
-          <button disabled style={{ width: '100%', padding: '18px', fontSize: '1.1rem', background: '#12161b', color: '#6b7280', fontWeight: 'bold', border: '1px solid #1a1e23', borderRadius: '8px' }}>
+          <button disabled style={{ width: '100%', padding: '12px', fontSize: '0.95rem', background: '#12161b', color: '#6b7280', fontWeight: 'bold', border: '1px solid #1a1e23', borderRadius: '8px' }}>
             WAITING FOR NEXT ROUND
           </button>
         )}
 
         {gameState === 'CRASHED' && isBetPlaced && !isCashedOut && (
-          <div style={{ textAlign: 'center', background: 'rgba(255, 0, 85, 0.1)', color: '#ff0055', fontWeight: 'bold', padding: '15px', border: '1px dashed #ff0055', borderRadius: '8px' }}>
+          <div style={{ textAlign: 'center', background: 'rgba(255, 0, 85, 0.1)', color: '#ff0055', fontWeight: 'bold', padding: '10px', border: '1px dashed #ff0055', borderRadius: '8px' }}>
             CRASHED
           </div>
         )}
         
         {(gameState === 'CRASHED' || gameState === 'LOADING') && (!isBetPlaced || isCashedOut) && (
-          <button disabled style={{ width: '100%', padding: '18px', fontSize: '1.1rem', background: '#12161b', color: '#6b7280', fontWeight: 'bold', border: '1px solid #1a1e23', borderRadius: '8px' }}>
+          <button disabled style={{ width: '100%', padding: '12px', fontSize: '0.95rem', background: '#12161b', color: '#6b7280', fontWeight: 'bold', border: '1px solid #1a1e23', borderRadius: '8px' }}>
             {isCashedOut ? `WON $${winnings?.toFixed(2)}` : 'WAITING FOR NEXT ROUND'}
           </button>
         )}
@@ -264,8 +264,9 @@ export default function CyberCrashGame({ currentUser, onBalanceUpdate }) {
     rocketCore.drawCircle(0, 0, 4);
     rocketCore.endFill();
     
-    // Add slight upward tilt to chassis
+    // Add slight upward tilt to chassis and scale down by 25% (zoom out feel)
     rocketCore.rotation = -0.15;
+    rocketCore.scale.set(0.75);
     
     rocketContainer.addChild(rocketCore);
     app.stage.addChild(rocketContainer);
@@ -297,7 +298,7 @@ export default function CyberCrashGame({ currentUser, onBalanceUpdate }) {
     // 4. Interpolation Render Loop (60 FPS)
     let currentVisMultiplier = 1.0;
     let prevX = 0;
-    let prevY = 360;
+    let prevY = 350;
     
     app.ticker.add((delta) => {
       const activeState = stateRef.current;
@@ -320,9 +321,9 @@ export default function CyberCrashGame({ currentUser, onBalanceUpdate }) {
       const curLog = Math.max(0, Math.log(currentVisMultiplier));
       const progress = Math.min(1, curLog / maxLog); 
 
-      // WIDER Flight Path
+      // WIDER Flight Path (Zoomed out range)
       const targetX = progress * 750; // Keep slightly away from edge
-      const targetY = 360 - Math.pow(progress, 1.8) * 310; // Curve up from slightly above bottom
+      const targetY = 350 - Math.pow(progress, 1.8) * 270; // Curve up from slightly above bottom
 
       // High-frequency camera shake at 10x
       let shakeX = 0;
@@ -397,11 +398,11 @@ export default function CyberCrashGame({ currentUser, onBalanceUpdate }) {
       // Draw Flight Curve Line
       curve.clear();
       curve.lineStyle(8, 0x00ffff, 0.4); // Neon Cyan glow
-      curve.moveTo(0, 360);
-      curve.quadraticCurveTo(targetX * 0.5, 360, targetX, targetY);
+      curve.moveTo(0, 350);
+      curve.quadraticCurveTo(targetX * 0.5, 350, targetX, targetY);
       curve.lineStyle(3, 0xffffff, 1); // Bright core
-      curve.moveTo(0, 360);
-      curve.quadraticCurveTo(targetX * 0.5, 360, targetX, targetY);
+      curve.moveTo(0, 350);
+      curve.quadraticCurveTo(targetX * 0.5, 350, targetX, targetY);
 
       if (activeState === 'CRASHED') {
         curve.tint = 0xff0055;

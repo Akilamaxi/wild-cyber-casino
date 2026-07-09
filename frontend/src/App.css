@@ -641,7 +641,7 @@ body {
 .floating-support-widget {
   position: fixed;
   bottom: 30px;
-  right: 30px;
+  left: calc(var(--sidebar-width) + 30px);
   width: 60px;
   height: 60px;
   background: var(--neon-green);
@@ -5263,7 +5263,7 @@ body {
   display: flex;
   gap: 20px;
   flex: 1;
-  overflow: hidden;
+  overflow: visible; /* Prevents button clipping */
 }
 
 .crash-bet-panel-col {
@@ -5282,6 +5282,10 @@ body {
   }
   .crash-sidebar-area {
     max-height: 400px;
+  }
+  .floating-support-widget {
+    left: 20px !important;
+    bottom: 20px !important;
   }
 }
 
