@@ -21,7 +21,7 @@ function App() {
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [loginError, setLoginError] = useState('');
-  const [activeTab, setActiveTab] = useState('lottery'); // 'lottery' | 'spinwheel' | 'slots' | 'dice'
+  const [activeTab, setActiveTab] = useState('lottery'); // 'lottery' | 'spinwheel' | 'slots' | 'dice' | 'crash'
 
   // --- Lottery Configurations States ---
   const [games, setGames] = useState([]);
@@ -61,6 +61,13 @@ function App() {
     name: '', entry_fee: 10, prize_pool: 100
   });
 
+  // --- Crash States ---
+  const [crashConfig, setCrashConfig] = useState({
+    lobby_time_ms: 5000,
+    house_edge: 0.01
+  });
+  const [loadingCrash, setLoadingCrash] = useState(true);
+
   const canvasRef = useRef(null);
   const socketRef = useRef(null);
 
@@ -71,6 +78,7 @@ function App() {
       fetchPrizes();
       fetchSlotsConfig();
       fetchDiceAdminData();
+      fetchCrashConfig();
 
       // Connect WebSockets for real-time config updates
       socketRef.current = io(API_BASE);
@@ -90,6 +98,9 @@ function App() {
         }
         if (event.type === 'DICE_CONFIG_UPDATED') {
           fetchDiceAdminData();
+        }
+        if (event.type === 'CRASH_CONFIG_UPDATED') {
+          fetchCrashConfig();
         }
       });
 
@@ -200,6 +211,46 @@ function App() {
       console.error(err);
     }
     setLoadingDice(false);
+  };
+
+  const fetchCrashConfig = async () => {
+    setLoadingCrash(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/crash/config`);
+      const data = await res.json();
+      if (data.success && data.config) {
+        setCrashConfig({
+          lobby_time_ms: parseInt(data.config.lobby_time_ms, 10) || 5000,
+          house_edge: parseFloat(data.config.house_edge) || 0.01
+        });
+      }
+    } catch (err) {
+      console.error(err);
+    }
+    setLoadingCrash(false);
+  };
+
+  const handleCrashConfigSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/crash/config`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          lobby_time_ms: crashConfig.lobby_time_ms,
+          house_edge: crashConfig.house_edge
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert('🚀 Crash config deployed successfully!');
+        fetchCrashConfig();
+      } else {
+        alert('Error: ' + data.error);
+      }
+    } catch (err) {
+      alert('Failed to update config.');
+    }
   };
 
   // --- Lottery CRUD Operations ---
@@ -577,6 +628,14 @@ function App() {
                 className={`menu-btn ${activeTab === 'dice' ? 'active' : ''}`}
               >
                 🎲 Dice Arena Controller
+              </button>
+            </li>
+            <li>
+              <button 
+                onClick={() => setActiveTab('crash')} 
+                className={`menu-btn ${activeTab === 'crash' ? 'active' : ''}`}
+              >
+                🚀 Crash Engine Control
               </button>
             </li>
           </ul>
@@ -1088,6 +1147,44 @@ function App() {
                       ))}
                     </tbody>
                   </table>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* TAB 5: CRASH MANAGEMENT */}
+          {activeTab === 'crash' && (
+            <div className="workspace-flex">
+              <div className="editor-card">
+                <h2>ROCKET CRASH ALGORITHM</h2>
+                {loadingCrash ? <div className="loader">Loading...</div> : (
+                  <form onSubmit={handleCrashConfigSubmit} className="admin-form">
+                    <div className="form-group">
+                      <label>Lobby Wait Time (ms)</label>
+                      <input 
+                        type="number" 
+                        value={crashConfig.lobby_time_ms} 
+                        onChange={e => setCrashConfig({ ...crashConfig, lobby_time_ms: parseInt(e.target.value) })} 
+                        required 
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>House Edge (0.0 to 1.0)</label>
+                      <input 
+                        type="number" 
+                        step="0.001" 
+                        value={crashConfig.house_edge} 
+                        onChange={e => setCrashConfig({ ...crashConfig, house_edge: parseFloat(e.target.value) })} 
+                        required 
+                      />
+                      <small style={{display: 'block', marginTop: '5px', color: '#888'}}>
+                        Example: 0.01 means 1% house edge. A higher edge causes earlier random crashes.
+                      </small>
+                    </div>
+                    <div className="button-group">
+                      <button type="submit" className="primary-btn">UPDATE CRASH LOGIC</button>
+                    </div>
+                  </form>
                 )}
               </div>
             </div>

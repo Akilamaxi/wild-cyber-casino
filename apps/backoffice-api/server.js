@@ -301,6 +301,32 @@ app.post('/api/admin/dice/tournaments/:id/complete', async (req, res) => {
   }
 });
 
+// --- Crash Admin Endpoints ---
+app.get('/api/admin/crash/config', async (req, res) => {
+  try {
+    const config = await db.all('SELECT * FROM crash_config');
+    const configMap = {};
+    config.forEach(c => configMap[c.key] = c.value);
+    res.json({ success: true, config: configMap });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Internal Server Error' });
+  }
+});
+
+app.put('/api/admin/crash/config', async (req, res) => {
+  try {
+    const { lobby_time_ms, house_edge } = req.body;
+    await db.executeTransaction(async (tx) => {
+      if (lobby_time_ms !== undefined) await tx.run('INSERT OR REPLACE INTO crash_config (key, value) VALUES ("lobby_time_ms", ?)', [lobby_time_ms.toString()]);
+      if (house_edge !== undefined) await tx.run('INSERT OR REPLACE INTO crash_config (key, value) VALUES ("house_edge", ?)', [house_edge.toString()]);
+    });
+    await pubsub.publish({ type: 'CRASH_CONFIG_UPDATED' });
+    res.json({ success: true });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+});
+
 // 2. RNG Audit Verification
 app.get('/api/admin/audit-verify/:drawId', async (req, res) => {
   try {

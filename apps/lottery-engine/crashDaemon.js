@@ -1,5 +1,5 @@
 const crypto = require('crypto');
-const { db } = require('@cyber-casino/shared');
+const { db, pubsub } = require('@cyber-casino/shared');
 
 class CrashDaemon {
   constructor(io) {
@@ -10,9 +10,38 @@ class CrashDaemon {
     this.currentMultiplier = 1.0;
     this.startTime = 0;
     this.tickInterval = null;
+    this.lobbyTimeMs = 5000;
+    this.houseEdge = 0.01;
+    this.initPubSub();
+  }
+
+  async loadConfig() {
+    try {
+      // create table if not exists ensures startup safety if db migration slow
+      await db.run('CREATE TABLE IF NOT EXISTS crash_config (key TEXT PRIMARY KEY, value TEXT NOT NULL)');
+      const configRows = await db.all('SELECT * FROM crash_config');
+      if (configRows && configRows.length > 0) {
+        const cfg = {};
+        configRows.forEach(r => cfg[r.key] = r.value);
+        if (cfg.lobby_time_ms) this.lobbyTimeMs = parseInt(cfg.lobby_time_ms, 10);
+        if (cfg.house_edge) this.houseEdge = parseFloat(cfg.house_edge);
+      }
+    } catch (err) {
+      console.error('[CRASH DAEMON] Error loading config, using defaults:', err);
+    }
+  }
+
+  initPubSub() {
+    pubsub.on('message', async (message) => {
+      if (message.type === 'CRASH_CONFIG_UPDATED') {
+        console.log('[CRASH DAEMON] CRASH_CONFIG_UPDATED received, reloading config...');
+        await this.loadConfig();
+      }
+    });
   }
 
   async start() {
+    await this.loadConfig();
     this.state = 'BETTING';
     this.currentMultiplier = 1.0;
     
@@ -20,9 +49,10 @@ class CrashDaemon {
     const serverSeed = crypto.randomBytes(32).toString('hex');
     const hash = crypto.createHash('sha256').update(serverSeed).digest('hex');
     
-    // RNG to calculate crash point (1% house edge instant crash)
+    // RNG to calculate crash point
     const rawRng = crypto.randomInt(0, 10000) / 10000;
-    const calculatedPoint = Math.max(1.00, 0.99 / (1.00001 - rawRng));
+    const safeEdge = 1.00 - this.houseEdge;
+    const calculatedPoint = Math.max(1.00, safeEdge / (1.00001 - rawRng));
     this.crashPoint = Math.floor(calculatedPoint * 100) / 100;
 
     try {
@@ -36,15 +66,15 @@ class CrashDaemon {
       this.broadcastState({
         status: 'BETTING',
         gameId: this.gameId,
-        timeRemaining: 5000,
+        timeRemaining: this.lobbyTimeMs,
         hash: hash
       });
 
-      console.log(`[CRASH DAEMON] Started Game ${this.gameId}. Waiting 5s for flight...`);
-      setTimeout(() => this.startFlight().catch(e => console.error('[CRASH DAEMON] Flight Error:', e)), 5000);
+      console.log(`[CRASH DAEMON] Started Game ${this.gameId}. Waiting ${this.lobbyTimeMs}ms for flight...`);
+      setTimeout(() => this.startFlight().catch(e => console.error('[CRASH DAEMON] Flight Error:', e)), this.lobbyTimeMs);
     } catch (err) {
       console.error('[CRASH DAEMON] Start Error:', err);
-      setTimeout(() => this.start().catch(e => console.error(e)), 5000);
+      setTimeout(() => this.start().catch(e => console.error(e)), this.lobbyTimeMs);
     }
   }
 

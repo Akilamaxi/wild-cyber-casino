@@ -321,7 +321,28 @@ const initDatabase = async () => {
     }
   }
 
-  // 12. Crash Game State & Ledger
+  // 12. Crash Configuration Settings
+  await run(`
+    CREATE TABLE IF NOT EXISTS crash_config (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    )
+  `);
+
+  const crashCfgCount = await get('SELECT COUNT(*) as count FROM crash_config');
+  if (crashCfgCount.count === 0) {
+    const defaultCrashConfigs = [
+      { key: 'lobby_time_ms', value: '5000' },
+      { key: 'house_edge', value: '0.01' }
+    ];
+    for (const cfg of defaultCrashConfigs) {
+      await run(`
+        INSERT INTO crash_config (key, value) VALUES (?, ?)
+      `, [cfg.key, cfg.value]);
+    }
+  }
+
+  // 13. Crash Game State & Ledger
   await run(`
     CREATE TABLE IF NOT EXISTS crash_games (
       id INTEGER PRIMARY KEY AUTOINCREMENT,

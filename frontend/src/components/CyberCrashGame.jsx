@@ -4,7 +4,7 @@ import { io } from 'socket.io-client';
 import CrashPlayersTable from './CrashPlayersTable';
 import CrashHistoryTable from './CrashHistoryTable';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:5000' : '';
 
 function BettingPanel({ id, state, setState, onBet, onCashOut, gameState, currentUser }) {
   const { betAmount, isBetPlaced, isCashedOut, winnings } = state;
@@ -188,6 +188,48 @@ export default function CyberCrashGame({ currentUser, onBalanceUpdate }) {
     app.stage.addChild(rocketContainer);
     rocketRef.current = rocketContainer;
 
+    // 3.5 Explosion Particles
+    const particles = [];
+    const explosionContainer = new PIXI.Container();
+    app.stage.addChild(explosionContainer);
+    for(let i=0; i<40; i++) {
+        const p = new PIXI.Graphics();
+        p.beginFill(Math.random() > 0.5 ? 0xff0055 : 0xffaa00);
+        const radius = Math.random() * 6 + 2;
+        if (Math.random() > 0.5) {
+            p.drawCircle(0, 0, radius);
+        } else {
+            p.drawRect(-radius, -radius, radius * 2, radius * 2);
+        }
+        p.endFill();
+        p.visible = false;
+        particles.push({
+            sprite: p,
+            vx: (Math.random() - 0.5) * 25,
+            vy: (Math.random() - 0.5) * 25,
+            life: 1.0
+        });
+        explosionContainer.addChild(p);
+    }
+    
+    // Boom Text
+    const boomText = new PIXI.Text('BOOM!', { 
+        fontSize: 80, 
+        fill: 0xff0055, 
+        fontWeight: 'bold', 
+        stroke: 0xffffff,
+        strokeThickness: 4,
+        dropShadow: true, 
+        dropShadowColor: 0x000000, 
+        dropShadowBlur: 15,
+        fontFamily: 'Orbitron'
+    });
+    boomText.anchor.set(0.5);
+    boomText.visible = false;
+    explosionContainer.addChild(boomText);
+
+    let hasExploded = false;
+
     // 4. Interpolation Render Loop (60 FPS)
     let currentVisMultiplier = 1.0;
     let prevX = 0;
@@ -261,8 +303,51 @@ export default function CyberCrashGame({ currentUser, onBalanceUpdate }) {
 
       if (activeState === 'CRASHED') {
         curve.tint = 0xff0055;
-        rocketCore.alpha = 0.5;
+        rocketCore.alpha = 0; // hide rocket
+        
+        if (!hasExploded) {
+            hasExploded = true;
+            boomText.visible = true;
+            boomText.x = targetX;
+            boomText.y = targetY - 40;
+            boomText.alpha = 1.0;
+            boomText.scale.set(0.2);
+            
+            particles.forEach(p => {
+                p.sprite.visible = true;
+                p.sprite.x = targetX;
+                p.sprite.y = targetY;
+                p.sprite.alpha = 1.0;
+                p.life = 1.0;
+                p.sprite.scale.set(1.0);
+            });
+        } else {
+            // Animate boom text
+            if (boomText.scale.x < 1.2) {
+                boomText.scale.set(boomText.scale.x + 0.15);
+            }
+            if (boomText.alpha > 0) {
+                boomText.alpha -= 0.015;
+            }
+            
+            // Animate particles
+            particles.forEach(p => {
+                if (p.life > 0) {
+                    p.sprite.x += p.vx;
+                    p.sprite.y += p.vy;
+                    p.vy += 0.8; // gravity
+                    p.life -= 0.015;
+                    p.sprite.alpha = p.life;
+                    p.sprite.rotation += 0.1;
+                } else {
+                    p.sprite.visible = false;
+                }
+            });
+        }
       } else {
+        hasExploded = false;
+        boomText.visible = false;
+        particles.forEach(p => p.sprite.visible = false);
         curve.tint = 0xffffff;
         rocketCore.alpha = 1.0;
       }
