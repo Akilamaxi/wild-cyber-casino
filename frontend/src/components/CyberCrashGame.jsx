@@ -209,26 +209,57 @@ export default function CyberCrashGame({ currentUser, onBalanceUpdate }) {
     const trailContainer = new PIXI.Container();
     app.stage.addChild(trailContainer);
 
-    // 3. Cyberpunk Rocket Chassis
+    // 3. Cyberpunk Cute Curvy Rocket
     const rocketContainer = new PIXI.Container();
     const rocketCore = new PIXI.Graphics();
     
-    // Glowing Neon Chassis
-    rocketCore.lineStyle(6, 0x00ffff, 0.5);
-    rocketCore.moveTo(25, 0);
-    rocketCore.lineTo(-15, -12);
-    rocketCore.lineTo(-5, 0);
-    rocketCore.lineTo(-15, 12);
-    rocketCore.closePath();
-    
-    // Dark core body with neon border
+    // 1. Back booster cup (Hot Magenta)
     rocketCore.beginFill(0x0a001a);
     rocketCore.lineStyle(2, 0xff00ff, 1);
-    rocketCore.moveTo(25, 0);
-    rocketCore.lineTo(-15, -12);
-    rocketCore.lineTo(-5, 0);
-    rocketCore.lineTo(-15, 12);
+    rocketCore.drawRoundedRect(-32, -6, 8, 12, 3);
+    rocketCore.endFill();
+    
+    // 2. Wings / Fins (Neon Green / Cyan)
+    rocketCore.beginFill(0x00ffaa, 0.8);
+    rocketCore.lineStyle(2, 0x00ffff, 1);
+    // Top wing (curvy swoop)
+    rocketCore.moveTo(-15, -10);
+    rocketCore.quadraticCurveTo(-35, -28, -22, -6);
     rocketCore.closePath();
+    // Bottom wing (curvy swoop)
+    rocketCore.moveTo(-15, 10);
+    rocketCore.quadraticCurveTo(-35, 28, -22, 6);
+    rocketCore.closePath();
+    rocketCore.endFill();
+    
+    // 3. Outer glow layer for main body
+    rocketCore.lineStyle(6, 0x00ffff, 0.4);
+    rocketCore.drawEllipse(0, 0, 26, 15);
+    
+    // 4. Main Body Fuselage (Dark body with Neon Cyan border)
+    rocketCore.beginFill(0x0a001a);
+    rocketCore.lineStyle(2, 0x00ffff, 1);
+    rocketCore.drawEllipse(0, 0, 26, 15);
+    rocketCore.endFill();
+    
+    // 5. Curvy Nose Cone (Hot Magenta)
+    rocketCore.beginFill(0xff00ff, 0.9);
+    rocketCore.lineStyle(2, 0xff00ff, 1);
+    rocketCore.moveTo(18, -11);
+    rocketCore.quadraticCurveTo(38, 0, 42, 0); // curve to point
+    rocketCore.quadraticCurveTo(38, 0, 18, 11); // curve back
+    rocketCore.closePath();
+    rocketCore.endFill();
+
+    // 6. Round Cabin Window (Neon Cyan glow)
+    rocketCore.beginFill(0x0a001a);
+    rocketCore.lineStyle(2, 0x00ffff, 1);
+    rocketCore.drawCircle(0, 0, 7);
+    rocketCore.endFill();
+    rocketCore.beginFill(0x00ffff, 0.6);
+    rocketCore.lineStyle(0);
+    rocketCore.drawCircle(0, 0, 4);
+    rocketCore.endFill();
     
     // Add slight upward tilt to chassis
     rocketCore.rotation = -0.15;
