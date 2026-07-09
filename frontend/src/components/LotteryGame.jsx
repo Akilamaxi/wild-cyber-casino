@@ -697,6 +697,14 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
     );
   }
 
+  const formatCountdown = (secs) => {
+    if (isNaN(secs) || secs < 0) return '00:00:00';
+    const h = Math.floor(secs / 3600).toString().padStart(2, '0');
+    const m = Math.floor((secs % 3600) / 60).toString().padStart(2, '0');
+    const s = (secs % 60).toString().padStart(2, '0');
+    return `${h}:${m}:${s}`;
+  };
+
   // ============================================================================
   // RENDER VIEW C: TICKET SELECTION & RESERVATION VIEW
   // ============================================================================
@@ -718,15 +726,15 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
           ← BACK TO GAMES
         </button>
         <div className="left-nav-meta">
-          <div className="nav-item">Session: <strong>#{activeDrawId || '...'}</strong></div>
-          <div className="nav-item">Game: <strong>{selectedGame.name}</strong></div>
+          <div className="nav-item">Session: <strong className="highlight-draw-id">#{activeDrawId || '...'}</strong></div>
+          <div className="nav-item">Game: <strong className="highlight-game-name">{selectedGame.name}</strong></div>
           <div className="nav-item">
             Status: <span className={`nav-status-badge status-${drawState.toLowerCase()}`}>{drawState}</span>
           </div>
         </div>
         <div className="right-countdown">
-          <div className={`countdown-circle ${countdown <= 10 && !isDrawing ? 'low-time-pulse' : ''}`}>
-            {isDrawing ? '⏳' : countdown}
+          <div className={`countdown-square ${countdown <= 10 && !isDrawing ? 'low-time-pulse' : ''}`}>
+            {isDrawing ? '⏳' : formatCountdown(countdown)}
           </div>
           <span className="countdown-label">Next draw</span>
         </div>
@@ -950,22 +958,8 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
                     
                     return (
                       <div key={t.id} className="wager-card">
-                        <div className="wager-card-header">
-                          <span className="wager-game-title">Cyber Lotto</span>
-                          <span className="wager-ticket-id">#{t.id}</span>
-                        </div>
-                        <div className="wager-numbers-row">
-                          {t.chosenNumbers.map(n => {
-                            const matched = drawResults.includes(n);
-                            return (
-                              <span key={n} className={`wager-num-badge ${matched ? 'matched' : ''}`}>
-                                {n}
-                              </span>
-                            );
-                          })}
-                        </div>
-                        <div className="wager-card-footer">
-                          <span className="wager-bet-amount">Bet: ${t.betAmount}</span>
+                        <div className="wager-card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                          <span className="wager-ticket-price">Price: ${t.betAmount}</span>
                           {isResolved ? (
                             t.payout > 0 ? (
                               <span className="wager-status-badge win">
@@ -985,6 +979,16 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
                               ⏳ Pending
                             </span>
                           )}
+                        </div>
+                        <div className="wager-numbers-row">
+                          {t.chosenNumbers.map(n => {
+                            const matched = drawResults.includes(n);
+                            return (
+                              <span key={n} className={`wager-num-badge ${matched ? 'matched' : ''}`}>
+                                {n}
+                              </span>
+                            );
+                          })}
                         </div>
                       </div>
                     );

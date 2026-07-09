@@ -4446,10 +4446,28 @@ body {
   font-family: 'Outfit', sans-serif;
   font-size: 0.95rem;
   color: var(--text-gray);
+  display: flex;
+  align-items: center;
 }
 
-.lottery-navigation-banner .nav-item strong {
+.lottery-navigation-banner .highlight-draw-id,
+.lottery-navigation-banner .highlight-game-name {
+  background: rgba(255, 204, 0, 0.08);
+  border: 1px solid rgba(255, 204, 0, 0.25);
+  padding: 4px 12px;
+  border-radius: 6px;
+  color: var(--neon-gold);
+  text-shadow: 0 0 5px rgba(255, 204, 0, 0.3);
+  font-weight: 800;
+  display: inline-block;
+  margin-left: 8px;
+}
+
+.lottery-navigation-banner .highlight-game-name {
   color: #fff;
+  border-color: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.03);
+  text-shadow: none;
 }
 
 .lottery-navigation-banner .nav-status-badge {
@@ -4483,17 +4501,17 @@ body {
   gap: 12px;
 }
 
-.lottery-navigation-banner .countdown-circle {
-  width: 42px;
-  height: 42px;
-  border-radius: 50%;
+.lottery-navigation-banner .countdown-square {
+  width: 90px;
+  height: 38px;
+  border-radius: 8px;
   border: 2.5px solid var(--neon-gold);
   display: flex;
   justify-content: center;
   align-items: center;
   font-family: 'Orbitron', sans-serif;
   font-weight: 900;
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   color: var(--neon-gold);
   text-shadow: 0 0 5px rgba(255, 204, 0, 0.4);
   box-shadow: 0 0 10px rgba(255, 204, 0, 0.15), inset 0 0 5px rgba(255, 204, 0, 0.05);
@@ -4506,7 +4524,7 @@ body {
   100% { transform: scale(1); box-shadow: 0 0 10px rgba(255, 204, 0, 0.15); }
 }
 
-.lottery-navigation-banner .countdown-circle.low-time-pulse {
+.lottery-navigation-banner .countdown-square.low-time-pulse {
   border-color: var(--neon-pink) !important;
   color: var(--neon-pink) !important;
   animation: countdown-fast-pulse 0.5s infinite ease-in-out !important;
@@ -4625,17 +4643,12 @@ body {
   margin-bottom: 12px;
 }
 
-.wager-game-title {
+.wager-ticket-price {
   font-family: 'Orbitron', sans-serif;
-  font-size: 0.72rem !important;
+  font-size: 0.75rem !important;
   font-weight: 800;
-  color: #ff9900;
+  color: var(--neon-gold);
   letter-spacing: 0.5px;
-}
-
-.wager-ticket-id {
-  font-size: 0.7rem !important;
-  color: var(--text-gray);
 }
 
 .wager-numbers-row {
