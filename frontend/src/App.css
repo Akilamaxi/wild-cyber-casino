@@ -61,7 +61,7 @@ body {
 .casino-app-content {
   flex: 1;
   width: 100%;
-  max-width: 1200px;
+  max-width: 1600px; /* Increased from 1200px to allow more space on both sides */
   margin: 0 auto;
   padding: 30px;
 }
@@ -5291,6 +5291,9 @@ body {
   }
   .crash-bet-panel-col {
     width: 100%;
+  }
+  .casino-app-content {
+    padding: 15px 10px; /* Reduced margins on mobile sides */
   }
 }
 
