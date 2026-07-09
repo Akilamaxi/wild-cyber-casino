@@ -702,14 +702,18 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
         <button className="back-lobby-btn" onClick={() => setSelectedGame(null)}>
           ← BACK TO GAMES
         </button>
-        <div className="nav-details">
-          <span>ACTIVE SESSION: <strong>#{activeDrawId || '...'}</strong></span>
-          <span className="divider-dot">•</span>
-          <span>GAME: <strong>{selectedGame.name.toUpperCase()}</strong></span>
-          <span className="divider-dot">•</span>
-          <span>STATUS: <strong className={`status-${drawState.toLowerCase()}`}>{drawState}</strong></span>
-          <span className="divider-dot">•</span>
-          <span>NEXT DRAW IN: <strong>{isDrawing ? 'DRAWING...' : `${countdown}s`}</strong></span>
+        <div className="left-nav-meta">
+          <div className="nav-item">Session: <strong>#{activeDrawId || '...'}</strong></div>
+          <div className="nav-item">Game: <strong>{selectedGame.name}</strong></div>
+          <div className="nav-item">
+            Status: <span className={`nav-status-badge status-${drawState.toLowerCase()}`}>{drawState}</span>
+          </div>
+        </div>
+        <div className="right-countdown">
+          <div className="countdown-circle">
+            {isDrawing ? '⏳' : countdown}
+          </div>
+          <span className="countdown-label">Next draw</span>
         </div>
       </div>
 
@@ -784,7 +788,7 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
           </div>
 
           <div className="ticket-helper-bar">
-            <span>Select pre-generated tickets: <strong>{selectedTicketIds.length} chosen</strong></span>
+            <span>Available tickets: <strong>{poolTickets.length}</strong></span>
             <div className="ticket-quick-actions">
               <button 
                 onClick={() => fetchPoolTickets(selectedGame.name)} 
@@ -793,15 +797,6 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
               >
                 🔄 REFRESH OPTIONS
               </button>
-              {selectedTicketIds.length > 0 && (
-                <button 
-                  onClick={() => triggerReserve()} 
-                  disabled={isDrawing || drawState !== 'OPEN' || reservedTickets.length > 0} 
-                  className="quick-action-btn buy-batch-trigger"
-                >
-                  🚀 BUY SELECTED ({selectedTicketIds.length})
-                </button>
-              )}
             </div>
           </div>
 
@@ -820,50 +815,86 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
               </button>
             </div>
           ) : (
-            <div className="pool-tickets-selection-grid compact-grid-cards">
-              {poolTickets.map((t) => {
-                const isChecked = selectedTicketIds.includes(t.id);
-                return (
-                  <div key={t.id} className={`pool-ticket-option-card compact-card ${isChecked ? 'active-checked' : ''}`}>
-                    <div className="compact-card-left">
-                      <label className="checkbox-select-flag">
-                        <input 
-                          type="checkbox" 
-                          checked={isChecked}
-                          onChange={() => toggleSelectTicket(t.id)}
+            <>
+              <div className="pool-tickets-selection-grid compact-grid-cards">
+                {poolTickets.map((t) => {
+                  const isChecked = selectedTicketIds.includes(t.id);
+                  return (
+                    <div key={t.id} className={`pool-ticket-option-card compact-card ${isChecked ? 'active-checked' : ''}`}>
+                      <div className="compact-card-left">
+                        <label className="checkbox-select-flag">
+                          <input 
+                            type="checkbox" 
+                            checked={isChecked}
+                            onChange={() => toggleSelectTicket(t.id)}
+                            disabled={isDrawing || drawState !== 'OPEN' || reservedTickets.length > 0}
+                          />
+                          <span className="checkbox-custom-display"></span>
+                        </label>
+                        <span className="compact-card-id">#{t.id}</span>
+                      </div>
+
+                      <div className="compact-card-center-numbers">
+                        {t.chosenNumbers.map(n => (
+                          <span key={n} className="option-num-badge small-badge">{n}</span>
+                        ))}
+                      </div>
+
+                      <div className="compact-card-right-actions">
+                        <span className="compact-card-price">${selectedGame.ticket_price}</span>
+                        <button 
                           disabled={isDrawing || drawState !== 'OPEN' || reservedTickets.length > 0}
-                        />
-                        <span className="checkbox-custom-display"></span>
-                      </label>
-                      <span className="compact-card-id">#{t.id}</span>
+                          onClick={() => triggerReserve(t.id)}
+                          className="pool-select-buy-btn tiny-buy-btn"
+                          title="Instant Buy"
+                        >
+                          Buy
+                        </button>
+                      </div>
                     </div>
+                  );
+                })}
+              </div>
 
-                    <div className="compact-card-center-numbers">
-                      {t.chosenNumbers.map(n => (
-                        <span key={n} className="option-num-badge small-badge">{n}</span>
-                      ))}
-                    </div>
-
-                    <div className="compact-card-right-actions">
-                      <span className="compact-card-price">${selectedGame.ticket_price}</span>
-                      <button 
-                        disabled={isDrawing || drawState !== 'OPEN' || reservedTickets.length > 0}
-                        onClick={() => triggerReserve(t.id)}
-                        className="pool-select-buy-btn tiny-buy-btn"
-                        title="Instant Buy"
-                      >
-                        Buy
-                      </button>
-                    </div>
+              {/* Bottom Checkout Helper/Buy Bar */}
+              <div className="ticket-checkout-bottom-bar">
+                <div className="checkout-summary-left">
+                  <label className="select-all-checkbox-label">
+                    <input 
+                      type="checkbox"
+                      checked={poolTickets.length > 0 && selectedTicketIds.length === poolTickets.length}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedTicketIds(poolTickets.map(t => t.id));
+                        } else {
+                          setSelectedTicketIds([]);
+                        }
+                      }}
+                      disabled={isDrawing || drawState !== 'OPEN' || reservedTickets.length > 0}
+                    />
+                    <span>Select All ({poolTickets.length})</span>
+                  </label>
+                  <div className="selection-count-info">
+                    <span>Selected: <strong>{selectedTicketIds.length}</strong></span>
+                    <span className="summary-price-label">Total Price: <strong>${selectedTicketIds.length * selectedGame.ticket_price}</strong></span>
                   </div>
-                );
-              })}
-            </div>
+                </div>
+                <div className="checkout-action-right">
+                  <button 
+                    onClick={() => triggerReserve()}
+                    disabled={selectedTicketIds.length === 0 || isDrawing || drawState !== 'OPEN' || reservedTickets.length > 0}
+                    className="bulk-buy-btn"
+                  >
+                    🚀 BUY SELECTED TICKETS
+                  </button>
+                </div>
+              </div>
+            </>
           )}
 
           {/* Results feedback banner */}
           {winMessage && (
-            <div className={`lottery-result-banner ${payoutAmount > 0 ? 'win' : 'lose'}`} style={{ marginTop: '20px' }}>
+            <div className={`lottery-result-banner ${payoutAmount > 0 ? 'win' : 'lose'}`} style={{ marginTop: '20px', marginBottom: '60px' }}>
               {winMessage}
             </div>
           )}
@@ -871,11 +902,9 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
 
         {/* Right Panel: Official Draw Balls & Active Wagers */}
         <div className="lottery-payout-panel">
-          <h3>OFFICIAL DRAW BALLS</h3>
-          <div className="panel-divider"></div>
-
-          <div className="lottery-draw-results-shelf" style={{ marginTop: '20px', background: 'transparent', padding: 0 }}>
-            <div className="draw-balls-row" style={{ justifyContent: 'center', gap: '10px' }}>
+          <div className="official-draw-balls-section">
+            <h3 className="section-title">OFFICIAL DRAW BALLS</h3>
+            <div className="draw-balls-row">
               {Array.from({ length: 6 }).map((_, index) => {
                 const ballRevealed = revealedBalls.length > index;
                 const value = ballRevealed ? revealedBalls[index] : '?';
@@ -883,8 +912,7 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
                 return (
                   <div 
                     key={index} 
-                    className={`draw-ball ${ballRevealed ? 'revealed bounce-enter' : 'hidden-ball'} ${isDrawing && revealedBalls.length === index ? 'pulsing-loader' : ''}`}
-                    style={{ width: '42px', height: '42px', fontSize: '1rem' }}
+                    className={`official-draw-ball ${ballRevealed ? 'revealed' : ''} ${isDrawing && revealedBalls.length === index ? 'pulsing-loader' : ''}`}
                   >
                     <span>{value}</span>
                   </div>
@@ -893,55 +921,66 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
             </div>
           </div>
 
-          <div className="lottery-active-tickets-shelf-bottom" style={{ marginTop: '30px', padding: 0, background: 'transparent', border: 'none', boxShadow: 'none' }}>
-            <h4 style={{ fontFamily: 'Orbitron, sans-serif', fontSize: '0.85rem', color: '#ffcc00', letterSpacing: '0.5px' }}>MY ACTIVE WAGERS (DRAW #{activeDrawId})</h4>
-            <div className="panel-divider" style={{ margin: '10px 0' }}></div>
+          <div className="active-wagers-section">
+            <h3 className="active-wagers-title">MY ACTIVE WAGERS (DRAW #{activeDrawId})</h3>
+            
             {myTickets.length === 0 ? (
-              <p className="no-tickets-tag" style={{ fontSize: '0.75rem', color: '#888', textAlign: 'center', padding: '15px 0' }}>No active wagers for this draw.</p>
+              <p className="no-wagers-msg" style={{ fontSize: '0.75rem', color: '#888', textAlign: 'center', padding: '15px 0' }}>No active wagers for this draw.</p>
             ) : (
-              <div className="tickets-scroll-row" style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '380px', overflowY: 'auto', paddingRight: '4px' }}>
-                {myTickets.map(t => {
-                  const isResolved = t.claimed === 1;
-                  const matchesCount = drawResults.length > 0 ? t.chosenNumbers.filter(n => drawResults.includes(n)).length : null;
-                  
-                  return (
-                    <div key={t.id} className={`ticket-row-card ${isResolved && t.payout > 0 ? 'won' : ''} ${isResolved && t.payout === 0 ? 'loss-card' : ''}`} style={{ margin: 0, padding: '12px' }}>
-                      <div className="ticket-card-header">
-                        <span className="card-logo">CYBER LOTTO</span>
-                        <span className="card-tx-id">#{t.id}</span>
-                      </div>
-                      <div className="ticket-card-numbers" style={{ gap: '4px', margin: '8px 0' }}>
-                        {t.chosenNumbers.map(n => {
-                          const matched = drawResults.includes(n);
-                          return <span key={n} className={`ticket-card-num-badge ${matched ? 'matched' : ''}`} style={{ width: '22px', height: '22px', fontSize: '0.7rem' }}>{n}</span>;
-                        })}
-                      </div>
-                      <div className="ticket-card-meta">
-                        <span>Bet: ${t.betAmount}</span>
-                        {isResolved ? (
-                          t.payout > 0 ? (
-                            <span className="ticket-status-label font-gold">
-                              WIN (+${t.payout})
+              <>
+                <div className="wagers-list-scrollable">
+                  {myTickets.map(t => {
+                    const isResolved = t.claimed === 1;
+                    const matchesCount = drawResults.length > 0 ? t.chosenNumbers.filter(n => drawResults.includes(n)).length : null;
+                    
+                    return (
+                      <div key={t.id} className="wager-card">
+                        <div className="wager-card-header">
+                          <span className="wager-game-title">Cyber Lotto</span>
+                          <span className="wager-ticket-id">#{t.id}</span>
+                        </div>
+                        <div className="wager-numbers-row">
+                          {t.chosenNumbers.map(n => {
+                            const matched = drawResults.includes(n);
+                            return (
+                              <span key={n} className={`wager-num-badge ${matched ? 'matched' : ''}`}>
+                                {n}
+                              </span>
+                            );
+                          })}
+                        </div>
+                        <div className="wager-card-footer">
+                          <span className="wager-bet-amount">Bet: ${t.betAmount}</span>
+                          {isResolved ? (
+                            t.payout > 0 ? (
+                              <span className="wager-status-badge win">
+                                🏆 Win (+${t.payout})
+                              </span>
+                            ) : (
+                              <span className="wager-status-badge loss">
+                                Loss
+                              </span>
+                            )
+                          ) : matchesCount !== null ? (
+                            <span className="wager-status-badge matched">
+                              Matched {matchesCount} (+${t.payout})
                             </span>
                           ) : (
-                            <span className="ticket-status-badge loss">LOSS</span>
-                          )
-                        ) : matchesCount !== null ? (
-                          <span className="ticket-status-label font-gold">
-                            Matched {matchesCount} (+${t.payout})
-                          </span>
-                        ) : (
-                          <span className="ticket-status-label font-gray">PENDING DRAW ⏱️</span>
-                        )}
+                            <span className="wager-status-badge pending">
+                              ⏳ Pending
+                            </span>
+                          )}
+                        </div>
                       </div>
-                      <div className="ticket-barcode">
-                        <div className="barcode-strip"></div>
-                        <div className="barcode-numbers">49-CYBER-TICKET-{t.id}</div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
+                {myTickets.length > 2 && (
+                  <div className="scroll-indicator">
+                    ↓ {myTickets.length - 2} more tickets — scroll to view
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>

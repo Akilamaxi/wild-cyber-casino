@@ -4422,4 +4422,366 @@ body {
 }
 
 
+/* --- Lottery Premium UX Redesign (Inspired by User Image) --- */
+
+.lottery-navigation-banner {
+  background: #08110b !important;
+  border: 1px solid rgba(255, 204, 0, 0.15) !important;
+  border-radius: 12px !important;
+  padding: 15px 30px !important;
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  margin-bottom: 25px !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+
+.lottery-navigation-banner .left-nav-meta {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.lottery-navigation-banner .nav-item {
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.95rem;
+  color: var(--text-gray);
+}
+
+.lottery-navigation-banner .nav-item strong {
+  color: #fff;
+}
+
+.lottery-navigation-banner .nav-status-badge {
+  background: rgba(0, 255, 102, 0.12);
+  color: var(--neon-green);
+  border: 1px solid rgba(0, 255, 102, 0.3);
+  padding: 4px 12px;
+  border-radius: 6px;
+  font-family: 'Orbitron', sans-serif;
+  font-weight: 800;
+  font-size: 0.8rem;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.lottery-navigation-banner .nav-status-badge.status-locked {
+  background: rgba(255, 0, 85, 0.12);
+  color: var(--neon-pink);
+  border: 1px solid rgba(255, 0, 85, 0.3);
+}
+
+.lottery-navigation-banner .nav-status-badge.status-drawing {
+  background: rgba(255, 204, 0, 0.12);
+  color: var(--neon-gold);
+  border: 1px solid rgba(255, 204, 0, 0.3);
+}
+
+.lottery-navigation-banner .right-countdown {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.lottery-navigation-banner .countdown-circle {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: 2.5px solid var(--neon-gold);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-family: 'Orbitron', sans-serif;
+  font-weight: 900;
+  font-size: 0.95rem;
+  color: var(--neon-gold);
+  text-shadow: 0 0 5px rgba(255, 204, 0, 0.4);
+  box-shadow: 0 0 10px rgba(255, 204, 0, 0.15), inset 0 0 5px rgba(255, 204, 0, 0.05);
+}
+
+.lottery-navigation-banner .countdown-label {
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.85rem;
+  color: var(--text-gray);
+  letter-spacing: 0.5px;
+}
+
+/* Official Draw Balls section */
+.official-draw-balls-section {
+  text-align: left;
+  margin-bottom: 30px;
+}
+
+.official-draw-balls-section .section-title {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: 1.5px;
+  margin-bottom: 15px;
+}
+
+.official-draw-balls-section .draw-balls-row {
+  display: flex;
+  gap: 12px;
+}
+
+.official-draw-ball {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 2px solid var(--neon-cyan);
+  background: rgba(0, 255, 204, 0.04);
+  color: var(--neon-cyan);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-family: 'Orbitron', sans-serif;
+  font-weight: 900;
+  font-size: 1.1rem;
+  box-shadow: 0 0 12px rgba(0, 255, 204, 0.25), inset 0 0 6px rgba(0, 255, 204, 0.1);
+  transition: all 0.3s ease;
+}
+
+.official-draw-ball.revealed {
+  background: rgba(0, 255, 204, 0.15);
+  text-shadow: 0 0 6px var(--neon-cyan);
+}
+
+/* Active Wagers Section */
+.active-wagers-section {
+  text-align: left;
+}
+
+.active-wagers-title {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: var(--neon-gold) !important;
+  letter-spacing: 1px;
+  margin-bottom: 15px;
+  text-transform: uppercase;
+}
+
+.wagers-list-scrollable {
+  max-height: 380px;
+  overflow-y: auto;
+  padding-right: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Custom Scrollbar for wagers */
+.wagers-list-scrollable::-webkit-scrollbar {
+  width: 4px;
+}
+.wagers-list-scrollable::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.01);
+}
+.wagers-list-scrollable::-webkit-scrollbar-thumb {
+  background: rgba(255, 204, 0, 0.2);
+  border-radius: 2px;
+}
+
+.wager-card {
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  padding: 16px;
+  transition: all 0.25s ease;
+}
+
+.wager-card:hover {
+  border-color: rgba(255, 204, 0, 0.15);
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.wager-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.wager-game-title {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: #ff9900;
+  letter-spacing: 0.5px;
+}
+
+.wager-ticket-id {
+  font-size: 0.8rem;
+  color: var(--text-gray);
+}
+
+.wager-numbers-row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.wager-num-badge {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid var(--neon-gold);
+  color: var(--neon-gold);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 0.75rem;
+  font-weight: bold;
+}
+
+.wager-num-badge.matched {
+  background: var(--neon-gold);
+  color: #000;
+  box-shadow: 0 0 8px var(--neon-gold);
+  border-color: var(--neon-gold);
+}
+
+.wager-card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.wager-bet-amount {
+  font-size: 0.85rem;
+  color: var(--text-gray);
+}
+
+.wager-status-badge {
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: bold;
+  letter-spacing: 0.5px;
+}
+
+.wager-status-badge.pending {
+  background: rgba(255, 204, 0, 0.08);
+  border: 1px solid rgba(255, 204, 0, 0.25);
+  color: var(--neon-gold);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.wager-status-badge.win {
+  background: rgba(0, 255, 102, 0.12);
+  border: 1px solid var(--neon-green);
+  color: var(--neon-green);
+}
+
+.wager-status-badge.loss {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text-gray);
+}
+
+.scroll-indicator {
+  font-size: 0.75rem;
+  color: var(--text-gray);
+  text-align: center;
+  margin-top: 10px;
+  opacity: 0.7;
+}
+
+/* Bulk select bottom checkout bar */
+.ticket-checkout-bottom-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: #060e0a;
+  border-top: 1px solid rgba(255, 204, 0, 0.2);
+  border-bottom-left-radius: 24px;
+  border-bottom-right-radius: 24px;
+  padding: 16px 30px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 -4px 15px rgba(0, 0, 0, 0.4);
+  z-index: 10;
+}
+
+/* Padding offset so pool cards grid doesn't get covered by bottom checkout bar */
+.pool-tickets-selection-grid {
+  padding-bottom: 75px !important;
+}
+
+.checkout-summary-left {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.select-all-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: var(--text-white);
+  font-weight: 600;
+}
+
+.select-all-checkbox-label input {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.selection-count-info {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  font-size: 0.9rem;
+  color: var(--text-gray);
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  padding-left: 15px;
+}
+
+.selection-count-info strong {
+  color: #fff;
+}
+
+.selection-count-info .summary-price-label strong {
+  color: var(--neon-gold);
+  font-size: 1.05rem;
+  text-shadow: 0 0 5px rgba(255, 204, 0, 0.35);
+}
+
+.bulk-buy-btn {
+  background: linear-gradient(135deg, var(--neon-gold), #dfb665);
+  color: #000;
+  border: none;
+  border-radius: 8px;
+  padding: 12px 24px;
+  font-family: 'Orbitron', sans-serif;
+  font-weight: 900;
+  font-size: 0.85rem;
+  cursor: pointer;
+  letter-spacing: 1px;
+  transition: all 0.25s ease;
+  box-shadow: 0 4px 12px rgba(255, 204, 0, 0.25);
+}
+
+.bulk-buy-btn:hover:not(:disabled) {
+  background: #fff;
+  box-shadow: 0 4px 18px rgba(255, 255, 255, 0.3);
+}
+
+.bulk-buy-btn:disabled {
+  background: #222;
+  color: #555;
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+
 
