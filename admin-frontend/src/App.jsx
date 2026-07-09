@@ -1194,21 +1194,21 @@ function App() {
                       </small>
                     </div>
                     <div className="form-group inline-color-inputs" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-                      <div>
+                      <div className="form-group">
                         <label>Min Bet ($)</label>
                         <input type="number" step="1" value={crashConfig.min_bet} onChange={e => setCrashConfig({ ...crashConfig, min_bet: parseFloat(e.target.value) })} required />
                       </div>
-                      <div>
+                      <div className="form-group">
                         <label>Max Bet ($)</label>
                         <input type="number" step="1" value={crashConfig.max_bet} onChange={e => setCrashConfig({ ...crashConfig, max_bet: parseFloat(e.target.value) })} required />
                       </div>
                     </div>
                     <div className="form-group inline-color-inputs" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-                      <div>
+                      <div className="form-group">
                         <label>Max Multiplier Cap (x)</label>
                         <input type="number" step="1" value={crashConfig.max_multiplier} onChange={e => setCrashConfig({ ...crashConfig, max_multiplier: parseFloat(e.target.value) })} required />
                       </div>
-                      <div>
+                      <div className="form-group">
                         <label>Post-Crash Delay (ms)</label>
                         <input type="number" step="100" value={crashConfig.crash_delay_ms} onChange={e => setCrashConfig({ ...crashConfig, crash_delay_ms: parseInt(e.target.value) })} required />
                       </div>
