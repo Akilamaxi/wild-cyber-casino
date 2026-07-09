@@ -160,10 +160,15 @@ export default function CyberCrashGame({ currentUser, onBalanceUpdate }) {
     }
     appRef.current = app;
 
-    // 1.5 Neon Grid Background (replaces clouds)
-    const gridGraphics = new PIXI.Graphics();
-    app.stage.addChild(gridGraphics);
-    let gridOffset = 0;
+    // 1.5 Cinematic Nebula Background
+    const bgTexture = PIXI.Texture.from('/nebula_bg.png');
+    const bgSprite = new PIXI.Sprite(bgTexture);
+    bgSprite.width = 1200; // Oversize for parallax panning
+    bgSprite.height = 800;
+    bgSprite.x = -200;
+    bgSprite.y = -350;
+    bgSprite.alpha = 0.8;
+    app.stage.addChild(bgSprite);
 
     // 2. Dynamic Trail Curve
     const curve = new PIXI.Graphics();
@@ -175,33 +180,17 @@ export default function CyberCrashGame({ currentUser, onBalanceUpdate }) {
     const trailContainer = new PIXI.Container();
     app.stage.addChild(trailContainer);
 
-    // 3. Airplane (Geometric Neon Ship)
+    // 3. Airplane (Realistic 3D Render)
     const rocketContainer = new PIXI.Container();
-    const rocketCore = new PIXI.Graphics();
+    const rocketTexture = PIXI.Texture.from('/realistic_rocket.png');
+    const rocketCore = new PIXI.Sprite(rocketTexture);
+    rocketCore.anchor.set(0.5);
+    // Use SCREEN blending to remove the black background of the realistic render
+    rocketCore.blendMode = PIXI.BLEND_MODES.SCREEN; 
+    rocketCore.width = 120;
+    rocketCore.height = 120;
+    rocketCore.rotation = Math.PI / 2; // Default offset if image points UP
     
-    // Ship Shadow/Glow
-    rocketCore.lineStyle(8, 0x00ffcc, 0.3);
-    rocketCore.moveTo(25, 0);
-    rocketCore.lineTo(-15, -15);
-    rocketCore.lineTo(-5, 0);
-    rocketCore.lineTo(-15, 15);
-    rocketCore.closePath();
-    
-    // Ship Body
-    rocketCore.beginFill(0x12161b);
-    rocketCore.lineStyle(2, 0xffffff, 1);
-    rocketCore.moveTo(25, 0);
-    rocketCore.lineTo(-15, -15);
-    rocketCore.lineTo(-5, 0);
-    rocketCore.lineTo(-15, 15);
-    rocketCore.closePath();
-    
-    // Engine Glow center
-    rocketCore.beginFill(0xffaa00);
-    rocketCore.lineStyle(0);
-    rocketCore.drawCircle(-5, 0, 4);
-    rocketCore.endFill();
-
     rocketContainer.addChild(rocketCore);
     app.stage.addChild(rocketContainer);
     rocketRef.current = rocketContainer;
@@ -259,18 +248,13 @@ export default function CyberCrashGame({ currentUser, onBalanceUpdate }) {
       const targetX = progress * 750; // Keep slightly away from edge
       const targetY = 400 - Math.pow(progress, 1.8) * 350; // Curve up from bottom
 
-      // Render scrolling Neon Grid
-      gridOffset += (activeState === 'FLIGHT' ? (1 + progress * 15) : 1) * delta;
-      gridOffset %= 40; 
-      gridGraphics.clear();
-      gridGraphics.lineStyle(1, 0x00ffcc, 0.1); 
-      for (let x = 0; x <= 840; x += 40) {
-        gridGraphics.moveTo(x - gridOffset, 0);
-        gridGraphics.lineTo(x - gridOffset, 400);
-      }
-      for (let y = 0; y <= 400; y += 40) {
-        gridGraphics.moveTo(0, y);
-        gridGraphics.lineTo(800, y);
+      // Parallax Nebula Panning
+      if (activeState === 'FLIGHT') {
+        bgSprite.y = -350 + (progress * 150); // Pan down
+        bgSprite.x = -200 - (progress * 50); // Pan left slightly
+      } else if (activeState === 'BETTING') {
+        bgSprite.y = -350;
+        bgSprite.x = -200;
       }
 
       let currentAngle = rocketContainer.rotation;
