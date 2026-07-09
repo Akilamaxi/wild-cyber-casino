@@ -32,7 +32,8 @@ function LandingPage({ currentUser, onPlayGame, onOpenLogin }) {
       games: [
         { id: 'spinwheel', title: 'NEON SPIN WHEEL', tag: 'WILD', badge: 'LIVE', desc: 'Spin our neon wheel for secure backend verified payouts!', emoji: '🎡', color: '#00ff66', playable: true },
         { id: 'slots', title: 'CYBER SLOTS 777', tag: 'HOT', badge: 'LIVE', desc: 'Roll 3 cyberpunk reels with Wild multiplier payouts.', emoji: '🎰', color: '#ffcc00', playable: true },
-        { id: 'lottery', title: 'CYBER LOTTERY', tag: 'NEW', badge: 'LIVE', desc: 'Pick 6 numbers from 1 to 49 and claim 10,000x jackpots!', emoji: '🎟️', color: '#00b0ff', playable: true }
+        { id: 'lottery', title: 'CYBER LOTTERY', tag: 'NEW', badge: 'LIVE', desc: 'Pick 6 numbers from 1 to 49 and claim 10,000x jackpots!', emoji: '🎟️', color: '#00b0ff', playable: true },
+        { id: 'crash', title: 'NEON CRASH', tag: 'HOT', badge: 'LIVE', desc: 'Cash out before the golden plane crashes in this multiplayer multiplier game!', emoji: '🚀', color: '#ffaa00', playable: true }
       ]
     },
     {
@@ -51,6 +52,7 @@ function LandingPage({ currentUser, onPlayGame, onOpenLogin }) {
       title: 'Popular Games',
       icon: '🔥',
       games: [
+        { id: 'crash', title: 'NEON CRASH', tag: 'HOT', badge: 'LIVE', desc: 'Cash out before the golden plane crashes in this multiplayer multiplier game!', emoji: '🚀', color: '#ffaa00', playable: true },
         { id: 'spinwheel', title: 'NEON SPIN WHEEL', tag: 'HOT', badge: 'LIVE', desc: 'Spin our neon wheel for secure backend verified payouts!', emoji: '🎡', color: '#00ff66', playable: true },
         { id: 'slots', title: 'CYBER SLOTS 777', tag: 'HOT', badge: 'LIVE', desc: 'Roll 3 cyberpunk reels with Wild multiplier payouts.', emoji: '🎰', color: '#ffcc00', playable: true },
         { id: 'lottery', title: 'CYBER LOTTERY', tag: 'NEW', badge: 'LIVE', desc: 'Pick 6 numbers from 1 to 49 and claim 10,000x jackpots!', emoji: '🎟️', color: '#00b0ff', playable: true },

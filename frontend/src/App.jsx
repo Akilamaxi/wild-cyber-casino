@@ -70,6 +70,10 @@ function App() {
       setCurrentView('game');
     } else if (gameId === 'lottery') {
       setCurrentView('lottery');
+    } else if (gameId === 'crash') {
+      setCurrentView('crash');
+    } else if (gameId === 'dice') {
+      setCurrentView('dice');
     }
   };
 
