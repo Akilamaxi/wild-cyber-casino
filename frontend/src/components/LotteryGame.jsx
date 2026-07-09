@@ -958,8 +958,7 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
                     
                     return (
                       <div key={t.id} className="wager-card">
-                        <div className="wager-card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                          <span className="wager-ticket-price">Price: ${t.betAmount}</span>
+                        <div className="wager-card-header" style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginBottom: '8px' }}>
                           {isResolved ? (
                             t.payout > 0 ? (
                               <span className="wager-status-badge win">

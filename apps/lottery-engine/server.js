@@ -1025,6 +1025,20 @@ app.use('/api/loyalty', async (req, res) => {
 
 // Serve frontend build in production
 const distPath = path.join(__dirname, 'dist');
+const distAdminPath = path.join(__dirname, 'dist-admin');
+
+// Serve admin panel static assets under /admin
+app.use('/admin', express.static(distAdminPath));
+app.get('/admin/*', (req, res) => {
+  const fs = require('fs');
+  const indexHtmlPath = path.join(distAdminPath, 'index.html');
+  if (fs.existsSync(indexHtmlPath)) {
+    res.sendFile(indexHtmlPath);
+  } else {
+    res.send('<h3>Cyber Casino Admin Portal not found.</h3><p>Run <code>npm run build:admin</code> to compile production assets.</p>');
+  }
+});
+
 app.use(express.static(distPath));
 
 app.get('*', (req, res) => {

@@ -15,6 +15,7 @@
     "bootstrap": "npm install",
     "start:engine": "npx concurrently \"npm run start --workspace=@cyber-casino/lottery-engine\" \"npm run start --workspace=@cyber-casino/payout-worker\" \"npm run start --workspace=@cyber-casino/backoffice-api\" \"npm run start --workspace=@cyber-casino/loyalty-engine\"",
     "build:frontend": "npm run build --workspace=frontend",
+    "build:admin": "npm run build --workspace=admin-frontend",
     "start:frontend": "npm start --workspace=frontend",
     "start:admin": "npm run dev --workspace=admin-frontend"
   },

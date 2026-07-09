@@ -7,6 +7,7 @@ WORKDIR /app
 # Copy root workspace configurations
 COPY package*.json ./
 COPY frontend/package*.json ./frontend/
+COPY admin-frontend/package*.json ./admin-frontend/
 COPY packages/shared/package*.json ./packages/shared/
 COPY apps/lottery-engine/package*.json ./apps/lottery-engine/
 COPY apps/payout-worker/package*.json ./apps/payout-worker/
@@ -20,9 +21,10 @@ RUN rm -f package-lock.json */package-lock.json */*/package-lock.json && npm ins
 # Copy source codes
 COPY packages/ ./packages/
 COPY frontend/ ./frontend/
+COPY admin-frontend/ ./admin-frontend/
 
-# Compile frontend production bundle
-RUN npm run build:frontend
+# Compile frontend production bundles
+RUN npm run build:frontend && npm run build:admin
 
 # ==========================================
 # STAGE 2: Build slim production runner
@@ -47,6 +49,7 @@ COPY apps/ ./apps/
 
 # Copy built frontend bundle from Stage 1 into main server static assets
 COPY --from=frontend-builder /app/frontend/dist ./apps/lottery-engine/dist
+COPY --from=frontend-builder /app/admin-frontend/dist ./apps/lottery-engine/dist-admin
 
 # Expose port (Cloud Run sets PORT env, defaults to 8080)
 EXPOSE 8080
