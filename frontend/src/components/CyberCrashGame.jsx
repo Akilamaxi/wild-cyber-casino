@@ -40,7 +40,7 @@ function BettingPanel({ id, state, setState, onBet, onCashOut, gameState, curren
         ))}
       </div>
 
-      <div style={{ marginTop: 'auto', paddingTop: '20px' }}>
+      <div style={{ marginTop: '20px' }}>
         {gameState === 'BETTING' && !isBetPlaced && (
           <button onClick={() => onBet(id)} style={{ width: '100%', padding: '18px', fontSize: '1.1rem', background: '#ffaa00', color: '#000', fontWeight: 'bold', border: 'none', borderRadius: '8px', cursor: 'pointer', boxShadow: '0 4px 15px rgba(255, 170, 0, 0.2)' }}>
             BET
@@ -294,7 +294,7 @@ export default function CyberCrashGame({ currentUser, onBalanceUpdate }) {
     // 4. Interpolation Render Loop (60 FPS)
     let currentVisMultiplier = 1.0;
     let prevX = 0;
-    let prevY = 400;
+    let prevY = 360;
     
     app.ticker.add((delta) => {
       const activeState = stateRef.current;
@@ -319,7 +319,7 @@ export default function CyberCrashGame({ currentUser, onBalanceUpdate }) {
 
       // WIDER Flight Path
       const targetX = progress * 750; // Keep slightly away from edge
-      const targetY = 400 - Math.pow(progress, 1.8) * 350; // Curve up from bottom
+      const targetY = 360 - Math.pow(progress, 1.8) * 310; // Curve up from slightly above bottom
 
       // High-frequency camera shake at 10x
       let shakeX = 0;
@@ -394,11 +394,11 @@ export default function CyberCrashGame({ currentUser, onBalanceUpdate }) {
       // Draw Flight Curve Line
       curve.clear();
       curve.lineStyle(8, 0x00ffff, 0.4); // Neon Cyan glow
-      curve.moveTo(0, 400);
-      curve.quadraticCurveTo(targetX * 0.5, 400, targetX, targetY);
+      curve.moveTo(0, 360);
+      curve.quadraticCurveTo(targetX * 0.5, 360, targetX, targetY);
       curve.lineStyle(3, 0xffffff, 1); // Bright core
-      curve.moveTo(0, 400);
-      curve.quadraticCurveTo(targetX * 0.5, 400, targetX, targetY);
+      curve.moveTo(0, 360);
+      curve.quadraticCurveTo(targetX * 0.5, 360, targetX, targetY);
 
       if (activeState === 'CRASHED') {
         curve.tint = 0xff0055;
