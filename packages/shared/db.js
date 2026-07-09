@@ -206,6 +206,37 @@ const initDatabase = async () => {
     VALUES ('admin@casino.com', 'SuperAdmin', 'admin123', 99999.0, 0, 0.0, 'ADMIN')
   `);
 
+  // 8. Spin Wheel Configuration
+  await run(`
+    CREATE TABLE IF NOT EXISTS spin_wheel_prizes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      text TEXT NOT NULL,
+      color TEXT NOT NULL,
+      textColor TEXT NOT NULL,
+      mult REAL NOT NULL,
+      isBonus INTEGER DEFAULT 0
+    )
+  `);
+
+  const prizesCount = await get('SELECT COUNT(*) as count FROM spin_wheel_prizes');
+  if (prizesCount.count === 0) {
+    const defaultPrizes = [
+      { text: '10% CASHBACK', color: '#ff0055', textColor: '#ffffff', mult: 0.1, isBonus: 1 },
+      { text: 'TRY AGAIN', color: '#111122', textColor: '#ffffff', mult: 0.0, isBonus: 0 },
+      { text: 'FREE $10', color: '#00ffcc', textColor: '#000000', mult: 1.0, isBonus: 0 },
+      { text: 'NO LUCK', color: '#1a1a30', textColor: '#ffffff', mult: 0.0, isBonus: 0 },
+      { text: 'JACKPOT x5', color: '#ffcc00', textColor: '#000000', mult: 5.0, isBonus: 0 },
+      { text: '20% BONUS', color: '#b500ff', textColor: '#ffffff', mult: 0.2, isBonus: 1 }
+    ];
+
+    for (const p of defaultPrizes) {
+      await run(`
+        INSERT INTO spin_wheel_prizes (text, color, textColor, mult, isBonus)
+        VALUES (?, ?, ?, ?, ?)
+      `, [p.text, p.color, p.textColor, p.mult, p.isBonus]);
+    }
+  }
+
   console.log('[DB] SQLite migrations completed successfully.');
 };
 

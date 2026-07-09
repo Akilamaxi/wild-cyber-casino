@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
+import io from 'socket.io-client';
 
-const PRIZES = [
+const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:5000' : '';
+
+const DEFAULT_PRIZES = [
   { text: '10% CASHBACK', color: '#ff0055', textColor: '#ffffff' },
   { text: 'TRY AGAIN', color: '#111122', textColor: '#ffffff' },
   { text: 'FREE $10', color: '#00ffcc', textColor: '#000000' },
@@ -11,16 +14,46 @@ const PRIZES = [
 
 function SpinWheelGame({ currentUser, onBalanceUpdate }) {
   const canvasRef = useRef(null);
+  const [prizes, setPrizes] = useState(DEFAULT_PRIZES);
   const [isSpinning, setIsSpinning] = useState(false);
   const [resultText, setResultText] = useState('');
   
   // Custom animation variables
   const currentRotation = useRef(0);
 
-  // Draw the Canvas Wheel on Mount
+  const fetchPrizes = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/spin-wheel/prizes`);
+      const data = await res.json();
+      if (data.success && data.prizes && data.prizes.length > 0) {
+        setPrizes(data.prizes);
+      }
+    } catch (err) {
+      console.error("Failed to load spin wheel prizes:", err);
+    }
+  };
+
+  // Connect WebSockets and load prizes on mount
   useEffect(() => {
-    drawWheel(0);
+    fetchPrizes();
+
+    const socket = io(API_BASE);
+    socket.on('lottery_events', (event) => {
+      if (event.type === 'SPIN_WHEEL_CONFIG_UPDATED') {
+        console.log('[WS] Spin wheel prizes updated on backend. Refreshing...');
+        fetchPrizes();
+      }
+    });
+
+    return () => {
+      socket.disconnect();
+    };
   }, []);
+
+  // Draw the Canvas Wheel whenever prizes load or change
+  useEffect(() => {
+    drawWheel(currentRotation.current);
+  }, [prizes]);
 
   const drawWheel = (currentAngle) => {
     const canvas = canvasRef.current;
@@ -29,7 +62,7 @@ function SpinWheelGame({ currentUser, onBalanceUpdate }) {
     const size = canvas.width;
     const center = size / 2;
     const radius = center - 5;
-    const numSectors = PRIZES.length;
+    const numSectors = prizes.length;
     const sectorAngle = (2 * Math.PI) / numSectors;
 
     ctx.clearRect(0, 0, size, size);
@@ -48,7 +81,7 @@ function SpinWheelGame({ currentUser, onBalanceUpdate }) {
       ctx.beginPath();
       ctx.moveTo(center, center);
       ctx.arc(center, center, radius, startAngle, endAngle);
-      ctx.fillStyle = PRIZES[i].color;
+      ctx.fillStyle = prizes[i].color;
       ctx.fill();
       ctx.lineWidth = 2;
       ctx.strokeStyle = 'rgba(255,255,255,0.15)';
@@ -61,10 +94,10 @@ function SpinWheelGame({ currentUser, onBalanceUpdate }) {
       ctx.rotate(startAngle + sectorAngle / 2);
       ctx.textAlign = 'right';
       ctx.textBaseline = 'middle';
-      ctx.fillStyle = PRIZES[i].textColor;
+      ctx.fillStyle = prizes[i].textColor || '#ffffff';
       ctx.font = 'bold 11px Orbitron, sans-serif';
       // Offset text from center out toward circumference
-      ctx.fillText(PRIZES[i].text, radius - 15, 0);
+      ctx.fillText(prizes[i].text, radius - 15, 0);
       ctx.restore();
     }
 
@@ -98,7 +131,6 @@ function SpinWheelGame({ currentUser, onBalanceUpdate }) {
 
     try {
       // 1. Fetch result securely from backend
-      const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:5000' : '';
       const response = await fetch(`${API_BASE}/api/spin`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -120,7 +152,7 @@ function SpinWheelGame({ currentUser, onBalanceUpdate }) {
       const finalBalance = data.newBalance;
 
       // 2. Animate the wheel to stop exactly on targetIndex at the TOP ticker pointer
-      const numSectors = PRIZES.length;
+      const numSectors = prizes.length;
       const sectorAngle = 360 / numSectors;
       
       // Calculate where the center of the winning sector is

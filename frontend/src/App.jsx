@@ -8,7 +8,6 @@ import Leaderboard from './components/Leaderboard';
 import WalletPanel from './components/WalletPanel';
 import CyberSlotsGame from './components/CyberSlotsGame';
 import LotteryGame from './components/LotteryGame';
-import BackofficeDashboard from './components/BackofficeDashboard';
 import UserProfile from './components/UserProfile';
 import CyberChat from './components/CyberChat';
 
@@ -129,11 +128,6 @@ function App() {
             <WalletPanel 
               currentUser={currentUser}
               onBalanceUpdate={handleBalanceUpdate}
-            />
-          )}
-          {currentView === 'backoffice' && currentUser && (
-            <BackofficeDashboard 
-              currentUser={currentUser}
             />
           )}
           {currentView === 'profile' && currentUser && (

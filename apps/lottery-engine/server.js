@@ -197,6 +197,26 @@ app.get('/api/leaderboard', async (req, res) => {
   }
 });
 
+// Get all spin wheel prizes config for frontends
+app.get('/api/spin-wheel/prizes', async (req, res) => {
+  try {
+    const prizes = await db.all('SELECT * FROM spin_wheel_prizes ORDER BY id ASC');
+    res.json({
+      success: true,
+      prizes: prizes.map(p => ({
+        id: p.id,
+        text: p.text,
+        color: p.color,
+        textColor: p.textColor,
+        mult: p.mult,
+        isBonus: p.isBonus === 1
+      }))
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Internal Server Error' });
+  }
+});
+
 // --- Spin Wheel Game ---
 app.post('/api/spin', async (req, res) => {
   try {
@@ -219,8 +239,13 @@ app.post('/api/spin', async (req, res) => {
         [playTxId, email.toLowerCase(), 'SPIN_PLAY', -SPIN_COST, balance, new Date().toISOString()]
       );
 
-      // 2. Compute Spin index
-      const prizes = [
+      // 2. Compute Spin index dynamically from DB
+      const dbPrizes = await tx.all('SELECT * FROM spin_wheel_prizes ORDER BY id ASC');
+      const prizes = dbPrizes.length > 0 ? dbPrizes.map(p => ({
+        text: p.text,
+        mult: p.mult,
+        isBonus: p.isBonus === 1
+      })) : [
         { text: '10% CASHBACK', mult: 0.1, isBonus: true },
         { text: 'TRY AGAIN', mult: 0.0, isBonus: false },
         { text: 'FREE $10', mult: 1.0, isBonus: false },

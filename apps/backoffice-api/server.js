@@ -103,6 +103,54 @@ app.put('/api/admin/games/:id', async (req, res) => {
   }
 });
 
+// --- Spin Wheel Configuration CRUD ---
+app.get('/api/admin/spinwheel-prizes', async (req, res) => {
+  try {
+    const prizes = await db.all('SELECT * FROM spin_wheel_prizes ORDER BY id ASC');
+    res.json({ success: true, prizes });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Internal Server Error' });
+  }
+});
+
+app.post('/api/admin/spinwheel-prizes', async (req, res) => {
+  try {
+    const { text, color, textColor, mult, isBonus } = req.body;
+    await db.run(
+      'INSERT INTO spin_wheel_prizes (text, color, textColor, mult, isBonus) VALUES (?, ?, ?, ?, ?)',
+      [text, color || '#ffffff', textColor || '#000000', parseFloat(mult) || 0.0, isBonus ? 1 : 0]
+    );
+    await pubsub.publish({ type: 'SPIN_WHEEL_CONFIG_UPDATED' });
+    res.json({ success: true });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+});
+
+app.put('/api/admin/spinwheel-prizes/:id', async (req, res) => {
+  try {
+    const { text, color, textColor, mult, isBonus } = req.body;
+    await db.run(
+      'UPDATE spin_wheel_prizes SET text = ?, color = ?, textColor = ?, mult = ?, isBonus = ? WHERE id = ?',
+      [text, color, textColor, parseFloat(mult) || 0.0, isBonus ? 1 : 0, req.params.id]
+    );
+    await pubsub.publish({ type: 'SPIN_WHEEL_CONFIG_UPDATED' });
+    res.json({ success: true });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+});
+
+app.delete('/api/admin/spinwheel-prizes/:id', async (req, res) => {
+  try {
+    await db.run('DELETE FROM spin_wheel_prizes WHERE id = ?', [req.params.id]);
+    await pubsub.publish({ type: 'SPIN_WHEEL_CONFIG_UPDATED' });
+    res.json({ success: true });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+});
+
 // 2. RNG Audit Verification
 app.get('/api/admin/audit-verify/:drawId', async (req, res) => {
   try {

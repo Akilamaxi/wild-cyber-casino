@@ -9,10 +9,9 @@ function Sidebar({ currentView, onViewChange, currentUser, onOpenLogin, isCollap
     { id: 'blackjack', label: 'Blackjack', icon: '🃏', playable: false },
     { id: 'roulette', label: 'Table Games', icon: '🎲', playable: false },
     { id: 'leaderboard', label: 'Leaderboard', icon: '🏆', playable: true },
-    { id: 'wallet', label: 'Wallet Dashboard', icon: '💳', playable: true },
-    { id: 'profile', label: 'User Profile', icon: '👤', playable: true },
-    { id: 'vip', label: 'VIP Rewards', icon: '👑', playable: false },
-    ...(currentUser && currentUser.role === 'ADMIN' ? [{ id: 'backoffice', label: 'Admin Console', icon: '🛡️', playable: true }] : [])
+    {id: 'wallet', label: 'Wallet Dashboard', icon: '💳', playable: true },
+    {id: 'profile', label: 'User Profile', icon: '👤', playable: true },
+    {id: 'vip', label: 'VIP Rewards', icon: '👑', playable: false }
   ];
 
   const handleItemClick = (item) => {
