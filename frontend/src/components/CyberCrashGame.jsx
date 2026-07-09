@@ -160,48 +160,76 @@ export default function CyberCrashGame({ currentUser, onBalanceUpdate }) {
     }
     appRef.current = app;
 
-    // 1.5 Cinematic Nebula Background
-    const bgTexture = PIXI.Texture.from('/nebula_bg.png');
-    const bgSprite = new PIXI.Sprite(bgTexture);
-    bgSprite.width = 1200; // Oversize for parallax panning
-    bgSprite.height = 800;
-    bgSprite.x = -200;
-    bgSprite.y = -350;
-    bgSprite.alpha = 0.6; // Darker to make UI pop
+    // 1.5 Cute Smooth Vector Background
+    const bgGraphics = new PIXI.Graphics();
+    bgGraphics.beginFill(0x1a1a2e); // smooth dark blue/purple
+    bgGraphics.drawRect(0, 0, 800, 400);
+    bgGraphics.endFill();
+    app.stage.addChild(bgGraphics);
     
-    // Add a dark vignette overlay for better contrast
-    const vignette = new PIXI.Graphics();
-    vignette.beginFill(0x000000, 0.4);
-    vignette.drawRect(0, 0, 800, 400);
-    vignette.endFill();
+    // Parallax Stars
+    const starsContainer = new PIXI.Container();
+    app.stage.addChild(starsContainer);
+    const stars = [];
+    for(let i=0; i<30; i++) {
+        const star = new PIXI.Graphics();
+        star.beginFill(0xffffff, Math.random() * 0.5 + 0.3);
+        star.drawCircle(0, 0, Math.random() * 2 + 1);
+        star.endFill();
+        star.x = Math.random() * 800;
+        star.y = Math.random() * 400;
+        star.speed = Math.random() * 1.5 + 0.5;
+        stars.push(star);
+        starsContainer.addChild(star);
+    }
     
-    app.stage.addChild(bgSprite);
-    app.stage.addChild(vignette);
-
     // 2. Dynamic Trail Curve
     const curve = new PIXI.Graphics();
     app.stage.addChild(curve);
     curveGraphicsRef.current = curve;
     
-    // 2.5 Exhaust Trail Particles
+    // 2.5 Exhaust Trail Particles (Puffy Clouds)
     const trailParticles = [];
     const trailContainer = new PIXI.Container();
     app.stage.addChild(trailContainer);
 
-    // 3. Airplane (Realistic 3D Render)
+    // 3. Cute Vector Airplane
     const rocketContainer = new PIXI.Container();
-    const rocketTexture = PIXI.Texture.from('/realistic_rocket.png');
-    const rocketCore = new PIXI.Sprite(rocketTexture);
-    rocketCore.anchor.set(0.5);
-    // Use SCREEN blending to remove the black background of the realistic render
-    rocketCore.blendMode = PIXI.BLEND_MODES.SCREEN; 
-    rocketCore.width = 120;
-    rocketCore.height = 120;
-    // The rocket image naturally points DOWN (thrusters at top). 
-    // To make it point RIGHT (angle 0), we rotate by +Math.PI/2.
-    // Wait, if it points DOWN, rotating by PI/2 makes it point LEFT. 
-    // We want it to point RIGHT, so we rotate by -Math.PI/2.
-    rocketCore.rotation = -Math.PI / 2; 
+    const rocketCore = new PIXI.Container();
+    
+    // Body (capsule)
+    const body = new PIXI.Graphics();
+    body.beginFill(0xffffff);
+    body.drawRoundedRect(-20, -12, 40, 24, 12);
+    body.endFill();
+
+    // Nose
+    const nose = new PIXI.Graphics();
+    nose.beginFill(0xff4444);
+    nose.moveTo(10, -12);
+    nose.lineTo(30, 0);
+    nose.lineTo(10, 12);
+    nose.endFill();
+
+    // Fins
+    const fins = new PIXI.Graphics();
+    fins.beginFill(0x4488ff);
+    fins.moveTo(-10, -12);
+    fins.lineTo(-20, -25);
+    fins.lineTo(-20, -12);
+    fins.moveTo(-10, 12);
+    fins.lineTo(-20, 25);
+    fins.lineTo(-20, 12);
+    fins.endFill();
+
+    // Window
+    const win = new PIXI.Graphics();
+    win.beginFill(0x88ccff);
+    win.lineStyle(2, 0xcccccc);
+    win.drawCircle(5, 0, 6);
+    win.endFill();
+
+    rocketCore.addChild(fins, body, nose, win);
     
     rocketContainer.addChild(rocketCore);
     app.stage.addChild(rocketContainer);
@@ -260,14 +288,18 @@ export default function CyberCrashGame({ currentUser, onBalanceUpdate }) {
       const targetX = progress * 750; // Keep slightly away from edge
       const targetY = 400 - Math.pow(progress, 1.8) * 350; // Curve up from bottom
 
-      // Parallax Nebula Panning
-      if (activeState === 'FLIGHT') {
-        bgSprite.y = -350 + (progress * 150); // Pan down
-        bgSprite.x = -200 - (progress * 50); // Pan left slightly
-      } else if (activeState === 'BETTING') {
-        bgSprite.y = -350;
-        bgSprite.x = -200;
-      }
+      // Parallax Stars
+      const starSpeedMulti = activeState === 'FLIGHT' ? (1 + progress * 8) : 1;
+      stars.forEach(s => {
+          s.x -= s.speed * starSpeedMulti * delta;
+          if (activeState === 'FLIGHT') {
+              s.y += (progress * s.speed * 0.5) * delta;
+          }
+          if (s.x < 0 || s.y > 400) {
+              s.x = 800 + Math.random() * 50;
+              s.y = Math.random() * 400;
+          }
+      });
 
       let currentAngle = rocketContainer.rotation;
       const dx = targetX - prevX;
@@ -283,19 +315,18 @@ export default function CyberCrashGame({ currentUser, onBalanceUpdate }) {
       prevX = targetX;
       prevY = targetY;
 
-      // Exhaust Particles (blue plasma to match realistic rocket)
-      if (activeState === 'FLIGHT' && Math.random() > 0.1) { // spawn more frequently
+      // Exhaust Particles (Cute puffy clouds)
+      if (activeState === 'FLIGHT' && Math.random() > 0.1) {
           const p = new PIXI.Graphics();
-          p.beginFill(Math.random() > 0.5 ? 0x00ffff : 0x0088ff);
-          p.drawCircle(0, 0, Math.random() * 5 + 3);
+          p.beginFill(0xffffff, 0.7);
+          p.drawCircle(0, 0, Math.random() * 6 + 4);
           p.endFill();
-          p.blendMode = PIXI.BLEND_MODES.SCREEN;
           
           // spawn slightly behind the ship
-          p.x = targetX - Math.cos(currentAngle) * 30;
-          p.y = targetY - Math.sin(currentAngle) * 30;
-          p.vx = -Math.cos(currentAngle) * (Math.random() * 3 + 2);
-          p.vy = -Math.sin(currentAngle) * (Math.random() * 3 + 2) + (Math.random() - 0.5);
+          p.x = targetX - Math.cos(currentAngle) * 20;
+          p.y = targetY - Math.sin(currentAngle) * 20;
+          p.vx = -Math.cos(currentAngle) * (Math.random() * 2 + 1);
+          p.vy = -Math.sin(currentAngle) * (Math.random() * 2 + 1) + (Math.random() - 0.5);
           p.life = 1.0;
           trailContainer.addChild(p);
           trailParticles.push(p);
@@ -317,12 +348,8 @@ export default function CyberCrashGame({ currentUser, onBalanceUpdate }) {
 
       // Draw Flight Curve Line
       curve.clear();
-      // Outer glow (cyan)
-      curve.lineStyle(10, 0x00ffff, 0.3);
-      curve.moveTo(0, 400);
-      curve.quadraticCurveTo(targetX * 0.5, 400, targetX, targetY);
-      // Inner core (bright blue)
-      curve.lineStyle(3, 0xccffff, 1);
+      // Thick smooth cute line
+      curve.lineStyle(6, 0xff4444, 1); // smooth cute red
       curve.moveTo(0, 400);
       curve.quadraticCurveTo(targetX * 0.5, 400, targetX, targetY);
 
