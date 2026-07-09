@@ -534,3 +534,91 @@ body {
   text-align: center;
   color: var(--text-gray);
 }
+
+/* --- Slots Configuration Panel --- */
+.strategy-dropdown {
+  width: 100%;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid var(--border-color);
+  color: #fff;
+  padding: 10px;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 0.9rem;
+  margin-top: 5px;
+}
+
+.strategy-dropdown:focus {
+  border-color: var(--neon-gold);
+  outline: none;
+}
+
+.strategy-info-box {
+  background: rgba(255, 204, 0, 0.04);
+  border: 1px solid rgba(255, 204, 0, 0.15);
+  border-radius: 8px;
+  padding: 12px 15px;
+  margin-top: 15px;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: #ddd;
+}
+
+.strategy-info-box strong {
+  color: var(--neon-gold);
+}
+
+.table-inline-input {
+  width: 70px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  color: #fff;
+  padding: 4px 8px;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+.table-inline-input:focus {
+  border-color: var(--neon-gold);
+  background: rgba(0, 0, 0, 0.6);
+  outline: none;
+}
+
+.color-picker-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.table-color-input {
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+.color-label {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.75rem;
+  color: var(--text-gray);
+  text-transform: uppercase;
+}
+
+.table-instructions {
+  margin-top: 15px;
+  font-size: 0.75rem;
+  color: var(--text-gray);
+  line-height: 1.5;
+}
+
+.input-helper-text {
+  display: block;
+  margin-top: 6px;
+  font-size: 0.75rem;
+  color: var(--text-gray);
+}

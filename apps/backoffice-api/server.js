@@ -151,6 +151,43 @@ app.delete('/api/admin/spinwheel-prizes/:id', async (req, res) => {
   }
 });
 
+// --- Slots Configuration CRUD ---
+app.get('/api/admin/slots/config', async (req, res) => {
+  try {
+    const config = await db.all('SELECT * FROM slots_config');
+    const configMap = {};
+    config.forEach(c => configMap[c.key] = c.value);
+    res.json({ success: true, config: configMap });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Internal Server Error' });
+  }
+});
+
+app.put('/api/admin/slots/config', async (req, res) => {
+  try {
+    const { payout_strategy, target_rtp, symbols_config } = req.body;
+    
+    await db.executeTransaction(async (tx) => {
+      if (payout_strategy) {
+        await tx.run('INSERT OR REPLACE INTO slots_config (key, value) VALUES ("payout_strategy", ?)', [payout_strategy]);
+      }
+      if (target_rtp !== undefined) {
+        await tx.run('INSERT OR REPLACE INTO slots_config (key, value) VALUES ("target_rtp", ?)', [target_rtp.toString()]);
+      }
+      if (symbols_config) {
+        // Validate JSON
+        JSON.parse(symbols_config);
+        await tx.run('INSERT OR REPLACE INTO slots_config (key, value) VALUES ("symbols_config", ?)', [symbols_config]);
+      }
+    });
+
+    await pubsub.publish({ type: 'SLOTS_CONFIG_UPDATED' });
+    res.json({ success: true });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+});
+
 // 2. RNG Audit Verification
 app.get('/api/admin/audit-verify/:drawId', async (req, res) => {
   try {

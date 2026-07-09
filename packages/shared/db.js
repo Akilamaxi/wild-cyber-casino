@@ -237,6 +237,36 @@ const initDatabase = async () => {
     }
   }
 
+  // 9. Slots Configuration Settings
+  await run(`
+    CREATE TABLE IF NOT EXISTS slots_config (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    )
+  `);
+
+  const slotsCfgCount = await get('SELECT COUNT(*) as count FROM slots_config');
+  if (slotsCfgCount.count === 0) {
+    const defaultSlotsConfigs = [
+      { key: 'payout_strategy', value: 'FAIR_RNG' }, // 'FAIR_RNG' | 'CONTROLLED_RTP' | 'NEAR_MISS_TEASER'
+      { key: 'target_rtp', value: '0.90' }, // 90% return to player
+      { key: 'symbols_config', value: JSON.stringify([
+        { name: 'BAR', multiplier: 3, weight: 30, color: '#ff0055' },
+        { name: 'CHERRY', multiplier: 5, weight: 25, color: '#ffcc00' },
+        { name: 'BELL', multiplier: 10, weight: 20, color: '#00ffcc' },
+        { name: 'DIAMOND', multiplier: 20, weight: 15, color: '#b500ff' },
+        { name: 'SEVEN', multiplier: 50, weight: 8, color: '#00ff66' },
+        { name: 'WILD', multiplier: 100, weight: 2, color: '#ffffff' }
+      ])}
+    ];
+
+    for (const cfg of defaultSlotsConfigs) {
+      await run(`
+        INSERT INTO slots_config (key, value) VALUES (?, ?)
+      `, [cfg.key, cfg.value]);
+    }
+  }
+
   console.log('[DB] SQLite migrations completed successfully.');
 };
 

@@ -1,15 +1,25 @@
 import React, { useState, useEffect } from 'react';
+import io from 'socket.io-client';
+
+const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:5000' : '';
 
 const SYMBOL_MAP = {
   'BAR': { emoji: '➖', label: 'BAR', color: '#a5a2c2' },
-  'CHERRY': { emoji: '🍒', label: 'CHERRY', color: '#ff0055' },
-  'BELL': { emoji: '🔔', label: 'BELL', color: '#ffcc00' },
-  'DIAMOND': { emoji: '💎', label: 'DIAMOND', color: '#00ffcc' },
-  'SEVEN': { emoji: '7️⃣', label: 'SEVEN', color: '#b500ff' },
-  'WILD': { emoji: '🎰', label: 'WILD', color: '#00ffcc' }
+  'CHERRY': { emoji: '🍒', label: 'NEON CHERRY', color: '#ff0055' },
+  'BELL': { emoji: '🔔', label: 'GOLD BELL', color: '#ffcc00' },
+  'DIAMOND': { emoji: '💎', label: 'CYBER DIAMOND', color: '#00ffcc' },
+  'SEVEN': { emoji: '7️⃣', label: 'LUCKY SEVEN', color: '#b500ff' },
+  'WILD': { emoji: '🎰', label: 'WILD JACKPOT', color: '#00ffcc' }
 };
 
-const SYMBOLS_LIST = ['BAR', 'CHERRY', 'BELL', 'DIAMOND', 'SEVEN', 'WILD'];
+const FALLBACK_SYMBOLS = [
+  { name: 'BAR', multiplier: 3, weight: 30 },
+  { name: 'CHERRY', multiplier: 5, weight: 25 },
+  { name: 'BELL', multiplier: 10, weight: 20 },
+  { name: 'DIAMOND', multiplier: 20, weight: 15 },
+  { name: 'SEVEN', multiplier: 50, weight: 8 },
+  { name: 'WILD', multiplier: 100, weight: 2 }
+];
 
 function CyberSlotsGame({ currentUser, onBalanceUpdate }) {
   const [betSize, setBetSize] = useState(10);
@@ -18,9 +28,40 @@ function CyberSlotsGame({ currentUser, onBalanceUpdate }) {
   const [spinningReels, setSpinningReels] = useState([false, false, false]);
   const [winMessage, setWinMessage] = useState('');
   const [payoutAmount, setPayoutAmount] = useState(0);
-
-  // Sound/Vibration simulation (simple flashes)
   const [flashWin, setFlashWin] = useState(false);
+  const [symbols, setSymbols] = useState(FALLBACK_SYMBOLS);
+
+  const fetchConfig = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/api/slots/config`);
+      const data = await response.json();
+      if (data.success && data.config && data.config.symbols_config) {
+        const parsed = JSON.parse(data.config.symbols_config);
+        if (parsed.length > 0) {
+          setSymbols(parsed);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load slots config:', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchConfig();
+
+    // Listen to WebSocket configuration updates
+    const socket = io(API_BASE);
+    socket.on('lottery_events', (event) => {
+      if (event.type === 'SLOTS_CONFIG_UPDATED') {
+        console.log('[WS] Slots configuration updated. Refreshing payouts table...');
+        fetchConfig();
+      }
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, []);
 
   const startSlotsSpin = async () => {
     if (isSpinning) return;
@@ -31,7 +72,6 @@ function CyberSlotsGame({ currentUser, onBalanceUpdate }) {
       return;
     }
 
-    // Reset messages
     setWinMessage('');
     setPayoutAmount(0);
     setFlashWin(false);
@@ -42,8 +82,6 @@ function CyberSlotsGame({ currentUser, onBalanceUpdate }) {
     onBalanceUpdate(currentUser.balance - betSize);
 
     try {
-      // 1. Fetch spin result from secure backend
-      const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:5000' : '';
       const response = await fetch(`${API_BASE}/api/slots/spin`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -52,7 +90,6 @@ function CyberSlotsGame({ currentUser, onBalanceUpdate }) {
       const data = await response.json();
 
       if (!response.ok || !data.success) {
-        // Revert balance on failure
         onBalanceUpdate(currentUser.balance);
         alert(data.error || 'Server connection error.');
         setIsSpinning(false);
@@ -64,47 +101,45 @@ function CyberSlotsGame({ currentUser, onBalanceUpdate }) {
       const finalPayout = data.payout;
       const serverBalance = data.newBalance;
 
-      // 2. Animate Reels Spinning
-      // We run intervals to cycle through random symbols on each reel
+      // Cycle reels animation using dynamic symbols
       let intervals = [];
+      const symbolsList = symbols.map(s => s.name);
       
       const runReelCycle = (reelIndex) => {
         return setInterval(() => {
           setReels(prev => {
             const next = [...prev];
-            const randomSym = SYMBOLS_LIST[Math.floor(Math.random() * SYMBOLS_LIST.length)];
+            const randomSym = symbolsList[Math.floor(Math.random() * symbolsList.length)];
             next[reelIndex] = randomSym;
             return next;
           });
-        }, 70 + reelIndex * 20); // slightly offset interval speeds
+        }, 70 + reelIndex * 20);
       };
 
       intervals[0] = runReelCycle(0);
       intervals[1] = runReelCycle(1);
       intervals[2] = runReelCycle(2);
 
-      // Stop Reels Sequentially
-      // Reel 1 Stops at 1500ms
+      // Stop Reel 1 Stops at 1500ms
       setTimeout(() => {
         clearInterval(intervals[0]);
         setReels(prev => [targetReels[0], prev[1], prev[2]]);
         setSpinningReels(prev => [false, prev[1], prev[2]]);
       }, 1500);
 
-      // Reel 2 Stops at 2300ms
+      // Stop Reel 2 Stops at 2300ms
       setTimeout(() => {
         clearInterval(intervals[1]);
         setReels(prev => [prev[0], targetReels[1], prev[2]]);
         setSpinningReels(prev => [prev[0], false, prev[2]]);
       }, 2300);
 
-      // Reel 3 Stops at 3100ms
+      // Stop Reel 3 Stops at 3100ms
       setTimeout(() => {
         clearInterval(intervals[2]);
         setReels(prev => [prev[0], prev[1], targetReels[2]]);
         setSpinningReels([false, false, false]);
 
-        // Complete Spin
         setIsSpinning(false);
         onBalanceUpdate(serverBalance);
 
@@ -123,80 +158,71 @@ function CyberSlotsGame({ currentUser, onBalanceUpdate }) {
         }
       }, 3100);
 
-    } catch (err) {
-      console.error('Slots error:', err);
-      onBalanceUpdate(currentUser.balance); // Revert balance
+    } catch (error) {
+      console.error("Slots connection failed:", error);
+      alert("Could not connect to slots engine server.");
+      onBalanceUpdate(currentUser.balance);
       setIsSpinning(false);
       setSpinningReels([false, false, false]);
-      alert('Could not connect to slots backend.');
     }
   };
 
   return (
-    <div className="slots-page-container">
-      <div className="slots-main-layout">
-        {/* Left Side: Game Machine */}
-        <div className={`slots-machine-box ${flashWin ? 'jackpot-flash' : ''}`}>
-          <div className="machine-header">
+    <div className="game-view-wrapper">
+      <div className={`slots-game-container ${flashWin ? 'slots-win-flash' : ''}`}>
+        
+        {/* Left Side: Slots Machine reels & controls */}
+        <div className="slots-machine-card">
+          <div className="slots-header">
             <h2>CYBER SLOTS 777</h2>
-            <div className="security-tag">🔐 SECURE DECENTRALIZED COMPLIANT</div>
+            <p className="slots-subtitle">PROVABLY FAIR DECENTRALIZED COMPLIANT RNG</p>
           </div>
 
-          {/* Reels Display */}
-          <div className="reels-outer-container">
-            <div className="reels-glass-overlay"></div>
-            <div className="win-line-indicator"></div>
-            
-            <div className="reels-inner-grid">
-              {reels.map((symbolKey, index) => {
-                const sym = SYMBOL_MAP[symbolKey];
-                const isReelSpinning = spinningReels[index];
+          {/* Slots Reels Display */}
+          <div className="slots-window">
+            <div className="winline-indicator"></div>
+            <div className="reels-row">
+              {reels.map((symbolName, idx) => {
+                const s = SYMBOL_MAP[symbolName] || { emoji: '❓', label: symbolName, color: '#fff' };
+                const isSpin = spinningReels[idx];
                 return (
-                  <div key={index} className={`slots-reel ${isReelSpinning ? 'spinning-blur' : ''}`}>
-                    <div className="reel-symbol-wrap" style={{ color: sym.color }}>
-                      <span className="reel-emoji">{sym.emoji}</span>
-                      <span className="reel-label">{sym.label}</span>
-                    </div>
+                  <div 
+                    key={idx} 
+                    className={`slots-reel-box ${isSpin ? 'reel-blur-anim' : ''}`}
+                    style={{ borderTopColor: s.color }}
+                  >
+                    <span className="reel-emoji">{s.emoji}</span>
+                    <span className="reel-label" style={{ color: s.color }}>{s.label}</span>
                   </div>
                 );
               })}
             </div>
           </div>
 
-          {/* Winning Screen Banner */}
+          {/* Win popups */}
           {winMessage && (
-            <div className={`slots-result-banner ${payoutAmount > 0 ? 'win-banner' : 'lose-banner'}`}>
+            <div className={`slots-outcome-banner ${payoutAmount > 0 ? 'win' : 'lose'}`}>
               {winMessage}
             </div>
           )}
 
-          {/* Machine Controls */}
-          <div className="slots-controls-wrapper">
-            {/* Bet selector */}
-            <div className="bet-select-group">
-              <label>SELECT BET SIZE</label>
-              <div className="bet-buttons">
-                {[5, 10, 25, 50].map((size) => (
-                  <button 
-                    key={size}
-                    type="button"
-                    className={`bet-btn ${betSize === size ? 'active' : ''}`}
-                    onClick={() => !isSpinning && setBetSize(size)}
-                    disabled={isSpinning}
-                  >
-                    ${size}
-                  </button>
-                ))}
+          {/* Spin controls */}
+          <div className="slots-actions">
+            <div className="bet-adjuster">
+              <span className="bet-label">BET SIZE</span>
+              <div className="bet-btn-row">
+                <button disabled={isSpinning} onClick={() => setBetSize(Math.max(5, betSize - 5))}>-</button>
+                <span className="bet-val">${betSize}</span>
+                <button disabled={isSpinning} onClick={() => setBetSize(betSize + 5)}>+</button>
               </div>
             </div>
 
-            {/* Spin Lever button */}
             <button 
-              className="slots-spin-lever-btn" 
+              className="slots-spin-btn" 
               onClick={startSlotsSpin} 
               disabled={isSpinning}
             >
-              {isSpinning ? 'ROLLING...' : 'PULL LEVER 🚀'}
+              {isSpinning ? 'SPINNING...' : '🎰 SPIN REELS'}
             </button>
           </div>
         </div>
@@ -207,36 +233,18 @@ function CyberSlotsGame({ currentUser, onBalanceUpdate }) {
           <div className="panel-divider"></div>
           
           <div className="payout-rows-list">
-            <div className="payout-row jackpot-row">
-              <span className="payout-icons">🎰🎰🎰</span>
-              <span className="payout-label">WILD JACKPOT</span>
-              <span className="payout-mult">100x Bet</span>
-            </div>
-            <div className="payout-row seven-row">
-              <span className="payout-icons">7️⃣7️⃣7️⃣</span>
-              <span className="payout-label">LUCKY SEVENS</span>
-              <span className="payout-mult">50x Bet</span>
-            </div>
-            <div className="payout-row diamond-row">
-              <span className="payout-icons">💎💎💎</span>
-              <span className="payout-label">CYBER DIAMONDS</span>
-              <span className="payout-mult">20x Bet</span>
-            </div>
-            <div className="payout-row bell-row">
-              <span className="payout-icons">🔔🔔🔔</span>
-              <span className="payout-label">GOLD BELLS</span>
-              <span className="payout-mult">10x Bet</span>
-            </div>
-            <div className="payout-row cherry-row">
-              <span className="payout-icons">🍒🍒🍒</span>
-              <span className="payout-label">NEON CHERRIES</span>
-              <span className="payout-mult">5x Bet</span>
-            </div>
-            <div className="payout-row bar-row">
-              <span className="payout-icons">➖➖➖</span>
-              <span className="payout-label">CYBER BARS</span>
-              <span className="payout-mult">3x Bet</span>
-            </div>
+            {symbols.map(sym => {
+              const details = SYMBOL_MAP[sym.name] || { emoji: '❓', label: sym.name };
+              return (
+                <div key={sym.name} className="payout-row">
+                  <span className="payout-icons">
+                    {details.emoji}{details.emoji}{details.emoji}
+                  </span>
+                  <span className="payout-label">{details.label}</span>
+                  <span className="payout-mult">{sym.multiplier}x Bet</span>
+                </div>
+              );
+            })}
             <div className="payout-row double-row">
               <span className="payout-icons">🔹🔹◽</span>
               <span className="payout-label">ANY 2 MATCHING</span>

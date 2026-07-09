@@ -4,6 +4,15 @@ import './App.css';
 
 const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:5000' : '';
 
+const SYMBOL_MAP = {
+  'BAR': { emoji: '➖', label: 'BAR' },
+  'CHERRY': { emoji: '🍒', label: 'CHERRY' },
+  'BELL': { emoji: '🔔', label: 'BELL' },
+  'DIAMOND': { emoji: '💎', label: 'DIAMOND' },
+  'SEVEN': { emoji: '7️⃣', label: 'SEVEN' },
+  'WILD': { emoji: '🎰', label: 'WILD' }
+};
+
 function App() {
   const [currentUser, setCurrentUser] = useState(() => {
     const saved = localStorage.getItem('cyber_admin_user');
@@ -12,7 +21,7 @@ function App() {
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [loginError, setLoginError] = useState('');
-  const [activeTab, setActiveTab] = useState('lottery'); // 'lottery' | 'spinwheel'
+  const [activeTab, setActiveTab] = useState('lottery'); // 'lottery' | 'spinwheel' | 'slots'
 
   // --- Lottery Configurations States ---
   const [games, setGames] = useState([]);
@@ -30,6 +39,15 @@ function App() {
     text: '', color: '#ffcc00', textColor: '#000000', mult: 1.0, isBonus: false
   });
 
+  // --- Slots States ---
+  const [slotsConfig, setSlotsConfig] = useState({
+    payout_strategy: 'FAIR_RNG',
+    target_rtp: '0.90',
+    symbols_config: '[]'
+  });
+  const [slotsSymbols, setSlotsSymbols] = useState([]);
+  const [loadingSlots, setLoadingSlots] = useState(true);
+
   const canvasRef = useRef(null);
   const socketRef = useRef(null);
 
@@ -38,6 +56,7 @@ function App() {
     if (currentUser && currentUser.role === 'ADMIN') {
       fetchGames();
       fetchPrizes();
+      fetchSlotsConfig();
 
       // Connect WebSockets for real-time config updates
       socketRef.current = io(API_BASE);
@@ -51,6 +70,9 @@ function App() {
         }
         if (event.type === 'SPIN_WHEEL_CONFIG_UPDATED') {
           fetchPrizes();
+        }
+        if (event.type === 'SLOTS_CONFIG_UPDATED') {
+          fetchSlotsConfig();
         }
       });
 
@@ -125,6 +147,22 @@ function App() {
       console.error(err);
     }
     setLoadingPrizes(false);
+  };
+
+  const fetchSlotsConfig = async () => {
+    setLoadingSlots(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/slots/config`);
+      const data = await res.json();
+      if (data.success && data.config) {
+        setSlotsConfig(data.config);
+        const parsed = JSON.parse(data.config.symbols_config || '[]');
+        setSlotsSymbols(parsed);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+    setLoadingSlots(false);
   };
 
   // --- Lottery CRUD Operations ---
@@ -249,6 +287,41 @@ function App() {
     } catch (err) {
       alert('Failed to delete prize sector');
     }
+  };
+
+  // --- Slots Submit operations ---
+  const handleSlotsSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/slots/config`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          payout_strategy: slotsConfig.payout_strategy,
+          target_rtp: parseFloat(slotsConfig.target_rtp) || 0.90,
+          symbols_config: JSON.stringify(slotsSymbols)
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert('🎰 Slots configuration rules deployed successfully!');
+        fetchSlotsConfig();
+      } else {
+        alert('Error saving slots configs: ' + data.error);
+      }
+    } catch (err) {
+      alert('Network failure saving config');
+    }
+  };
+
+  const handleSymbolChange = (index, field, value) => {
+    const updated = [...slotsSymbols];
+    if (field === 'multiplier' || field === 'weight') {
+      updated[index][field] = parseFloat(value) || 0;
+    } else {
+      updated[index][field] = value;
+    }
+    setSlotsSymbols(updated);
   };
 
   // Draw Interactive Preview Wheel on Admin Dashboard
@@ -378,6 +451,14 @@ function App() {
                 className={`menu-btn ${activeTab === 'spinwheel' ? 'active' : ''}`}
               >
                 🎡 Spin Wheel Customizer
+              </button>
+            </li>
+            <li>
+              <button 
+                onClick={() => setActiveTab('slots')} 
+                className={`menu-btn ${activeTab === 'slots' ? 'active' : ''}`}
+              >
+                🎰 Slots Control Desk
               </button>
             </li>
           </ul>
@@ -630,6 +711,118 @@ function App() {
                     </tbody>
                   </table>
                 )}
+              </div>
+            </div>
+          )}
+
+          {/* TAB 3: CYBER SLOTS MANAGEMENT */}
+          {activeTab === 'slots' && (
+            <div className="workspace-flex">
+              {/* Left Side: Strategy config panel */}
+              <div className="editor-card">
+                <h2>🎰 SLOTS STRATEGY ENGINE</h2>
+                {loadingSlots ? <div className="loader">Loading slot config...</div> : (
+                  <form onSubmit={handleSlotsSubmit} className="admin-form">
+                    <div className="form-group">
+                      <label>Payout Rules Strategy</label>
+                      <select 
+                        value={slotsConfig.payout_strategy}
+                        onChange={e => setSlotsConfig({ ...slotsConfig, payout_strategy: e.target.value })}
+                        className="strategy-dropdown"
+                      >
+                        <option value="FAIR_RNG">FAIR_RNG (Pure Weighted Probability)</option>
+                        <option value="CONTROLLED_RTP">CONTROLLED_RTP (Dynamic House Edge)</option>
+                        <option value="NEAR_MISS_TEASER">NEAR_MISS_TEASER (Excitement Optimizer)</option>
+                      </select>
+                      <div className="strategy-info-box">
+                        {slotsConfig.payout_strategy === 'FAIR_RNG' && (
+                          <p>💡 <strong>FAIR_RNG:</strong> Reels are spun strictly according to individual symbol probability weights. Long-term returns will naturally settle to weight ratios.</p>
+                        )}
+                        {slotsConfig.payout_strategy === 'CONTROLLED_RTP' && (
+                          <p>⚠️ <strong>CONTROLLED_RTP:</strong> Rigged compliance. Tracks player lifetime bets vs won credits, forcing losses if current return rates exceed the target RTP.</p>
+                        )}
+                        {slotsConfig.payout_strategy === 'NEAR_MISS_TEASER' && (
+                          <p>🚀 <strong>NEAR_MISS_TEASER:</strong> Boosts retention. Lost spins have a 50% probability to align two matching premium symbols, creating exciting teaser close calls.</p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="form-group">
+                      <label>Target RTP Rate (0.0 to 1.0)</label>
+                      <input 
+                        type="number" 
+                        step="0.01" 
+                        value={slotsConfig.target_rtp} 
+                        onChange={e => setSlotsConfig({ ...slotsConfig, target_rtp: e.target.value })} 
+                        required 
+                        disabled={slotsConfig.payout_strategy !== 'CONTROLLED_RTP'}
+                      />
+                      <span className="input-helper-text">Configures payout limits for the CONTROLLED_RTP strategy. Default: 0.90 (90% Return-to-Player).</span>
+                    </div>
+
+                    <button type="submit" className="primary-btn">DEPLOY STRATEGY RULES</button>
+                  </form>
+                )}
+              </div>
+
+              {/* Right Side: Symbols configs */}
+              <div className="data-table-card">
+                <h2>🎰 REELS SYMBOLS WEIGHTS & MULTIPLIERS</h2>
+                {loadingSlots ? <div className="loader">Loading symbols list...</div> : (
+                  <table className="admin-table">
+                    <thead>
+                      <tr>
+                        <th>Icon</th>
+                        <th>Symbol</th>
+                        <th>Payout Multiplier</th>
+                        <th>Probability Weight</th>
+                        <th>Hex Color</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {slotsSymbols.map((s, index) => {
+                        const iconDetails = SYMBOL_MAP[s.name] || { emoji: '❓', label: s.name };
+                        return (
+                          <tr key={s.name}>
+                            <td style={{ fontSize: '1.2rem' }}>{iconDetails.emoji}</td>
+                            <td><strong>{s.name}</strong></td>
+                            <td>
+                              <input 
+                                type="number" 
+                                className="table-inline-input"
+                                value={s.multiplier}
+                                onChange={e => handleSymbolChange(index, 'multiplier', e.target.value)}
+                              />
+                            </td>
+                            <td>
+                              <input 
+                                type="number" 
+                                className="table-inline-input"
+                                value={s.weight}
+                                onChange={e => handleSymbolChange(index, 'weight', e.target.value)}
+                              />
+                            </td>
+                            <td>
+                              <div className="color-picker-cell">
+                                <input 
+                                  type="color" 
+                                  value={s.color || '#ffffff'}
+                                  onChange={e => handleSymbolChange(index, 'color', e.target.value)}
+                                  className="table-color-input"
+                                />
+                                <span className="color-label">{s.color}</span>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                )}
+                <div className="table-instructions">
+                  💡 <strong>Multiplier:</strong> Configures payout multiple (e.g. 50x bet for 777). <br/>
+                  💡 <strong>Weight:</strong> Higher weights increase roll probability.
+                </div>
               </div>
             </div>
           )}

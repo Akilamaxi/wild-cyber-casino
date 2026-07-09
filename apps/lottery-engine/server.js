@@ -281,6 +281,25 @@ app.post('/api/spin', async (req, res) => {
 });
 
 // --- Slots Game ---
+app.get('/api/slots/config', async (req, res) => {
+  try {
+    const strategy = await db.get("SELECT value FROM slots_config WHERE key = 'payout_strategy'");
+    const rtp = await db.get("SELECT value FROM slots_config WHERE key = 'target_rtp'");
+    const symbols = await db.get("SELECT value FROM slots_config WHERE key = 'symbols_config'");
+
+    res.json({
+      success: true,
+      config: {
+        payout_strategy: strategy ? strategy.value : 'FAIR_RNG',
+        target_rtp: rtp ? rtp.value : '0.90',
+        symbols_config: symbols ? symbols.value : '[]'
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Internal Server Error' });
+  }
+});
+
 app.post('/api/slots/spin', async (req, res) => {
   try {
     const { email, bet } = req.body;
@@ -305,47 +324,113 @@ app.post('/api/slots/spin', async (req, res) => {
         [playTxId, email.toLowerCase(), 'SLOTS_PLAY', -betAmount, balance, new Date().toISOString()]
       );
 
-      // 2. Roll slots
-      const SLOT_SYMBOLS = ['BAR', 'CHERRY', 'BELL', 'DIAMOND', 'SEVEN', 'WILD'];
-      const SLOT_MULTIPLIERS = { 'BAR': 3, 'CHERRY': 5, 'BELL': 10, 'DIAMOND': 20, 'SEVEN': 50, 'WILD': 100 };
+      // 2. Roll slots dynamically based on strategy & weights
+      const strategyRow = await tx.get("SELECT value FROM slots_config WHERE key = 'payout_strategy'");
+      const rtpRow = await tx.get("SELECT value FROM slots_config WHERE key = 'target_rtp'");
+      const symbolsRow = await tx.get("SELECT value FROM slots_config WHERE key = 'symbols_config'");
 
-      const r1 = SLOT_SYMBOLS[crypto.randomInt(0, SLOT_SYMBOLS.length)];
-      const r2 = SLOT_SYMBOLS[crypto.randomInt(0, SLOT_SYMBOLS.length)];
-      const r3 = SLOT_SYMBOLS[crypto.randomInt(0, SLOT_SYMBOLS.length)];
-      const reels = [r1, r2, r3];
+      const strategy = strategyRow ? strategyRow.value : 'FAIR_RNG';
+      const targetRtp = rtpRow ? parseFloat(rtpRow.value) : 0.90;
+      const symbols = symbolsRow ? JSON.parse(symbolsRow.value) : [
+        { name: 'BAR', multiplier: 3, weight: 30 },
+        { name: 'CHERRY', multiplier: 5, weight: 25 },
+        { name: 'BELL', multiplier: 10, weight: 20 },
+        { name: 'DIAMOND', multiplier: 20, weight: 15 },
+        { name: 'SEVEN', multiplier: 50, weight: 8 },
+        { name: 'WILD', multiplier: 100, weight: 2 }
+      ];
 
-      // Payout Calculations
-      let payout = 0;
-      const counts = {};
-      reels.forEach(sym => counts[sym] = (counts[sym] || 0) + 1);
-      
-      const wildCount = counts['WILD'] || 0;
-      const nonWilds = Object.keys(counts).filter(sym => sym !== 'WILD');
-      
-      let maxNonWildCount = 0;
-      let maxNonWildSymbol = null;
-      nonWilds.forEach(sym => {
-        if (counts[sym] > maxNonWildCount) {
-          maxNonWildCount = counts[sym];
-          maxNonWildSymbol = sym;
-        }
-      });
+      // Reel rolling helper using configuration weights
+      const rollReelsByWeights = (symbolsList) => {
+        const totalWeight = symbolsList.reduce((acc, s) => acc + s.weight, 0);
+        const rollOne = () => {
+          let rand = crypto.randomInt(0, totalWeight);
+          for (const s of symbolsList) {
+            if (rand < s.weight) return s.name;
+            rand -= s.weight;
+          }
+          return symbolsList[0].name;
+        };
+        return [rollOne(), rollOne(), rollOne()];
+      };
 
-      if (wildCount === 3) {
-        payout = betAmount * SLOT_MULTIPLIERS['WILD'];
-      } else if (wildCount === 2) {
-        payout = betAmount * SLOT_MULTIPLIERS[maxNonWildSymbol || 'WILD'];
-      } else if (wildCount === 1) {
-        if (maxNonWildCount === 2) {
-          payout = betAmount * SLOT_MULTIPLIERS[maxNonWildSymbol];
+      // Roll reels initially using Fair RNG (weighted probability)
+      let reels = rollReelsByWeights(symbols);
+
+      // Helper to calculate payout for a given reel outcome
+      const calculatePayout = (outcome, symsList, betVal) => {
+        const counts = {};
+        outcome.forEach(sym => counts[sym] = (counts[sym] || 0) + 1);
+
+        const multipliers = {};
+        symsList.forEach(s => multipliers[s.name] = s.multiplier);
+
+        const wildCount = counts['WILD'] || 0;
+        const nonWilds = Object.keys(counts).filter(sym => sym !== 'WILD');
+
+        let maxNonWildCount = 0;
+        let maxNonWildSymbol = null;
+        nonWilds.forEach(sym => {
+          if (counts[sym] > maxNonWildCount) {
+            maxNonWildCount = counts[sym];
+            maxNonWildSymbol = sym;
+          }
+        });
+
+        if (wildCount === 3) {
+          return betVal * multipliers['WILD'];
+        } else if (wildCount === 2) {
+          return betVal * multipliers[maxNonWildSymbol || 'WILD'];
+        } else if (wildCount === 1) {
+          if (maxNonWildCount === 2) {
+            return betVal * multipliers[maxNonWildSymbol];
+          } else {
+            return betVal * 2; // Consolation matching 2 symbols
+          }
         } else {
-          payout = betAmount * 2; // Consolation matching 2 symbols
+          if (maxNonWildCount === 3) {
+            return betVal * multipliers[maxNonWildSymbol];
+          } else if (maxNonWildCount === 2) {
+            return betVal * 2;
+          }
         }
-      } else {
-        if (maxNonWildCount === 3) {
-          payout = betAmount * SLOT_MULTIPLIERS[maxNonWildSymbol];
-        } else if (maxNonWildCount === 2) {
-          payout = betAmount * 2;
+        return 0;
+      };
+
+      let payout = calculatePayout(reels, symbols, betAmount);
+
+      // --- Payout Strategies Override ---
+      if (strategy === 'CONTROLLED_RTP') {
+        const stats = await tx.get(`
+          SELECT 
+            ABS(SUM(CASE WHEN type = 'SLOTS_PLAY' THEN amount ELSE 0 END)) as totalBet,
+            SUM(CASE WHEN type = 'SLOTS_WIN' THEN amount ELSE 0 END) as totalWon
+          FROM transactions
+          WHERE email = ?
+        `, [email.toLowerCase()]);
+
+        const totalBet = (stats ? stats.totalBet : 0) + betAmount;
+        const totalWon = (stats ? stats.totalWon : 0) + payout;
+        const currentRtp = totalBet > 0 ? (totalWon / totalBet) : 0;
+
+        if (currentRtp > targetRtp && payout > betAmount * 2) {
+          let attempts = 0;
+          while (attempts < 20) {
+            reels = rollReelsByWeights(symbols);
+            payout = calculatePayout(reels, symbols, betAmount);
+            if (payout <= betAmount * 2) break;
+            attempts++;
+          }
+        }
+      } else if (strategy === 'NEAR_MISS_TEASER') {
+        if (payout === 0 && crypto.randomInt(0, 100) < 50) {
+          const premiumSymbols = ['SEVEN', 'DIAMOND', 'BELL'];
+          const targetSym = premiumSymbols[crypto.randomInt(0, premiumSymbols.length)];
+          const otherSymbols = symbols.filter(s => s.name !== targetSym && s.name !== 'WILD');
+          const finalOther = otherSymbols[crypto.randomInt(0, otherSymbols.length)].name;
+          reels = [targetSym, targetSym, finalOther];
+          reels.sort(() => 0.5 - Math.random());
+          payout = 0;
         }
       }
 
