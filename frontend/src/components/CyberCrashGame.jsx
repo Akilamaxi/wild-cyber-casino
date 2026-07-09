@@ -181,9 +181,12 @@ export default function CyberCrashGame({ currentUser, onBalanceUpdate }) {
 
     // 3. Airplane
     const rocketContainer = new PIXI.Container();
-    const rocketCore = new PIXI.Text('✈️', { fontSize: 48 });
+    const rocketTexture = PIXI.Texture.from('/rocket.png');
+    const rocketCore = new PIXI.Sprite(rocketTexture);
     rocketCore.anchor.set(0.5);
-    rocketCore.rotation = Math.PI / 8; // Adjust airplane default angle
+    rocketCore.width = 64;
+    rocketCore.height = 64;
+    rocketCore.rotation = Math.PI / 2; // Default offset if image points UP
     rocketContainer.addChild(rocketCore);
     app.stage.addChild(rocketContainer);
     rocketRef.current = rocketContainer;
@@ -212,21 +215,7 @@ export default function CyberCrashGame({ currentUser, onBalanceUpdate }) {
         explosionContainer.addChild(p);
     }
     
-    // Boom Text
-    const boomText = new PIXI.Text('BOOM!', { 
-        fontSize: 80, 
-        fill: 0xff0055, 
-        fontWeight: 'bold', 
-        stroke: 0xffffff,
-        strokeThickness: 4,
-        dropShadow: true, 
-        dropShadowColor: 0x000000, 
-        dropShadowBlur: 15,
-        fontFamily: 'Orbitron'
-    });
-    boomText.anchor.set(0.5);
-    boomText.visible = false;
-    explosionContainer.addChild(boomText);
+    // Boom Text removed per request
 
     let hasExploded = false;
 
@@ -276,8 +265,11 @@ export default function CyberCrashGame({ currentUser, onBalanceUpdate }) {
       const dx = targetX - prevX;
       const dy = targetY - prevY;
       if (dx > 0.1 || Math.abs(dy) > 0.1) {
-        const angle = Math.atan2(dy, dx);
-        rocketContainer.rotation = angle;
+        let angle = Math.atan2(dy, dx);
+        
+        // Smooth out the rotation
+        if (rocketContainer.rotation === 0) rocketContainer.rotation = angle;
+        rocketContainer.rotation += (angle - rocketContainer.rotation) * 0.1;
       }
 
       rocketContainer.x = targetX;
@@ -307,11 +299,6 @@ export default function CyberCrashGame({ currentUser, onBalanceUpdate }) {
         
         if (!hasExploded) {
             hasExploded = true;
-            boomText.visible = true;
-            boomText.x = targetX;
-            boomText.y = targetY - 40;
-            boomText.alpha = 1.0;
-            boomText.scale.set(0.2);
             
             particles.forEach(p => {
                 p.sprite.visible = true;
@@ -322,14 +309,6 @@ export default function CyberCrashGame({ currentUser, onBalanceUpdate }) {
                 p.sprite.scale.set(1.0);
             });
         } else {
-            // Animate boom text
-            if (boomText.scale.x < 1.2) {
-                boomText.scale.set(boomText.scale.x + 0.15);
-            }
-            if (boomText.alpha > 0) {
-                boomText.alpha -= 0.015;
-            }
-            
             // Animate particles
             particles.forEach(p => {
                 if (p.life > 0) {
@@ -346,7 +325,6 @@ export default function CyberCrashGame({ currentUser, onBalanceUpdate }) {
         }
       } else {
         hasExploded = false;
-        boomText.visible = false;
         particles.forEach(p => p.sprite.visible = false);
         curve.tint = 0xffffff;
         rocketCore.alpha = 1.0;
