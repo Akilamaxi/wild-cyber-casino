@@ -11,6 +11,7 @@ import LotteryGame from './components/LotteryGame';
 import UserProfile from './components/UserProfile';
 import CyberChat from './components/CyberChat';
 import CyberDiceGame from './components/CyberDiceGame';
+import CyberCrashGame from './components/CyberCrashGame';
 
 function App() {
   const [currentUser, setCurrentUser] = useState(null);
@@ -122,6 +123,12 @@ function App() {
           )}
           {currentView === 'dice' && currentUser && (
             <CyberDiceGame 
+              currentUser={currentUser}
+              onBalanceUpdate={handleBalanceUpdate}
+            />
+          )}
+          {currentView === 'crash' && currentUser && (
+            <CyberCrashGame 
               currentUser={currentUser}
               onBalanceUpdate={handleBalanceUpdate}
             />

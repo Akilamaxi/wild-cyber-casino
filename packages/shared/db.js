@@ -321,6 +321,31 @@ const initDatabase = async () => {
     }
   }
 
+  // 12. Crash Game State & Ledger
+  await run(`
+    CREATE TABLE IF NOT EXISTS crash_games (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      status TEXT NOT NULL,
+      crash_point REAL NOT NULL,
+      server_seed TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    )
+  `);
+
+  await run(`
+    CREATE TABLE IF NOT EXISTS crash_bets (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      game_id INTEGER NOT NULL,
+      email TEXT NOT NULL,
+      bet_amount REAL NOT NULL,
+      cashout_multiplier REAL,
+      winnings REAL,
+      status TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (game_id) REFERENCES crash_games(id)
+    )
+  `);
+
   console.log('[DB] SQLite migrations completed successfully.');
 };
 

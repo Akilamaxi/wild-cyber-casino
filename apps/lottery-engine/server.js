@@ -1123,6 +1123,166 @@ app.post('/api/dice/roll-single', async (req, res) => {
   }
 });
 
+let globalCrashDaemon = null;
+
+// --- Crash Game Endpoints ---
+app.get('/api/crash/active-bets', async (req, res) => {
+  try {
+    const game = await db.get('SELECT id FROM crash_games ORDER BY id DESC LIMIT 1');
+    if (!game) return res.json({ success: true, bets: [] });
+
+    const bets = await db.all(`
+      SELECT b.id, b.bet_amount, b.cashout_multiplier, b.winnings, b.status, u.username
+      FROM crash_bets b
+      JOIN users u ON LOWER(b.email) = LOWER(u.email)
+      WHERE b.game_id = ?
+    `, [game.id]);
+    res.json({ success: true, bets: bets.map(b => ({
+      id: b.id,
+      username: b.username,
+      betAmount: b.bet_amount,
+      cashoutMultiplier: b.cashout_multiplier,
+      winnings: b.winnings,
+      status: b.status
+    }))});
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Internal Server Error' });
+  }
+});
+
+app.get('/api/crash/history', async (req, res) => {
+  try {
+    const { email } = req.query;
+    if (!email) return res.status(400).json({ success: false, error: 'Email required' });
+
+    const history = await db.all(`
+      SELECT b.id, b.bet_amount, b.cashout_multiplier, b.winnings, b.status, b.created_at, g.crash_point
+      FROM crash_bets b
+      JOIN crash_games g ON b.game_id = g.id
+      WHERE LOWER(b.email) = ?
+      ORDER BY b.id DESC LIMIT 50
+    `, [email.toLowerCase()]);
+    res.json({ success: true, history: history.map(b => ({
+      id: b.id,
+      betAmount: b.bet_amount,
+      cashoutMultiplier: b.cashout_multiplier,
+      winnings: b.winnings,
+      status: b.status,
+      createdAt: b.created_at,
+      crashPoint: b.crash_point
+    }))});
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Internal Server Error' });
+  }
+});
+
+app.post('/api/crash/bet', async (req, res) => {
+  try {
+    const { email, bet } = req.body;
+    const betAmount = parseFloat(bet);
+    if (!email || isNaN(betAmount) || betAmount <= 0) {
+      return res.status(400).json({ success: false, error: 'Invalid bet details.' });
+    }
+
+    const result = await db.executeTransaction(async (tx) => {
+      const user = await tx.get('SELECT balance, username FROM users WHERE LOWER(email) = ?', [email.toLowerCase()]);
+      if (!user) throw new Error('User not found.');
+      if (user.balance < betAmount) throw new Error('Insufficient wallet funds.');
+
+      const game = await tx.get('SELECT id FROM crash_games WHERE status = "BETTING" ORDER BY id DESC LIMIT 1');
+      if (!game) throw new Error('No open lobby for betting right now.');
+
+      const existingBets = await tx.get('SELECT COUNT(*) as count FROM crash_bets WHERE game_id = ? AND LOWER(email) = ?', [game.id, email.toLowerCase()]);
+      if (existingBets.count >= 2) throw new Error('You can only place up to 2 bets per round.');
+
+      const newBalance = user.balance - betAmount;
+      await tx.run('UPDATE users SET balance = ? WHERE LOWER(email) = ?', [newBalance, email.toLowerCase()]);
+
+      const betInsert = await tx.run(
+        'INSERT INTO crash_bets (game_id, email, bet_amount, status, created_at) VALUES (?, ?, ?, ?, ?)',
+        [game.id, email.toLowerCase(), betAmount, 'LOCKED', new Date().toISOString()]
+      );
+
+      const txId = generateTxId();
+      await tx.run(
+        'INSERT INTO transactions (id, email, type, amount, balanceAfter, timestamp) VALUES (?, ?, "CRASH_BET", ?, ?, ?)',
+        [txId, email.toLowerCase(), -betAmount, newBalance, new Date().toISOString()]
+      );
+
+      if (globalCrashDaemon) {
+        globalCrashDaemon.io.emit('crash_bet_placed', {
+          id: betInsert.lastID,
+          gameId: game.id,
+          username: user.username,
+          betAmount,
+          cashoutMultiplier: null,
+          winnings: null,
+          status: 'LOCKED'
+        });
+      }
+
+      return { newBalance, gameId: game.id, betId: betInsert.lastID };
+    });
+
+    res.json({ success: true, ...result });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/crash/cashout', async (req, res) => {
+  try {
+    const { email, betId } = req.body;
+    if (!email || !betId) return res.status(400).json({ success: false, error: 'Email and betId required.' });
+
+    if (!globalCrashDaemon || globalCrashDaemon.state !== 'FLIGHT') {
+      return res.status(400).json({ success: false, error: 'Flight is not active or already crashed.' });
+    }
+
+    const currentMultiplier = globalCrashDaemon.currentMultiplier;
+    const gameId = globalCrashDaemon.gameId;
+
+    const result = await db.executeTransaction(async (tx) => {
+      const bet = await tx.get('SELECT * FROM crash_bets WHERE id = ? AND game_id = ? AND LOWER(email) = ? AND status = "LOCKED"', [betId, gameId, email.toLowerCase()]);
+      if (!bet) throw new Error('No locked bet found for this round.');
+
+      const payout = bet.bet_amount * currentMultiplier;
+      
+      await tx.run('UPDATE crash_bets SET status = "WON", cashout_multiplier = ?, winnings = ? WHERE id = ?', [currentMultiplier, payout, bet.id]);
+      
+      const user = await tx.get('SELECT balance, totalWon, username FROM users WHERE LOWER(email) = ?', [email.toLowerCase()]);
+      const newBalance = user.balance + payout;
+      const newTotalWon = user.totalWon + payout;
+
+      await tx.run('UPDATE users SET balance = ?, totalWon = ? WHERE LOWER(email) = ?', [newBalance, newTotalWon, email.toLowerCase()]);
+
+      const txId = generateTxId();
+      await tx.run(
+        'INSERT INTO transactions (id, email, type, amount, balanceAfter, timestamp) VALUES (?, ?, "CRASH_CASHOUT", ?, ?, ?)',
+        [txId, email.toLowerCase(), payout, newBalance, new Date().toISOString()]
+      );
+
+      if (globalCrashDaemon) {
+        globalCrashDaemon.io.emit('crash_cashed_out', {
+          id: bet.id,
+          gameId: gameId,
+          username: user.username,
+          betAmount: bet.bet_amount,
+          cashoutMultiplier: currentMultiplier,
+          winnings: payout,
+          status: 'WON'
+        });
+      }
+
+      return { newBalance, payout, multiplier: currentMultiplier };
+    });
+
+    res.json({ success: true, ...result });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+});
+
 app.get('/api/dice/tournaments', async (req, res) => {
   try {
     const tournaments = await db.all('SELECT * FROM dice_tournaments ORDER BY id DESC');
@@ -1373,6 +1533,11 @@ const startServer = async () => {
   const PORT = process.env.PORT || 5000;
   server.listen(PORT, () => {
     console.log(`>>>> [LOTTERY ENGINE] Unified REST + WebSockets server running on port ${PORT}`);
+    
+    // Boot up Crash Engine
+    const CrashDaemon = require('./crashDaemon');
+    globalCrashDaemon = new CrashDaemon(io);
+    globalCrashDaemon.start();
   });
 };
 
