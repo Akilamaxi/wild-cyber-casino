@@ -1,6 +1,19 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 
 function Header({ currentUser, onLogout, onOpenLogin, onOpenSignup, onViewChange, onChatToggle }) {
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsDropdownOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   return (
     <header className="casino-header-top">
       {/* Brand logo */}
@@ -74,15 +87,116 @@ function Header({ currentUser, onLogout, onOpenLogin, onOpenSignup, onViewChange
               <span className="wallet-value-text">${currentUser.balance.toLocaleString()}</span>
             </div>
             
-            {/* User tag */}
-            <div className="header-username-badge">
-              <span className="user-icon-visual">👤</span>
-              <span className="username-text">{currentUser.username}</span>
-            </div>
+            {/* User Dropdown wrapper */}
+            <div style={{ position: 'relative' }} ref={dropdownRef}>
+              <div 
+                className="header-username-badge"
+                onClick={() => setIsDropdownOpen(prev => !prev)}
+                style={{ cursor: 'pointer', userSelect: 'none', display: 'flex', gap: '8px', alignItems: 'center' }}
+              >
+                <span className="user-icon-visual">👤</span>
+                <span className="username-text" style={{ fontWeight: 'bold' }}>{currentUser.username}</span>
+                <span style={{ fontSize: '9px', opacity: 0.6, transform: isDropdownOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>▼</span>
+              </div>
 
-            <button className="header-logout-btn" onClick={onLogout}>
-              LOGOUT
-            </button>
+              {isDropdownOpen && (
+                <div style={{
+                  position: 'absolute',
+                  top: 'calc(100% + 8px)',
+                  right: 0,
+                  background: 'rgba(10, 13, 16, 0.95)',
+                  border: '1px solid rgba(255,255,255,0.08)',
+                  borderRadius: '12px',
+                  padding: '6px 0',
+                  minWidth: '160px',
+                  boxShadow: '0 10px 30px rgba(0,0,0,0.6)',
+                  zIndex: 200,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  backdropFilter: 'blur(10px)'
+                }}>
+                  <button 
+                    onClick={() => {
+                      onViewChange('profile');
+                      setIsDropdownOpen(false);
+                    }}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: '#8ba093',
+                      padding: '10px 16px',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      fontFamily: 'Outfit, sans-serif',
+                      fontSize: '13px',
+                      fontWeight: '600',
+                      width: '100%',
+                      transition: 'all 0.2s',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px'
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.color = '#fff'; e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.color = '#8ba093'; e.currentTarget.style.background = 'transparent'; }}
+                  >
+                    <span>👤</span> View Profile
+                  </button>
+                  <button 
+                    onClick={() => {
+                      onViewChange('wallet');
+                      setIsDropdownOpen(false);
+                    }}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: '#8ba093',
+                      padding: '10px 16px',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      fontFamily: 'Outfit, sans-serif',
+                      fontSize: '13px',
+                      fontWeight: '600',
+                      width: '100%',
+                      transition: 'all 0.2s',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px'
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.color = '#fff'; e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.color = '#8ba093'; e.currentTarget.style.background = 'transparent'; }}
+                  >
+                    <span>💳</span> Wallet Panel
+                  </button>
+                  <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', margin: '4px 0' }}></div>
+                  <button 
+                    onClick={() => {
+                      onLogout();
+                      setIsDropdownOpen(false);
+                    }}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: '#ff0055',
+                      padding: '10px 16px',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      fontFamily: 'Outfit, sans-serif',
+                      fontSize: '13px',
+                      fontWeight: 'bold',
+                      width: '100%',
+                      transition: 'all 0.2s',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px'
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,0,85,0.08)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                  >
+                    <span>🚪</span> Logout
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         ) : (
           <div className="header-auth-buttons">
