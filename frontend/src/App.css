@@ -3247,7 +3247,7 @@ body {
 
 .lottery-play-now-btn {
   background: linear-gradient(135deg, var(--forest-gold), #dfb665);
-  color: var(--forest-dark);
+  color: #000000;
   font-family: 'Orbitron', sans-serif;
   font-size: 0.85rem;
   font-weight: 800;
@@ -3263,7 +3263,7 @@ body {
 
 .lottery-lobby-card:hover .lottery-play-now-btn {
   background: #fff;
-  color: var(--forest-dark);
+  color: #000000;
   box-shadow: 0 4px 15px rgba(255, 255, 255, 0.25);
 }
 
