@@ -195,7 +195,7 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 15px 40px;
+  padding: 15px 25px; /* Reduced from 40px to save space */
   background: rgba(7, 14, 10, 0.9);
   backdrop-filter: blur(20px);
   border-bottom: 1px solid var(--glass-border);
@@ -209,11 +209,11 @@ body {
 .header-logo {
   display: flex;
   align-items: center;
-  gap: 12px; /* Increased gap spacing for slot machine icon */
+  gap: 8px; /* Reduced gap spacing */
   cursor: pointer;
   font-family: 'Orbitron', sans-serif;
   font-weight: 900;
-  font-size: 1.5rem;
+  font-size: 1.3rem; /* Slightly smaller for better screen fitting */
   letter-spacing: 1px;
 }
 
@@ -239,7 +239,7 @@ body {
 
 .header-categories-nav {
   display: flex;
-  gap: 30px;
+  gap: 20px; /* Reduced from 30px to save space */
 }
 
 .header-categories-nav .nav-item {
@@ -2486,6 +2486,13 @@ body {
   }
   .header-categories-nav {
     display: none; /* Hide header links on smaller screens */
+  }
+}
+
+/* Hide navigation categories on smaller desktops to prevent squishing */
+@media (max-width: 1200px) {
+  .header-categories-nav {
+    display: none;
   }
 }
 
