@@ -416,7 +416,7 @@ const startServer = async () => {
   await pubsub.connect();
 
   const PORT = process.env.PORT || 5001;
-  server.listen(PORT, () => {
+  server.listen(PORT, '0.0.0.0', () => {
     console.log(`>>>> [BACKOFFICE GATEWAY] Socket.io WebSocket server running on port ${PORT}`);
   });
 };

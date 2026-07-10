@@ -1540,7 +1540,7 @@ const startServer = async () => {
   }
 
   const PORT = process.env.PORT || 5000;
-  server.listen(PORT, () => {
+  server.listen(PORT, '0.0.0.0', () => {
     console.log(`>>>> [LOTTERY ENGINE] Unified REST + WebSockets server running on port ${PORT}`);
     
     // Boot up Crash Engine

@@ -89,7 +89,7 @@ const init = async () => {
     }
   });
 
-  app.listen(PORT, () => console.log(`[LOYALTY ENGINE] Ready and listening on port ${PORT}`));
+  app.listen(PORT, '0.0.0.0', () => console.log(`[LOYALTY ENGINE] Ready and listening on port ${PORT}`));
 };
 
 init().catch(console.error);
