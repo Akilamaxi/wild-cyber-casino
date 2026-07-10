@@ -72,6 +72,15 @@ function App() {
   });
   const [loadingCrash, setLoadingCrash] = useState(true);
 
+  // --- Plinko States ---
+  const [plinkoConfig, setPlinkoConfig] = useState({
+    house_edge: 0.05,
+    min_bet: 1,
+    max_bet: 1000,
+    rtp_bias: 12
+  });
+  const [loadingPlinko, setLoadingPlinko] = useState(true);
+
   const canvasRef = useRef(null);
   const socketRef = useRef(null);
 
@@ -83,6 +92,7 @@ function App() {
       fetchSlotsConfig();
       fetchDiceAdminData();
       fetchCrashConfig();
+      fetchPlinkoConfig();
 
       // Connect WebSockets for real-time config updates
       socketRef.current = io(API_BASE);
@@ -105,6 +115,9 @@ function App() {
         }
         if (event.type === 'CRASH_CONFIG_UPDATED') {
           fetchCrashConfig();
+        }
+        if (event.type === 'PLINKO_CONFIG_UPDATED') {
+          fetchPlinkoConfig();
         }
       });
 
@@ -236,6 +249,51 @@ function App() {
       console.error(err);
     }
     setLoadingCrash(false);
+  };
+
+  const fetchPlinkoConfig = async () => {
+    setLoadingPlinko(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/plinko/config`);
+      const data = await res.json();
+      if (data.success && data.config) {
+        setPlinkoConfig({
+          house_edge: parseFloat(data.config.house_edge) || 0.05,
+          min_bet: parseFloat(data.config.min_bet) || 1,
+          max_bet: parseFloat(data.config.max_bet) || 1000,
+          rtp_bias: parseInt(data.config.rtp_bias, 10) || 12
+        });
+      }
+    } catch (err) {
+      console.error(err);
+    }
+    setLoadingPlinko(false);
+  };
+
+  const handlePlinkoConfigSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/plinko/config`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          house_edge: plinkoConfig.house_edge,
+          min_bet: plinkoConfig.min_bet,
+          max_bet: plinkoConfig.max_bet,
+          rtp_bias: plinkoConfig.rtp_bias
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert('🎯 Plinko config deployed successfully!');
+        fetchPlinkoConfig();
+      } else {
+        alert('Failed to update Plinko config');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Failed to update Plinko config');
+    }
   };
 
   const handleCrashConfigSubmit = async (e) => {
@@ -648,6 +706,14 @@ function App() {
                 className={`menu-btn ${activeTab === 'crash' ? 'active' : ''}`}
               >
                 🚀 Crash Engine Control
+              </button>
+            </li>
+            <li>
+              <button 
+                onClick={() => setActiveTab('plinko')} 
+                className={`menu-btn ${activeTab === 'plinko' ? 'active' : ''}`}
+              >
+                🎯 Plinko RTP Control
               </button>
             </li>
           </ul>
@@ -1215,6 +1281,69 @@ function App() {
                     </div>
                     <div className="button-group">
                       <button type="submit" className="primary-btn">UPDATE CRASH LOGIC</button>
+                    </div>
+                  </form>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* TAB 6: PLINKO MANAGEMENT */}
+          {activeTab === 'plinko' && (
+            <div className="admin-content-card">
+              <div className="admin-card-header">
+                <h2>PLINKO ALGORITHM & RTP CONTROL</h2>
+                <span className="status-badge green">ACTIVE</span>
+              </div>
+              <div className="admin-card-body">
+                {loadingPlinko ? <div className="loader">Loading...</div> : (
+                  <form onSubmit={handlePlinkoConfigSubmit} className="admin-form">
+                    <div className="form-grid">
+                      <div className="form-group">
+                        <label>House Edge (RTP Skew factor)</label>
+                        <input 
+                          type="number" 
+                          step="0.01" 
+                          value={plinkoConfig.house_edge} 
+                          onChange={e => setPlinkoConfig({ ...plinkoConfig, house_edge: parseFloat(e.target.value) })} 
+                          required 
+                        />
+                        <span className="help-text">Example: 0.05 represents a 5% target house edge.</span>
+                      </div>
+                      <div className="form-group">
+                        <label>Center Bias Multiplier (Difficulty)</label>
+                        <input 
+                          type="number" 
+                          step="1" 
+                          value={plinkoConfig.rtp_bias} 
+                          onChange={e => setPlinkoConfig({ ...plinkoConfig, rtp_bias: parseInt(e.target.value, 10) })} 
+                          required 
+                        />
+                        <span className="help-text">Higher values (e.g. 10 - 25) pull the ball heavily to the center, making it a very hard game to win. Set to 0 for pure random mathematical distribution.</span>
+                      </div>
+                      <div className="form-group">
+                        <label>Minimum Bet ($)</label>
+                        <input 
+                          type="number" 
+                          step="1" 
+                          value={plinkoConfig.min_bet} 
+                          onChange={e => setPlinkoConfig({ ...plinkoConfig, min_bet: parseFloat(e.target.value) })} 
+                          required 
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label>Maximum Bet ($)</label>
+                        <input 
+                          type="number" 
+                          step="1" 
+                          value={plinkoConfig.max_bet} 
+                          onChange={e => setPlinkoConfig({ ...plinkoConfig, max_bet: parseFloat(e.target.value) })} 
+                          required 
+                        />
+                      </div>
+                    </div>
+                    <div className="button-group">
+                      <button type="submit" className="primary-btn">UPDATE PLINKO CONFIG</button>
                     </div>
                   </form>
                 )}

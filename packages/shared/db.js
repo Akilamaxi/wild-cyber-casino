@@ -484,6 +484,29 @@ const initDatabase = async () => {
       }
     }
 
+    // 12b. Plinko Configuration Settings
+    await run(`
+      CREATE TABLE IF NOT EXISTS plinko_config (
+        key VARCHAR(255) PRIMARY KEY,
+        value TEXT NOT NULL
+      )
+    `);
+
+    const plinkoCfgCount = await get('SELECT COUNT(*) as count FROM plinko_config');
+    if (parseInt(plinkoCfgCount.count, 10) === 0) {
+      const defaultPlinkoConfigs = [
+        { key: 'house_edge', value: '0.05' },
+        { key: 'min_bet', value: '1' },
+        { key: 'max_bet', value: '1000' },
+        { key: 'rtp_bias', value: '12' }
+      ];
+      for (const cfg of defaultPlinkoConfigs) {
+        await run(`
+          INSERT INTO plinko_config (key, value) VALUES ($1, $2)
+        `, [cfg.key, cfg.value]);
+      }
+    }
+
     // 13. Crash Game State & Ledger
     await run(`
       CREATE TABLE IF NOT EXISTS crash_games (
@@ -803,6 +826,28 @@ const initDatabase = async () => {
       for (const cfg of defaultCrashConfigs) {
         await run(`
           INSERT INTO crash_config (key, value) VALUES (?, ?)
+        `, [cfg.key, cfg.value]);
+      }
+    }
+
+    await run(`
+      CREATE TABLE IF NOT EXISTS plinko_config (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      )
+    `);
+
+    const plinkoCfgCount = await get('SELECT COUNT(*) as count FROM plinko_config');
+    if (plinkoCfgCount.count === 0) {
+      const defaultPlinkoConfigs = [
+        { key: 'house_edge', value: '0.05' },
+        { key: 'min_bet', value: '1' },
+        { key: 'max_bet', value: '1000' },
+        { key: 'rtp_bias', value: '12' }
+      ];
+      for (const cfg of defaultPlinkoConfigs) {
+        await run(`
+          INSERT INTO plinko_config (key, value) VALUES (?, ?)
         `, [cfg.key, cfg.value]);
       }
     }

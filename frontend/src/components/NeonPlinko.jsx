@@ -150,14 +150,36 @@ function NeonPlinko({ currentUser, onBalanceUpdate }) {
           }
         }
 
-        // Interpolate position with organic bounce height curve
+        // Interpolate position with organic snappy bounce and elastic squish
         const progress = ball.stepProgress;
-        const bounceHeight = 10;
         const currentX = ball.startX + progress * (ball.targetX - ball.startX);
-        const currentY = ball.startY + progress * (ball.targetY - ball.startY) - Math.sin(progress * Math.PI) * bounceHeight;
+
+        let bounceY = 0;
+        let scaleX = 1;
+        let scaleY = 1;
+
+        if (progress < 0.4) {
+          // Free fall towards peg
+          const t = progress / 0.4;
+          bounceY = -Math.sin(t * Math.PI * 0.5) * 3;
+        } else if (progress >= 0.4 && progress < 0.6) {
+          // Peg strike collision and squish
+          const t = (progress - 0.4) / 0.2;
+          const squishAmt = Math.sin(t * Math.PI) * 0.25;
+          scaleX = 1 + squishAmt;
+          scaleY = 1 - squishAmt;
+          bounceY = Math.sin(t * Math.PI) * 2;
+        } else {
+          // Springy recoil bounce and fall
+          const t = (progress - 0.6) / 0.4;
+          bounceY = -Math.sin(t * Math.PI) * 14;
+        }
+
+        const currentY = ball.startY + progress * (ball.targetY - ball.startY) + bounceY;
 
         ball.graphic.x = currentX;
         ball.graphic.y = currentY;
+        ball.graphic.scale.set(scaleX, scaleY);
       }
 
       // 2. Update Particles

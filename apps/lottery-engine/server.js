@@ -149,19 +149,30 @@ const PLINKO_MULTIPLIERS = {
   }
 };
 
-const generatePlinkoPath = (serverSeed, clientSeed, nonce, rows) => {
+const generatePlinkoPath = (serverSeed, clientSeed, nonce, rows, biasFactor = 12) => {
   const combined = `${serverSeed}:${clientSeed}:${nonce}`;
   const hash = crypto.createHash('sha256').update(combined).digest('hex');
   const pathSteps = [];
   let rightCount = 0;
+  let leftCount = 0;
 
   for (let r = 0; r < rows; r++) {
+    const currentX = rightCount - leftCount;
+    // Base threshold is 128 (50/50 probability).
+    // biasFactor * currentX skews the threshold to pull the ball back to the center (x = 0).
+    let threshold = 128 + currentX * biasFactor;
+    // Clamp threshold between 15 and 240 to keep it random but heavily skewed
+    threshold = Math.max(15, Math.min(240, threshold));
+
     const hexByte = hash.substring(r * 2, r * 2 + 2);
     const byteVal = parseInt(hexByte, 16);
-    const step = byteVal >= 128 ? 1 : 0;
+    const step = byteVal >= threshold ? 1 : 0;
+    
     pathSteps.push(step);
     if (step === 1) {
       rightCount++;
+    } else {
+      leftCount++;
     }
   }
 
@@ -190,6 +201,19 @@ app.post('/api/plinko/drop', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Invalid risk tier.' });
     }
 
+    // Load configs
+    const configs = await db.all('SELECT * FROM plinko_config');
+    const configMap = {};
+    configs.forEach(c => configMap[c.key] = c.value);
+
+    const minBet = parseFloat(configMap.min_bet) || 1;
+    const maxBet = parseFloat(configMap.max_bet) || 1000;
+    const biasFactor = configMap.rtp_bias !== undefined ? parseInt(configMap.rtp_bias, 10) : 12;
+
+    if (wager < minBet || wager > maxBet) {
+      return res.status(400).json({ success: false, error: `Wager must be between $${minBet} and $${maxBet}.` });
+    }
+
     const result = await db.executeTransaction(async (tx) => {
       const user = await tx.get('SELECT balance, gamesPlayed, totalWon FROM users WHERE LOWER(email) = ?', [email.toLowerCase()]);
       if (!user) {
@@ -212,7 +236,7 @@ app.post('/api/plinko/drop', async (req, res) => {
       const clientSeed = crypto.randomBytes(16).toString('hex');
       const nonce = user.gamesPlayed + 1;
 
-      const { path: dropPath, destinationBin } = generatePlinkoPath(serverSeed, clientSeed, nonce, rowCount);
+      const { path: dropPath, destinationBin } = generatePlinkoPath(serverSeed, clientSeed, nonce, rowCount, biasFactor);
 
       const multiplier = PLINKO_MULTIPLIERS[rowCount][risk][destinationBin];
       const payout = wager * multiplier;

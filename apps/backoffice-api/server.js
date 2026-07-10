@@ -331,6 +331,34 @@ app.put('/api/admin/crash/config', async (req, res) => {
   }
 });
 
+// --- Plinko Admin Endpoints ---
+app.get('/api/admin/plinko/config', async (req, res) => {
+  try {
+    const config = await db.all('SELECT * FROM plinko_config');
+    const configMap = {};
+    config.forEach(c => configMap[c.key] = c.value);
+    res.json({ success: true, config: configMap });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Internal Server Error' });
+  }
+});
+
+app.put('/api/admin/plinko/config', async (req, res) => {
+  try {
+    const { house_edge, min_bet, max_bet, rtp_bias } = req.body;
+    await db.executeTransaction(async (tx) => {
+      if (house_edge !== undefined) await tx.run('INSERT OR REPLACE INTO plinko_config (key, value) VALUES ("house_edge", ?)', [house_edge.toString()]);
+      if (min_bet !== undefined) await tx.run('INSERT OR REPLACE INTO plinko_config (key, value) VALUES ("min_bet", ?)', [min_bet.toString()]);
+      if (max_bet !== undefined) await tx.run('INSERT OR REPLACE INTO plinko_config (key, value) VALUES ("max_bet", ?)', [max_bet.toString()]);
+      if (rtp_bias !== undefined) await tx.run('INSERT OR REPLACE INTO plinko_config (key, value) VALUES ("rtp_bias", ?)', [rtp_bias.toString()]);
+    });
+    await pubsub.publish({ type: 'PLINKO_CONFIG_UPDATED' });
+    res.json({ success: true });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+});
+
 // 2. RNG Audit Verification
 app.get('/api/admin/audit-verify/:drawId', async (req, res) => {
   try {
