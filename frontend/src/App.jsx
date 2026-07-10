@@ -12,6 +12,7 @@ import UserProfile from './components/UserProfile';
 import CyberChat from './components/CyberChat';
 import CyberDiceGame from './components/CyberDiceGame';
 import CyberCrashGame from './components/CyberCrashGame';
+import NeonPlinko from './components/NeonPlinko';
 
 function App() {
   const [currentUser, setCurrentUser] = useState(null);
@@ -74,6 +75,8 @@ function App() {
       setCurrentView('crash');
     } else if (gameId === 'dice') {
       setCurrentView('dice');
+    } else if (gameId === 'plinko') {
+      setCurrentView('plinko');
     }
   };
 
@@ -134,6 +137,12 @@ function App() {
           )}
           {currentView === 'crash' && currentUser && (
             <CyberCrashGame 
+              currentUser={currentUser}
+              onBalanceUpdate={handleBalanceUpdate}
+            />
+          )}
+          {currentView === 'plinko' && currentUser && (
+            <NeonPlinko 
               currentUser={currentUser}
               onBalanceUpdate={handleBalanceUpdate}
             />

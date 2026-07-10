@@ -8,6 +8,7 @@ function Sidebar({ currentView, onViewChange, currentUser, onOpenLogin, isCollap
     { id: 'lottery', label: 'Cyber Lottery', icon: '🎟️', playable: true },
     { id: 'dice', label: 'Rolling Dice', icon: '🎲', playable: true },
     { id: 'crash', label: 'Neon Crash', icon: '🚀', playable: true },
+    { id: 'plinko', label: 'Neon Plinko', icon: '🎯', playable: true },
     { id: 'leaderboard', label: 'Leaderboard', icon: '🏆', playable: true },
     {id: 'wallet', label: 'Wallet Dashboard', icon: '💳', playable: true },
     {id: 'profile', label: 'User Profile', icon: '👤', playable: true },

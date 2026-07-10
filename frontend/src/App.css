@@ -5308,5 +5308,12 @@ body {
   }
 }
 
+/* Plinko Responsive Layouts */
+@media (max-width: 1024px) {
+  .plinko-main-container {
+    grid-template-columns: 1fr !important;
+  }
+}
+
 
 

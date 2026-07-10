@@ -81,7 +81,7 @@ const run = (sql, params = []) => {
 
         // Auto-returning IDs for autoincrement compatibility
         const isInsert = /^INSERT/i.test(pgSql);
-        const targetsAutoincrement = /lottery_draws|lottery_tickets|lottery_ticket_pool|spin_wheel_prizes|dice_tournaments|crash_games|crash_bets/i.test(pgSql);
+        const targetsAutoincrement = /lottery_draws|lottery_tickets|lottery_ticket_pool|spin_wheel_prizes|dice_tournaments|crash_games|crash_bets|plinko_drops/i.test(pgSql);
         if (isInsert && targetsAutoincrement && !/RETURNING/i.test(pgSql)) {
           pgSql += ' RETURNING id';
         }
@@ -155,7 +155,7 @@ const executeTransaction = async (operationsCallback) => {
       const clientRun = (sql, params = []) => {
         let pgSql = translateQuery(sql);
         const isInsert = /^INSERT/i.test(pgSql);
-        const targetsAutoincrement = /lottery_draws|lottery_tickets|lottery_ticket_pool|spin_wheel_prizes|dice_tournaments|crash_games|crash_bets/i.test(pgSql);
+        const targetsAutoincrement = /lottery_draws|lottery_tickets|lottery_ticket_pool|spin_wheel_prizes|dice_tournaments|crash_games|crash_bets|plinko_drops/i.test(pgSql);
         if (isInsert && targetsAutoincrement && !/RETURNING/i.test(pgSql)) {
           pgSql += ' RETURNING id';
         }
@@ -509,6 +509,24 @@ const initDatabase = async () => {
       )
     `);
 
+    await run(`
+      CREATE TABLE IF NOT EXISTS plinko_drops (
+        id SERIAL PRIMARY KEY,
+        email VARCHAR(255) NOT NULL,
+        wager_amount DOUBLE PRECISION NOT NULL,
+        rows INTEGER NOT NULL,
+        risk VARCHAR(50) NOT NULL,
+        path TEXT NOT NULL,
+        destination_bin INTEGER NOT NULL,
+        multiplier DOUBLE PRECISION NOT NULL,
+        payout DOUBLE PRECISION NOT NULL,
+        server_seed VARCHAR(255) NOT NULL,
+        client_seed VARCHAR(255) NOT NULL,
+        nonce INTEGER NOT NULL,
+        timestamp VARCHAR(100) NOT NULL
+      )
+    `);
+
     console.log('[DB] PostgreSQL migrations completed successfully.');
   } else {
     // Original SQLite migrations
@@ -810,6 +828,24 @@ const initDatabase = async () => {
         status TEXT NOT NULL,
         created_at TEXT NOT NULL,
         FOREIGN KEY (game_id) REFERENCES crash_games(id)
+      )
+    `);
+
+    await run(`
+      CREATE TABLE IF NOT EXISTS plinko_drops (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        email TEXT NOT NULL,
+        wager_amount REAL NOT NULL,
+        rows INTEGER NOT NULL,
+        risk TEXT NOT NULL,
+        path TEXT NOT NULL,
+        destination_bin INTEGER NOT NULL,
+        multiplier REAL NOT NULL,
+        payout REAL NOT NULL,
+        server_seed TEXT NOT NULL,
+        client_seed TEXT NOT NULL,
+        nonce INTEGER NOT NULL,
+        timestamp TEXT NOT NULL
       )
     `);
 

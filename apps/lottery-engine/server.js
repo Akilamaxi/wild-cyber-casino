@@ -100,6 +100,177 @@ app.post('/api/auth/register', async (req, res) => {
   }
 });
 
+// --- Plinko Engine Mappings & Cryptographic Logic ---
+const PLINKO_MULTIPLIERS = {
+  8: {
+    Low: [5.6, 1.6, 1.1, 1.0, 0.5, 1.0, 1.1, 1.6, 5.6],
+    Medium: [13, 3, 1.3, 0.7, 0.4, 0.7, 1.3, 3, 13],
+    High: [29, 4, 1.5, 0.3, 0.2, 0.3, 1.5, 4, 29]
+  },
+  9: {
+    Low: [5.6, 2.0, 1.6, 1.0, 0.7, 0.7, 1.0, 1.6, 2.0, 5.6],
+    Medium: [18, 4, 1.7, 0.9, 0.5, 0.5, 0.9, 1.7, 4, 18],
+    High: [43, 7, 2.0, 0.6, 0.2, 0.2, 0.6, 2.0, 7, 43]
+  },
+  10: {
+    Low: [8.9, 3.0, 1.4, 1.1, 1.0, 0.5, 1.0, 1.1, 1.4, 3.0, 8.9],
+    Medium: [22, 5, 2.0, 1.4, 0.6, 0.4, 0.6, 1.4, 2.0, 5, 22],
+    High: [76, 10, 3.0, 0.9, 0.3, 0.2, 0.3, 0.9, 3.0, 10, 76]
+  },
+  11: {
+    Low: [8.9, 3.0, 1.7, 1.1, 1.0, 0.7, 0.7, 1.0, 1.1, 1.7, 3.0, 8.9],
+    Medium: [24, 6, 3.0, 1.8, 0.7, 0.5, 0.5, 0.7, 1.8, 3.0, 6, 24],
+    High: [120, 14, 4.3, 1.4, 0.4, 0.2, 0.2, 0.4, 1.4, 4.3, 14, 120]
+  },
+  12: {
+    Low: [10, 4.0, 2.0, 1.6, 1.1, 1.0, 0.5, 1.0, 1.1, 1.6, 2.0, 4.0, 10],
+    Medium: [33, 11, 4.0, 2.0, 1.1, 0.6, 0.3, 0.6, 1.1, 2.0, 4.0, 11, 33],
+    High: [170, 24, 8.1, 2.0, 0.7, 0.2, 0.2, 0.2, 0.7, 2.0, 8.1, 24, 170]
+  },
+  13: {
+    Low: [10, 4.0, 2.0, 1.6, 1.2, 1.0, 0.7, 0.7, 1.0, 1.2, 1.6, 2.0, 4.0, 10],
+    Medium: [43, 13, 6.0, 3.0, 1.3, 0.7, 0.4, 0.4, 0.7, 1.3, 3.0, 6.0, 13, 43],
+    High: [260, 37, 11, 4.0, 1.0, 0.2, 0.2, 0.2, 0.2, 1.0, 4.0, 11, 37, 260]
+  },
+  14: {
+    Low: [16, 7.0, 4.0, 1.9, 1.4, 1.0, 0.5, 0.5, 0.5, 1.0, 1.4, 1.9, 4.0, 7.0, 16],
+    Medium: [58, 15, 7.0, 4.0, 1.9, 1.0, 0.5, 0.2, 0.5, 1.0, 1.9, 4.0, 7.0, 15, 58],
+    High: [420, 56, 18, 5.0, 1.9, 0.3, 0.2, 0.2, 0.2, 0.3, 1.9, 5.0, 18, 56, 420]
+  },
+  15: {
+    Low: [16, 7.0, 4.0, 1.9, 1.4, 1.1, 1.0, 0.7, 0.7, 1.0, 1.1, 1.4, 1.9, 4.0, 7.0, 16],
+    Medium: [88, 18, 9.0, 5.0, 2.5, 1.3, 0.5, 0.3, 0.3, 0.5, 1.3, 2.5, 5.0, 9.0, 18, 88],
+    High: [620, 83, 27, 8.0, 3.0, 0.5, 0.2, 0.2, 0.2, 0.2, 0.5, 3.0, 8.0, 27, 83, 620]
+  },
+  16: {
+    Low: [16, 9.0, 2.0, 1.4, 1.3, 1.1, 1.0, 0.5, 0.5, 0.5, 1.0, 1.1, 1.3, 1.4, 2.0, 9.0, 16],
+    Medium: [110, 41, 10, 5.0, 3.0, 1.5, 1.0, 0.5, 0.3, 0.5, 1.0, 1.5, 3.0, 5.0, 10, 41, 110],
+    High: [1000, 130, 26, 9.0, 4.0, 2.0, 0.2, 0.2, 0.2, 0.2, 0.2, 2.0, 4.0, 9.0, 26, 130, 1000]
+  }
+};
+
+const generatePlinkoPath = (serverSeed, clientSeed, nonce, rows) => {
+  const combined = `${serverSeed}:${clientSeed}:${nonce}`;
+  const hash = crypto.createHash('sha256').update(combined).digest('hex');
+  const pathSteps = [];
+  let rightCount = 0;
+
+  for (let r = 0; r < rows; r++) {
+    const hexByte = hash.substring(r * 2, r * 2 + 2);
+    const byteVal = parseInt(hexByte, 16);
+    const step = byteVal >= 128 ? 1 : 0;
+    pathSteps.push(step);
+    if (step === 1) {
+      rightCount++;
+    }
+  }
+
+  return { path: pathSteps, destinationBin: rightCount };
+};
+
+// --- Plinko API Endpoints ---
+app.post('/api/plinko/drop', async (req, res) => {
+  try {
+    const { email, wagerAmount, rows, risk } = req.body;
+
+    if (!email || !wagerAmount || !rows || !risk) {
+      return res.status(400).json({ success: false, error: 'All fields are required.' });
+    }
+
+    const wager = parseFloat(wagerAmount);
+    const rowCount = parseInt(rows, 10);
+
+    if (isNaN(wager) || wager <= 0) {
+      return res.status(400).json({ success: false, error: 'Wager amount must be positive.' });
+    }
+    if (rowCount < 8 || rowCount > 16) {
+      return res.status(400).json({ success: false, error: 'Rows must be between 8 and 16.' });
+    }
+    if (!['Low', 'Medium', 'High'].includes(risk)) {
+      return res.status(400).json({ success: false, error: 'Invalid risk tier.' });
+    }
+
+    const result = await db.executeTransaction(async (tx) => {
+      const user = await tx.get('SELECT balance, gamesPlayed, totalWon FROM users WHERE LOWER(email) = ?', [email.toLowerCase()]);
+      if (!user) {
+        throw new Error('User account not found.');
+      }
+      if (user.balance < wager) {
+        throw new Error('Insufficient wallet balance.');
+      }
+
+      const lockedBalance = user.balance - wager;
+      await tx.run('UPDATE users SET balance = ?, gamesPlayed = ? WHERE LOWER(email) = ?', [lockedBalance, user.gamesPlayed + 1, email.toLowerCase()]);
+
+      const wagerTxId = generateTxId();
+      await tx.run(
+        'INSERT INTO transactions (id, email, type, amount, balanceAfter, timestamp) VALUES (?, ?, ?, ?, ?, ?)',
+        [wagerTxId, email.toLowerCase(), 'PLINKO_DROP', -wager, lockedBalance, new Date().toISOString()]
+      );
+
+      const serverSeed = crypto.randomBytes(32).toString('hex');
+      const clientSeed = crypto.randomBytes(16).toString('hex');
+      const nonce = user.gamesPlayed + 1;
+
+      const { path: dropPath, destinationBin } = generatePlinkoPath(serverSeed, clientSeed, nonce, rowCount);
+
+      const multiplier = PLINKO_MULTIPLIERS[rowCount][risk][destinationBin];
+      const payout = wager * multiplier;
+      const finalBalance = lockedBalance + payout;
+
+      await tx.run('UPDATE users SET balance = ?, totalWon = ? WHERE LOWER(email) = ?', [finalBalance, user.totalWon + payout, email.toLowerCase()]);
+
+      if (payout > 0) {
+        const payoutTxId = generateTxId();
+        await tx.run(
+          'INSERT INTO transactions (id, email, type, amount, balanceAfter, timestamp) VALUES (?, ?, ?, ?, ?, ?)',
+          [payoutTxId, email.toLowerCase(), 'PLINKO_WINOUT', payout, finalBalance, new Date().toISOString()]
+        );
+      }
+
+      await tx.run(
+        'INSERT INTO plinko_drops (email, wager_amount, rows, risk, path, destination_bin, multiplier, payout, server_seed, client_seed, nonce, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [email.toLowerCase(), wager, rowCount, risk, JSON.stringify(dropPath), destinationBin, multiplier, payout, serverSeed, clientSeed, nonce, new Date().toISOString()]
+      );
+
+      return {
+        path: dropPath,
+        multiplier,
+        payout,
+        newBalance: finalBalance,
+        serverSeed,
+        clientSeed,
+        nonce
+      };
+    });
+
+    res.json({ success: true, ...result });
+
+  } catch (error) {
+    console.error('Plinko drop error:', error);
+    res.status(400).json({ success: false, error: error.message || 'Server error' });
+  }
+});
+
+app.get('/api/plinko/history', async (req, res) => {
+  try {
+    const { email } = req.query;
+    if (!email) {
+      return res.status(400).json({ success: false, error: 'Email parameter missing' });
+    }
+
+    const history = await db.all(
+      'SELECT id, wager_amount, rows, risk, multiplier, payout, timestamp FROM plinko_drops WHERE LOWER(email) = ? ORDER BY timestamp DESC LIMIT 20',
+      [email.toLowerCase()]
+    );
+
+    res.json({ success: true, history });
+  } catch (error) {
+    console.error('Plinko history error:', error);
+    res.status(500).json({ success: false, error: 'Internal Server Error' });
+  }
+});
+
 // --- Wallet & Balance Info ---
 app.get('/api/user/wallet', async (req, res) => {
   try {
