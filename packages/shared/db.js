@@ -498,7 +498,8 @@ const initDatabase = async () => {
         { key: 'house_edge', value: '0.05' },
         { key: 'min_bet', value: '1' },
         { key: 'max_bet', value: '1000' },
-        { key: 'rtp_bias', value: '12' }
+        { key: 'rtp_bias', value: '12' },
+        { key: 'throw_out_chance', value: '0.20' }
       ];
       for (const cfg of defaultPlinkoConfigs) {
         await run(`
@@ -843,7 +844,8 @@ const initDatabase = async () => {
         { key: 'house_edge', value: '0.05' },
         { key: 'min_bet', value: '1' },
         { key: 'max_bet', value: '1000' },
-        { key: 'rtp_bias', value: '12' }
+        { key: 'rtp_bias', value: '12' },
+        { key: 'throw_out_chance', value: '0.20' }
       ];
       for (const cfg of defaultPlinkoConfigs) {
         await run(`

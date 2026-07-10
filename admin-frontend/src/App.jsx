@@ -77,7 +77,8 @@ function App() {
     house_edge: 0.05,
     min_bet: 1,
     max_bet: 1000,
-    rtp_bias: 12
+    rtp_bias: 12,
+    throw_out_chance: 0.20
   });
   const [loadingPlinko, setLoadingPlinko] = useState(true);
 
@@ -261,7 +262,8 @@ function App() {
           house_edge: parseFloat(data.config.house_edge) || 0.05,
           min_bet: parseFloat(data.config.min_bet) || 1,
           max_bet: parseFloat(data.config.max_bet) || 1000,
-          rtp_bias: parseInt(data.config.rtp_bias, 10) || 12
+          rtp_bias: parseInt(data.config.rtp_bias, 10) || 12,
+          throw_out_chance: parseFloat(data.config.throw_out_chance) || 0.20
         });
       }
     } catch (err) {
@@ -280,7 +282,8 @@ function App() {
           house_edge: plinkoConfig.house_edge,
           min_bet: plinkoConfig.min_bet,
           max_bet: plinkoConfig.max_bet,
-          rtp_bias: plinkoConfig.rtp_bias
+          rtp_bias: plinkoConfig.rtp_bias,
+          throw_out_chance: plinkoConfig.throw_out_chance
         })
       });
       const data = await res.json();
@@ -1340,6 +1343,19 @@ function App() {
                           onChange={e => setPlinkoConfig({ ...plinkoConfig, max_bet: parseFloat(e.target.value) })} 
                           required 
                         />
+                      </div>
+                      <div className="form-group">
+                        <label>Out of Bounds Throw-Out Chance (0.00 to 1.00)</label>
+                        <input 
+                          type="number" 
+                          step="0.01" 
+                          min="0"
+                          max="1"
+                          value={plinkoConfig.throw_out_chance} 
+                          onChange={e => setPlinkoConfig({ ...plinkoConfig, throw_out_chance: parseFloat(e.target.value) })} 
+                          required 
+                        />
+                        <span className="help-text">Probability that the ball flies off the sides of the board (results in 0x multiplier payout). Example: 0.20 means 20% of wagers will automatically be thrown out.</span>
                       </div>
                     </div>
                     <div className="button-group">

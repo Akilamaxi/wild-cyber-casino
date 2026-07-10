@@ -345,12 +345,13 @@ app.get('/api/admin/plinko/config', async (req, res) => {
 
 app.put('/api/admin/plinko/config', async (req, res) => {
   try {
-    const { house_edge, min_bet, max_bet, rtp_bias } = req.body;
+    const { house_edge, min_bet, max_bet, rtp_bias, throw_out_chance } = req.body;
     await db.executeTransaction(async (tx) => {
       if (house_edge !== undefined) await tx.run('INSERT OR REPLACE INTO plinko_config (key, value) VALUES ("house_edge", ?)', [house_edge.toString()]);
       if (min_bet !== undefined) await tx.run('INSERT OR REPLACE INTO plinko_config (key, value) VALUES ("min_bet", ?)', [min_bet.toString()]);
       if (max_bet !== undefined) await tx.run('INSERT OR REPLACE INTO plinko_config (key, value) VALUES ("max_bet", ?)', [max_bet.toString()]);
       if (rtp_bias !== undefined) await tx.run('INSERT OR REPLACE INTO plinko_config (key, value) VALUES ("rtp_bias", ?)', [rtp_bias.toString()]);
+      if (throw_out_chance !== undefined) await tx.run('INSERT OR REPLACE INTO plinko_config (key, value) VALUES ("throw_out_chance", ?)', [throw_out_chance.toString()]);
     });
     await pubsub.publish({ type: 'PLINKO_CONFIG_UPDATED' });
     res.json({ success: true });

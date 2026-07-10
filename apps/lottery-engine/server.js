@@ -1,3 +1,4 @@
+
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
@@ -103,65 +104,81 @@ app.post('/api/auth/register', async (req, res) => {
 // --- Plinko Engine Mappings & Cryptographic Logic ---
 const PLINKO_MULTIPLIERS = {
   8: {
-    Low: [5.6, 1.6, 1.1, 1.0, 0.5, 1.0, 1.1, 1.6, 5.6],
-    Medium: [13, 3, 1.3, 0.7, 0.4, 0.7, 1.3, 3, 13],
-    High: [29, 4, 1.5, 0.3, 0.2, 0.3, 1.5, 4, 29]
+    Low: [5.6, 1.6, 1.1, 1.0, 0.4, 1.0, 1.1, 1.6, 5.6],
+    Medium: [13, 3, 1.3, 0.7, 0.1, 0.7, 1.3, 3, 13],
+    High: [29, 4, 1.5, 0.3, 0.0, 0.3, 1.5, 4, 29]
   },
   9: {
-    Low: [5.6, 2.0, 1.6, 1.0, 0.7, 0.7, 1.0, 1.6, 2.0, 5.6],
-    Medium: [18, 4, 1.7, 0.9, 0.5, 0.5, 0.9, 1.7, 4, 18],
-    High: [43, 7, 2.0, 0.6, 0.2, 0.2, 0.6, 2.0, 7, 43]
+    Low: [5.6, 2.0, 1.6, 1.0, 0.5, 0.5, 1.0, 1.6, 2.0, 5.6],
+    Medium: [18, 4, 1.7, 0.9, 0.2, 0.2, 0.9, 1.7, 4, 18],
+    High: [43, 7, 2.0, 0.6, 0.0, 0.0, 0.6, 2.0, 7, 43]
   },
   10: {
     Low: [8.9, 3.0, 1.4, 1.1, 1.0, 0.5, 1.0, 1.1, 1.4, 3.0, 8.9],
-    Medium: [22, 5, 2.0, 1.4, 0.6, 0.4, 0.6, 1.4, 2.0, 5, 22],
-    High: [76, 10, 3.0, 0.9, 0.3, 0.2, 0.3, 0.9, 3.0, 10, 76]
+    Medium: [22, 5, 2.0, 1.4, 0.5, 0.1, 0.5, 1.4, 2.0, 5, 22],
+    High: [76, 10, 3.0, 0.9, 0.2, 0.0, 0.2, 0.9, 3.0, 10, 76]
   },
   11: {
-    Low: [8.9, 3.0, 1.7, 1.1, 1.0, 0.7, 0.7, 1.0, 1.1, 1.7, 3.0, 8.9],
-    Medium: [24, 6, 3.0, 1.8, 0.7, 0.5, 0.5, 0.7, 1.8, 3.0, 6, 24],
-    High: [120, 14, 4.3, 1.4, 0.4, 0.2, 0.2, 0.4, 1.4, 4.3, 14, 120]
+    Low: [8.9, 3.0, 1.7, 1.1, 1.0, 0.6, 0.6, 1.0, 1.1, 1.7, 3.0, 8.9],
+    Medium: [24, 6, 3.0, 1.8, 0.5, 0.2, 0.2, 0.5, 1.8, 3.0, 6, 24],
+    High: [120, 14, 4.3, 1.4, 0.2, 0.0, 0.0, 0.2, 1.4, 4.3, 14, 120]
   },
   12: {
     Low: [10, 4.0, 2.0, 1.6, 1.1, 1.0, 0.5, 1.0, 1.1, 1.6, 2.0, 4.0, 10],
-    Medium: [33, 11, 4.0, 2.0, 1.1, 0.6, 0.3, 0.6, 1.1, 2.0, 4.0, 11, 33],
-    High: [170, 24, 8.1, 2.0, 0.7, 0.2, 0.2, 0.2, 0.7, 2.0, 8.1, 24, 170]
+    Medium: [33, 11, 4.0, 2.0, 1.1, 0.4, 0.1, 0.4, 1.1, 2.0, 4.0, 11, 33],
+    High: [170, 24, 8.1, 2.0, 0.5, 0.1, 0.0, 0.1, 0.5, 2.0, 8.1, 24, 170]
   },
   13: {
-    Low: [10, 4.0, 2.0, 1.6, 1.2, 1.0, 0.7, 0.7, 1.0, 1.2, 1.6, 2.0, 4.0, 10],
-    Medium: [43, 13, 6.0, 3.0, 1.3, 0.7, 0.4, 0.4, 0.7, 1.3, 3.0, 6.0, 13, 43],
-    High: [260, 37, 11, 4.0, 1.0, 0.2, 0.2, 0.2, 0.2, 1.0, 4.0, 11, 37, 260]
+    Low: [10, 4.0, 2.0, 1.6, 1.2, 1.0, 0.6, 0.6, 1.0, 1.2, 1.6, 2.0, 4.0, 10],
+    Medium: [43, 13, 6.0, 3.0, 1.3, 0.5, 0.2, 0.2, 0.5, 1.3, 3.0, 6.0, 13, 43],
+    High: [260, 37, 11, 4.0, 1.0, 0.1, 0.0, 0.0, 0.1, 1.0, 4.0, 11, 37, 260]
   },
   14: {
     Low: [16, 7.0, 4.0, 1.9, 1.4, 1.0, 0.5, 0.5, 0.5, 1.0, 1.4, 1.9, 4.0, 7.0, 16],
-    Medium: [58, 15, 7.0, 4.0, 1.9, 1.0, 0.5, 0.2, 0.5, 1.0, 1.9, 4.0, 7.0, 15, 58],
-    High: [420, 56, 18, 5.0, 1.9, 0.3, 0.2, 0.2, 0.2, 0.3, 1.9, 5.0, 18, 56, 420]
+    Medium: [58, 15, 7.0, 4.0, 1.9, 1.0, 0.4, 0.1, 0.4, 1.0, 1.9, 4.0, 7.0, 15, 58],
+    High: [420, 56, 18, 5.0, 1.9, 0.2, 0.0, 0.0, 0.0, 0.2, 1.9, 5.0, 18, 56, 420]
   },
   15: {
-    Low: [16, 7.0, 4.0, 1.9, 1.4, 1.1, 1.0, 0.7, 0.7, 1.0, 1.1, 1.4, 1.9, 4.0, 7.0, 16],
-    Medium: [88, 18, 9.0, 5.0, 2.5, 1.3, 0.5, 0.3, 0.3, 0.5, 1.3, 2.5, 5.0, 9.0, 18, 88],
-    High: [620, 83, 27, 8.0, 3.0, 0.5, 0.2, 0.2, 0.2, 0.2, 0.5, 3.0, 8.0, 27, 83, 620]
+    Low: [16, 7.0, 4.0, 1.9, 1.4, 1.1, 1.0, 0.6, 0.6, 1.0, 1.1, 1.4, 1.9, 4.0, 7.0, 16],
+    Medium: [88, 18, 9.0, 5.0, 2.5, 1.3, 0.4, 0.1, 0.1, 0.4, 1.3, 2.5, 5.0, 9.0, 18, 88],
+    High: [620, 83, 27, 8.0, 3.0, 0.5, 0.1, 0.0, 0.0, 0.1, 0.5, 3.0, 8.0, 27, 83, 620]
   },
   16: {
     Low: [16, 9.0, 2.0, 1.4, 1.3, 1.1, 1.0, 0.5, 0.5, 0.5, 1.0, 1.1, 1.3, 1.4, 2.0, 9.0, 16],
-    Medium: [110, 41, 10, 5.0, 3.0, 1.5, 1.0, 0.5, 0.3, 0.5, 1.0, 1.5, 3.0, 5.0, 10, 41, 110],
-    High: [1000, 130, 26, 9.0, 4.0, 2.0, 0.2, 0.2, 0.2, 0.2, 0.2, 2.0, 4.0, 9.0, 26, 130, 1000]
+    Medium: [110, 41, 10, 5.0, 3.0, 1.5, 1.0, 0.3, 0.1, 0.3, 1.0, 1.5, 3.0, 5.0, 10, 41, 110],
+    High: [1000, 130, 26, 9.0, 4.0, 2.0, 0.2, 0.0, 0.0, 0.0, 0.2, 2.0, 4.0, 9.0, 26, 130, 1000]
   }
 };
 
-const generatePlinkoPath = (serverSeed, clientSeed, nonce, rows, biasFactor = 12) => {
+const generatePlinkoPath = (serverSeed, clientSeed, nonce, rows, biasFactor = 12, throwOutChance = 0.20) => {
   const combined = `${serverSeed}:${clientSeed}:${nonce}`;
   const hash = crypto.createHash('sha256').update(combined).digest('hex');
+  
+  const firstByte = parseInt(hash.substring(0, 2), 16);
+  const isThrowOut = (firstByte % 100) < (throwOutChance * 100);
   const pathSteps = [];
+
+  if (isThrowOut) {
+    const throwDir = (firstByte & 1); // 0 = Left, 1 = Right
+    for (let r = 0; r < rows; r++) {
+      if (r < 2) {
+        const hexByte = hash.substring(r * 2 + 2, r * 2 + 4);
+        const byteVal = parseInt(hexByte, 16);
+        pathSteps.push(byteVal >= 128 ? 1 : 0);
+      } else {
+        pathSteps.push(throwDir);
+      }
+    }
+    const destinationBin = throwDir === 1 ? 999 : -1;
+    return { path: pathSteps, destinationBin };
+  }
+
   let rightCount = 0;
   let leftCount = 0;
 
   for (let r = 0; r < rows; r++) {
     const currentX = rightCount - leftCount;
-    // Base threshold is 128 (50/50 probability).
-    // biasFactor * currentX skews the threshold to pull the ball back to the center (x = 0).
     let threshold = 128 + currentX * biasFactor;
-    // Clamp threshold between 15 and 240 to keep it random but heavily skewed
     threshold = Math.max(15, Math.min(240, threshold));
 
     const hexByte = hash.substring(r * 2, r * 2 + 2);
@@ -209,6 +226,7 @@ app.post('/api/plinko/drop', async (req, res) => {
     const minBet = parseFloat(configMap.min_bet) || 1;
     const maxBet = parseFloat(configMap.max_bet) || 1000;
     const biasFactor = configMap.rtp_bias !== undefined ? parseInt(configMap.rtp_bias, 10) : 12;
+    const throwOutChance = configMap.throw_out_chance !== undefined ? parseFloat(configMap.throw_out_chance) : 0.20;
 
     if (wager < minBet || wager > maxBet) {
       return res.status(400).json({ success: false, error: `Wager must be between $${minBet} and $${maxBet}.` });
@@ -236,10 +254,19 @@ app.post('/api/plinko/drop', async (req, res) => {
       const clientSeed = crypto.randomBytes(16).toString('hex');
       const nonce = user.gamesPlayed + 1;
 
-      const { path: dropPath, destinationBin } = generatePlinkoPath(serverSeed, clientSeed, nonce, rowCount, biasFactor);
+      const { path: dropPath, destinationBin } = generatePlinkoPath(serverSeed, clientSeed, nonce, rowCount, biasFactor, throwOutChance);
 
-      const multiplier = PLINKO_MULTIPLIERS[rowCount][risk][destinationBin];
-      const payout = wager * multiplier;
+      let multiplier = 0;
+      let payout = 0;
+      
+      if (destinationBin === -1 || destinationBin === 999) {
+        multiplier = 0.0;
+        payout = 0.0;
+      } else {
+        multiplier = PLINKO_MULTIPLIERS[rowCount][risk][destinationBin];
+        payout = wager * multiplier;
+      }
+      
       const finalBalance = lockedBalance + payout;
 
       await tx.run('UPDATE users SET balance = ?, totalWon = ? WHERE LOWER(email) = ?', [finalBalance, user.totalWon + payout, email.toLowerCase()]);
@@ -264,7 +291,8 @@ app.post('/api/plinko/drop', async (req, res) => {
         newBalance: finalBalance,
         serverSeed,
         clientSeed,
-        nonce
+        nonce,
+        destinationBin
       };
     });
 

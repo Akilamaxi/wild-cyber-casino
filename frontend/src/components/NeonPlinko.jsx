@@ -5,49 +5,49 @@ const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:50
 
 const PLINKO_MULTIPLIERS = {
   8: {
-    Low: [5.6, 1.6, 1.1, 1.0, 0.5, 1.0, 1.1, 1.6, 5.6],
-    Medium: [13, 3, 1.3, 0.7, 0.4, 0.7, 1.3, 3, 13],
-    High: [29, 4, 1.5, 0.3, 0.2, 0.3, 1.5, 4, 29]
+    Low: [5.6, 1.6, 1.1, 1.0, 0.4, 1.0, 1.1, 1.6, 5.6],
+    Medium: [13, 3, 1.3, 0.7, 0.1, 0.7, 1.3, 3, 13],
+    High: [29, 4, 1.5, 0.3, 0.0, 0.3, 1.5, 4, 29]
   },
   9: {
-    Low: [5.6, 2.0, 1.6, 1.0, 0.7, 0.7, 1.0, 1.6, 2.0, 5.6],
-    Medium: [18, 4, 1.7, 0.9, 0.5, 0.5, 0.9, 1.7, 4, 18],
-    High: [43, 7, 2.0, 0.6, 0.2, 0.2, 0.6, 2.0, 7, 43]
+    Low: [5.6, 2.0, 1.6, 1.0, 0.5, 0.5, 1.0, 1.6, 2.0, 5.6],
+    Medium: [18, 4, 1.7, 0.9, 0.2, 0.2, 0.9, 1.7, 4, 18],
+    High: [43, 7, 2.0, 0.6, 0.0, 0.0, 0.6, 2.0, 7, 43]
   },
   10: {
     Low: [8.9, 3.0, 1.4, 1.1, 1.0, 0.5, 1.0, 1.1, 1.4, 3.0, 8.9],
-    Medium: [22, 5, 2.0, 1.4, 0.6, 0.4, 0.6, 1.4, 2.0, 5, 22],
-    High: [76, 10, 3.0, 0.9, 0.3, 0.2, 0.3, 0.9, 3.0, 10, 76]
+    Medium: [22, 5, 2.0, 1.4, 0.5, 0.1, 0.5, 1.4, 2.0, 5, 22],
+    High: [76, 10, 3.0, 0.9, 0.2, 0.0, 0.2, 0.9, 3.0, 10, 76]
   },
   11: {
-    Low: [8.9, 3.0, 1.7, 1.1, 1.0, 0.7, 0.7, 1.0, 1.1, 1.7, 3.0, 8.9],
-    Medium: [24, 6, 3.0, 1.8, 0.7, 0.5, 0.5, 0.7, 1.8, 3.0, 6, 24],
-    High: [120, 14, 4.3, 1.4, 0.4, 0.2, 0.2, 0.4, 1.4, 4.3, 14, 120]
+    Low: [8.9, 3.0, 1.7, 1.1, 1.0, 0.6, 0.6, 1.0, 1.1, 1.7, 3.0, 8.9],
+    Medium: [24, 6, 3.0, 1.8, 0.5, 0.2, 0.2, 0.5, 1.8, 3.0, 6, 24],
+    High: [120, 14, 4.3, 1.4, 0.2, 0.0, 0.0, 0.2, 1.4, 4.3, 14, 120]
   },
   12: {
     Low: [10, 4.0, 2.0, 1.6, 1.1, 1.0, 0.5, 1.0, 1.1, 1.6, 2.0, 4.0, 10],
-    Medium: [33, 11, 4.0, 2.0, 1.1, 0.6, 0.3, 0.6, 1.1, 2.0, 4.0, 11, 33],
-    High: [170, 24, 8.1, 2.0, 0.7, 0.2, 0.2, 0.2, 0.7, 2.0, 8.1, 24, 170]
+    Medium: [33, 11, 4.0, 2.0, 1.1, 0.4, 0.1, 0.4, 1.1, 2.0, 4.0, 11, 33],
+    High: [170, 24, 8.1, 2.0, 0.5, 0.1, 0.0, 0.1, 0.5, 2.0, 8.1, 24, 170]
   },
   13: {
-    Low: [10, 4.0, 2.0, 1.6, 1.2, 1.0, 0.7, 0.7, 1.0, 1.2, 1.6, 2.0, 4.0, 10],
-    Medium: [43, 13, 6.0, 3.0, 1.3, 0.7, 0.4, 0.4, 0.7, 1.3, 3.0, 6.0, 13, 43],
-    High: [260, 37, 11, 4.0, 1.0, 0.2, 0.2, 0.2, 0.2, 1.0, 4.0, 11, 37, 260]
+    Low: [10, 4.0, 2.0, 1.6, 1.2, 1.0, 0.6, 0.6, 1.0, 1.2, 1.6, 2.0, 4.0, 10],
+    Medium: [43, 13, 6.0, 3.0, 1.3, 0.5, 0.2, 0.2, 0.5, 1.3, 3.0, 6.0, 13, 43],
+    High: [260, 37, 11, 4.0, 1.0, 0.1, 0.0, 0.0, 0.1, 1.0, 4.0, 11, 37, 260]
   },
   14: {
     Low: [16, 7.0, 4.0, 1.9, 1.4, 1.0, 0.5, 0.5, 0.5, 1.0, 1.4, 1.9, 4.0, 7.0, 16],
-    Medium: [58, 15, 7.0, 4.0, 1.9, 1.0, 0.5, 0.2, 0.5, 1.0, 1.9, 4.0, 7.0, 15, 58],
-    High: [420, 56, 18, 5.0, 1.9, 0.3, 0.2, 0.2, 0.2, 0.3, 1.9, 5.0, 18, 56, 420]
+    Medium: [58, 15, 7.0, 4.0, 1.9, 1.0, 0.4, 0.1, 0.4, 1.0, 1.9, 4.0, 7.0, 15, 58],
+    High: [420, 56, 18, 5.0, 1.9, 0.2, 0.0, 0.0, 0.0, 0.2, 1.9, 5.0, 18, 56, 420]
   },
   15: {
-    Low: [16, 7.0, 4.0, 1.9, 1.4, 1.1, 1.0, 0.7, 0.7, 1.0, 1.1, 1.4, 1.9, 4.0, 7.0, 16],
-    Medium: [88, 18, 9.0, 5.0, 2.5, 1.3, 0.5, 0.3, 0.3, 0.5, 1.3, 2.5, 5.0, 9.0, 18, 88],
-    High: [620, 83, 27, 8.0, 3.0, 0.5, 0.2, 0.2, 0.2, 0.2, 0.5, 3.0, 8.0, 27, 83, 620]
+    Low: [16, 7.0, 4.0, 1.9, 1.4, 1.1, 1.0, 0.6, 0.6, 1.0, 1.1, 1.4, 1.9, 4.0, 7.0, 16],
+    Medium: [88, 18, 9.0, 5.0, 2.5, 1.3, 0.4, 0.1, 0.1, 0.4, 1.3, 2.5, 5.0, 9.0, 18, 88],
+    High: [620, 83, 27, 8.0, 3.0, 0.5, 0.1, 0.0, 0.0, 0.1, 0.5, 3.0, 8.0, 27, 83, 620]
   },
   16: {
     Low: [16, 9.0, 2.0, 1.4, 1.3, 1.1, 1.0, 0.5, 0.5, 0.5, 1.0, 1.1, 1.3, 1.4, 2.0, 9.0, 16],
-    Medium: [110, 41, 10, 5.0, 3.0, 1.5, 1.0, 0.5, 0.3, 0.5, 1.0, 1.5, 3.0, 5.0, 10, 41, 110],
-    High: [1000, 130, 26, 9.0, 4.0, 2.0, 0.2, 0.2, 0.2, 0.2, 0.2, 2.0, 4.0, 9.0, 26, 130, 1000]
+    Medium: [110, 41, 10, 5.0, 3.0, 1.5, 1.0, 0.3, 0.1, 0.3, 1.0, 1.5, 3.0, 5.0, 10, 41, 110],
+    High: [1000, 130, 26, 9.0, 4.0, 2.0, 0.2, 0.0, 0.0, 0.0, 0.2, 2.0, 4.0, 9.0, 26, 130, 1000]
   }
 };
 
@@ -286,36 +286,63 @@ function NeonPlinko({ currentUser, onBalanceUpdate }) {
   };
 
   const handleBallLanding = (ball) => {
-    // 1. Spawning Spark particles on landing
     const app = pixiAppRef.current;
     if (!app) return;
 
-    for (let i = 0; i < 15; i++) {
-      const pG = new PIXI.Graphics();
-      pG.beginFill(0xff0055);
-      pG.drawCircle(0, 0, Math.random() * 3 + 1);
-      pG.endFill();
-      pG.x = ball.targetX;
-      pG.y = ball.targetY;
-      app.stage.addChild(pG);
+    const isThrowOut = ball.destinationBin === -1 || ball.destinationBin === 999;
 
-      const angle = Math.random() * Math.PI * 2;
-      const speed = Math.random() * 4 + 2;
+    if (!isThrowOut) {
+      // 1. Spawning Spark particles on landing
+      for (let i = 0; i < 15; i++) {
+        const pG = new PIXI.Graphics();
+        pG.beginFill(0xff0055);
+        pG.drawCircle(0, 0, Math.random() * 3 + 1);
+        pG.endFill();
+        pG.x = ball.targetX;
+        pG.y = ball.targetY;
+        app.stage.addChild(pG);
 
-      particlesRef.current.push({
-        graphic: pG,
-        x: ball.targetX,
-        y: ball.targetY,
-        vx: Math.cos(angle) * speed,
-        vy: Math.sin(angle) * speed - 2, // Upward force
-        alpha: 1,
-      });
+        const angle = Math.random() * Math.PI * 2;
+        const speed = Math.random() * 4 + 2;
+
+        particlesRef.current.push({
+          graphic: pG,
+          x: ball.targetX,
+          y: ball.targetY,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed - 2, // Upward force
+          alpha: 1,
+        });
+      }
+    } else {
+      // Dull gray void sparks
+      for (let i = 0; i < 10; i++) {
+        const pG = new PIXI.Graphics();
+        pG.beginFill(0x555555);
+        pG.drawCircle(0, 0, Math.random() * 2 + 1);
+        pG.endFill();
+        pG.x = ball.targetX;
+        pG.y = ball.targetY;
+        app.stage.addChild(pG);
+
+        const angle = Math.random() * Math.PI * 2;
+        const speed = Math.random() * 2 + 1;
+
+        particlesRef.current.push({
+          graphic: pG,
+          x: ball.targetX,
+          y: ball.targetY,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed,
+          alpha: 0.8,
+        });
+      }
     }
 
     // 2. Add history record locally
     const newRecord = {
       id: Math.random(),
-      wager_amount: wagerAmount,
+      wager_amount: ball.wagerAmount || wagerAmount,
       rows: rows,
       risk: risk,
       multiplier: ball.multiplier,
@@ -386,6 +413,8 @@ function NeonPlinko({ currentUser, onBalanceUpdate }) {
           multiplier: data.multiplier,
           payout: data.payout,
           newBalance: data.newBalance,
+          destinationBin: data.destinationBin,
+          wagerAmount: wagerAmount
         });
       }
 
