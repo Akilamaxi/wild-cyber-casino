@@ -91,13 +91,18 @@ function NeonPlinko({ currentUser, onBalanceUpdate }) {
     const app = new PIXI.Application({
       width: 800,
       height: 600,
-      view: canvasRef.current,
       backgroundAlpha: 0,
       antialias: true,
     });
 
     app.stage.eventMode = 'none';
     pixiAppRef.current = app;
+
+    // Inject canvas into container div
+    app.view.style.width = '100%';
+    app.view.style.height = '100%';
+    app.view.style.display = 'block';
+    canvasRef.current.appendChild(app.view);
 
     // Create Containers
     const pegboard = new PIXI.Container();
@@ -173,6 +178,13 @@ function NeonPlinko({ currentUser, onBalanceUpdate }) {
     });
 
     return () => {
+      if (canvasRef.current && app.view) {
+        try {
+          canvasRef.current.removeChild(app.view);
+        } catch (e) {
+          // ignore if already removed
+        }
+      }
       app.destroy(true, { children: true, texture: true, baseTexture: true });
       pixiAppRef.current = null;
     };
@@ -535,7 +547,7 @@ function NeonPlinko({ currentUser, onBalanceUpdate }) {
             zIndex: 0
           }} />
           
-          <canvas ref={canvasRef} style={{ zIndex: 1, maxWidth: '100%', maxHeight: '100%' }} />
+          <div ref={canvasRef} style={{ width: '800px', height: '600px', zIndex: 1, maxWidth: '100%', maxHeight: '100%' }} />
         </div>
 
         {/* 3. History Feed */}
