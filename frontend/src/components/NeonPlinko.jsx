@@ -427,19 +427,96 @@ function NeonPlinko({ currentUser, onBalanceUpdate }) {
   };
 
   return (
-    <div className="plinko-main-container" style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: '25px', padding: '20px' }}>
+    <div className="plinko-wrapper">
+      <style>{`
+        .plinko-wrapper {
+          display: grid;
+          grid-template-columns: 320px 1fr;
+          gap: 25px;
+          padding: 20px;
+          width: 100%;
+          box-sizing: border-box;
+          max-width: 1400px;
+          margin: 0 auto;
+        }
+
+        .plinko-controls-panel {
+          background: rgba(10, 14, 18, 0.7);
+          border: 1px solid var(--glass-border);
+          border-radius: 16px;
+          padding: 24px;
+          display: flex;
+          flex-direction: column;
+          gap: 20px;
+          backdrop-filter: blur(15px);
+          box-sizing: border-box;
+          height: fit-content;
+        }
+
+        .plinko-canvas-container {
+          background: rgba(7, 10, 14, 0.8);
+          border: 1px solid var(--glass-border);
+          border-radius: 16px;
+          overflow: hidden;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          position: relative;
+          box-shadow: 0 4px 30px rgba(0,0,0,0.5);
+          backdrop-filter: blur(10px);
+          width: 100%;
+          aspect-ratio: 4 / 3;
+          box-sizing: border-box;
+        }
+
+        .plinko-canvas-wrapper {
+          width: 100%;
+          height: 100%;
+          z-index: 1;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+        }
+
+        .plinko-canvas-wrapper canvas {
+          width: 100% !important;
+          height: 100% !important;
+          object-fit: contain;
+        }
+
+        .plinko-history-panel {
+          background: rgba(10, 14, 18, 0.7);
+          border: 1px solid var(--glass-border);
+          border-radius: 16px;
+          padding: 20px;
+          backdrop-filter: blur(15px);
+          box-sizing: border-box;
+        }
+
+        .plinko-right-panel {
+          display: flex;
+          flex-direction: column;
+          gap: 20px;
+          min-width: 0;
+          width: 100%;
+        }
+
+        @media (max-width: 992px) {
+          .plinko-wrapper {
+            grid-template-columns: 1fr;
+            gap: 20px;
+            padding: 10px;
+          }
+
+          .plinko-canvas-container {
+            aspect-ratio: 4 / 3;
+            height: auto;
+          }
+        }
+      `}</style>
       
       {/* 1. Left Control Panel */}
-      <div className="plinko-controls-panel" style={{
-        background: 'rgba(10, 14, 18, 0.7)',
-        border: '1px solid var(--glass-border)',
-        borderRadius: '16px',
-        padding: '24px',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '20px',
-        backdropFilter: 'blur(15px)'
-      }}>
+      <div className="plinko-controls-panel">
         <h2 style={{ fontFamily: 'Orbitron', color: '#fff', fontSize: '1.4rem', letterSpacing: '1px', textShadow: '0 0 10px rgba(255,255,255,0.1)', margin: 0 }}>
           NEON CASCADE
         </h2>
@@ -571,22 +648,10 @@ function NeonPlinko({ currentUser, onBalanceUpdate }) {
       </div>
 
       {/* 2. Right Canvas Area & history */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+      <div className="plinko-right-panel">
         
         {/* Canvas container */}
-        <div style={{
-          background: 'rgba(7, 10, 14, 0.8)',
-          border: '1px solid var(--glass-border)',
-          borderRadius: '16px',
-          overflow: 'hidden',
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          height: '600px',
-          position: 'relative',
-          boxShadow: '0 4px 30px rgba(0,0,0,0.5)',
-          backdropFilter: 'blur(10px)'
-        }}>
+        <div className="plinko-canvas-container">
           {/* Subtle starry tech grid background */}
           <div style={{
             position: 'absolute',
@@ -598,17 +663,11 @@ function NeonPlinko({ currentUser, onBalanceUpdate }) {
             zIndex: 0
           }} />
           
-          <div ref={canvasRef} style={{ width: '800px', height: '600px', zIndex: 1, maxWidth: '100%', maxHeight: '100%' }} />
+          <div ref={canvasRef} className="plinko-canvas-wrapper" />
         </div>
 
         {/* 3. History Feed */}
-        <div style={{
-          background: 'rgba(10, 14, 18, 0.7)',
-          border: '1px solid var(--glass-border)',
-          borderRadius: '16px',
-          padding: '20px',
-          backdropFilter: 'blur(15px)'
-        }}>
+        <div className="plinko-history-panel">
           <h3 style={{ fontFamily: 'Orbitron', fontSize: '11px', color: 'var(--text-gray)', letterSpacing: '1.5px', margin: '0 0 15px 0', textTransform: 'uppercase' }}>
             MY RECENT DROPS
           </h3>
