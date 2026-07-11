@@ -1419,6 +1419,9 @@ pubsub.on('message', (message) => {
   if (message && message.type !== 'KILL_SWITCH') {
     console.log(`[LOTTERY ENGINE] Relaying event to WebSockets: ${message.type}`);
     io.emit('lottery_events', message);
+    if (message.type === 'DICE_CONFIG_UPDATED') {
+      io.emit('dice_events', { type: 'DICE_TOURNEY_CREATED' });
+    }
   }
 });
 // WebSockets connection routing
@@ -1816,6 +1819,10 @@ app.post('/api/dice/tournament/join', async (req, res) => {
       const tourney = await tx.get('SELECT * FROM dice_tournaments WHERE id = ? AND status = "ACTIVE"', [tourneyIdInt]);
       if (!tourney) throw new Error('Active tournament not found.');
 
+      if (tourney.ends_at && new Date(tourney.ends_at) < new Date()) {
+        throw new Error('Tournament has already ended.');
+      }
+
       const participant = await tx.get('SELECT * FROM dice_tournament_participants WHERE tournament_id = ? AND LOWER(email) = ?', [tourneyIdInt, email.toLowerCase()]);
       if (participant) return { alreadyJoined: true };
 
@@ -1840,6 +1847,10 @@ app.post('/api/dice/tournament/join', async (req, res) => {
       return { success: true, newBalance: balance, alreadyJoined: false };
     });
 
+    if (result.success || result.alreadyJoined) {
+      io.emit('dice_events', { type: 'DICE_LEADERBOARD_UPDATED', tournamentId: tourneyIdInt, email });
+    }
+
     res.json({ success: true, ...result });
   } catch (error) {
     res.status(400).json({ success: false, error: error.message });
@@ -1857,6 +1868,10 @@ app.post('/api/dice/tournament/roll', async (req, res) => {
     const result = await db.executeTransaction(async (tx) => {
       const tourney = await tx.get('SELECT * FROM dice_tournaments WHERE id = ? AND status = "ACTIVE"', [tourneyIdInt]);
       if (!tourney) throw new Error('Tournament is no longer active.');
+
+      if (tourney.ends_at && new Date(tourney.ends_at) < new Date()) {
+        throw new Error('Tournament has already ended.');
+      }
 
       const participant = await tx.get('SELECT * FROM dice_tournament_participants WHERE tournament_id = ? AND LOWER(email) = ?', [tourneyIdInt, email.toLowerCase()]);
       if (!participant) throw new Error('You are not registered in this tournament.');
@@ -1884,6 +1899,62 @@ app.post('/api/dice/tournament/roll', async (req, res) => {
         completed: isCompleted
       };
     });
+
+    if (result.sum !== undefined) {
+      io.emit('dice_events', { type: 'DICE_LEADERBOARD_UPDATED', tournamentId: tourneyIdInt, email });
+    }
+
+    res.json({ success: true, ...result });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/dice/tournament/buy-rolls', async (req, res) => {
+  try {
+    const { email, tournamentId } = req.body;
+    const tourneyIdInt = parseInt(tournamentId, 10);
+    if (!email || isNaN(tourneyIdInt)) {
+      return res.status(400).json({ success: false, error: 'Invalid details.' });
+    }
+
+    const result = await db.executeTransaction(async (tx) => {
+      const tourney = await tx.get('SELECT * FROM dice_tournaments WHERE id = ? AND status = "ACTIVE"', [tourneyIdInt]);
+      if (!tourney) throw new Error('Tournament is no longer active.');
+
+      if (tourney.ends_at && new Date(tourney.ends_at) < new Date()) {
+        throw new Error('Tournament has already ended.');
+      }
+
+      const participant = await tx.get('SELECT * FROM dice_tournament_participants WHERE tournament_id = ? AND LOWER(email) = ?', [tourneyIdInt, email.toLowerCase()]);
+      if (!participant) throw new Error('You are not registered in this tournament.');
+
+      const user = await tx.get('SELECT balance FROM users WHERE LOWER(email) = ?', [email.toLowerCase()]);
+      if (!user) throw new Error('User not found.');
+      if (user.balance < tourney.entry_fee) throw new Error('Insufficient balance to buy rolls.');
+
+      const balance = user.balance - tourney.entry_fee;
+      await tx.run('UPDATE users SET balance = ? WHERE LOWER(email) = ?', [balance, email.toLowerCase()]);
+
+      const newPrizePool = tourney.prize_pool + tourney.entry_fee;
+      await tx.run('UPDATE dice_tournaments SET prize_pool = ? WHERE id = ?', [newPrizePool, tourneyIdInt]);
+
+      const newRolls = participant.rolls_left + 10;
+      await tx.run(
+        'UPDATE dice_tournament_participants SET rolls_left = ?, completed = 0 WHERE tournament_id = ? AND LOWER(email) = ?',
+        [newRolls, tourneyIdInt, email.toLowerCase()]
+      );
+
+      const txId = generateTxId();
+      await tx.run(
+        'INSERT INTO transactions (id, email, type, amount, balanceAfter, timestamp) VALUES (?, ?, "DICE_TOURNEY_BUY_ROLLS", ?, ?, ?)',
+        [txId, email.toLowerCase(), -tourney.entry_fee, balance, new Date().toISOString()]
+      );
+
+      return { success: true, newBalance: balance, rollsLeft: newRolls };
+    });
+
+    io.emit('dice_events', { type: 'DICE_LEADERBOARD_UPDATED', tournamentId: tourneyIdInt, email });
 
     res.json({ success: true, ...result });
   } catch (error) {

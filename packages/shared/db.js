@@ -413,9 +413,16 @@ const initDatabase = async () => {
         entry_fee DOUBLE PRECISION NOT NULL,
         prize_pool DOUBLE PRECISION NOT NULL,
         status VARCHAR(50) DEFAULT 'ACTIVE',
-        created_at VARCHAR(100) NOT NULL
+        created_at VARCHAR(100) NOT NULL,
+        ends_at VARCHAR(100)
       )
     `);
+
+    try {
+      await run(`ALTER TABLE dice_tournaments ADD COLUMN ends_at VARCHAR(100)`);
+    } catch (e) {
+      // Column might already exist
+    }
 
     await run(`
       CREATE TABLE IF NOT EXISTS dice_tournament_participants (
@@ -431,9 +438,9 @@ const initDatabase = async () => {
     const tourneyCount = await get('SELECT COUNT(*) as count FROM dice_tournaments');
     if (parseInt(tourneyCount.count, 10) === 0) {
       await run(`
-        INSERT INTO dice_tournaments (name, entry_fee, prize_pool, status, created_at)
-        VALUES ($1, $2, $3, $4, $5)
-      `, ['🎰 NEON SHIELD DICE CLASH', 10.0, 100.0, 'ACTIVE', new Date().toISOString()]);
+        INSERT INTO dice_tournaments (name, entry_fee, prize_pool, status, created_at, ends_at)
+        VALUES ($1, $2, $3, $4, $5, $6)
+      `, ['🎰 NEON SHIELD DICE CLASH', 10.0, 100.0, 'ACTIVE', new Date().toISOString(), new Date(Date.now() + 86400000).toISOString()]);
     }
 
     // 11. Dice Configuration Settings
@@ -836,9 +843,16 @@ const initDatabase = async () => {
         entry_fee REAL NOT NULL,
         prize_pool REAL NOT NULL,
         status TEXT DEFAULT 'ACTIVE',
-        created_at TEXT NOT NULL
+        created_at TEXT NOT NULL,
+        ends_at TEXT
       )
     `);
+
+    try {
+      await run(`ALTER TABLE dice_tournaments ADD COLUMN ends_at TEXT`);
+    } catch (e) {
+      // Column might already exist
+    }
 
     await run(`
       CREATE TABLE IF NOT EXISTS dice_tournament_participants (
@@ -854,9 +868,9 @@ const initDatabase = async () => {
     const tourneyCount = await get('SELECT COUNT(*) as count FROM dice_tournaments');
     if (tourneyCount.count === 0) {
       await run(`
-        INSERT INTO dice_tournaments (name, entry_fee, prize_pool, status, created_at)
-        VALUES (?, ?, ?, ?, ?)
-      `, ['🎰 NEON SHIELD DICE CLASH', 10.0, 100.0, 'ACTIVE', new Date().toISOString()]);
+        INSERT INTO dice_tournaments (name, entry_fee, prize_pool, status, created_at, ends_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `, ['🎰 NEON SHIELD DICE CLASH', 10.0, 100.0, 'ACTIVE', new Date().toISOString(), new Date(Date.now() + 86400000).toISOString()]);
     }
 
     await run(`

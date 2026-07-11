@@ -218,16 +218,18 @@ app.put('/api/admin/dice/config', async (req, res) => {
 
 app.post('/api/admin/dice/tournaments', async (req, res) => {
   try {
-    const { name, entry_fee, prize_pool } = req.body;
+    const { name, entry_fee, prize_pool, ends_at } = req.body;
     const fee = parseFloat(entry_fee);
     const pool = parseFloat(prize_pool);
     if (!name || isNaN(fee) || isNaN(pool) || fee < 0 || pool < 0) {
       return res.status(400).json({ success: false, error: 'Invalid tournament details.' });
     }
 
+    const finalEndsAt = ends_at || new Date(Date.now() + 86400000).toISOString();
+
     await db.run(
-      'INSERT INTO dice_tournaments (name, entry_fee, prize_pool, status, created_at) VALUES (?, ?, ?, "ACTIVE", ?)',
-      [name, fee, pool, new Date().toISOString()]
+      'INSERT INTO dice_tournaments (name, entry_fee, prize_pool, status, created_at, ends_at) VALUES (?, ?, ?, "ACTIVE", ?, ?)',
+      [name, fee, pool, new Date().toISOString(), finalEndsAt]
     );
     await pubsub.publish({ type: 'DICE_CONFIG_UPDATED' });
     res.json({ success: true });

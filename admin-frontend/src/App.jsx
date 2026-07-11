@@ -58,7 +58,7 @@ function App() {
   const [tournamentsList, setTournamentsList] = useState([]);
   const [loadingDice, setLoadingDice] = useState(true);
   const [diceFormData, setDiceFormData] = useState({
-    name: '', entry_fee: 10, prize_pool: 100
+    name: '', entry_fee: 10, prize_pool: 100, ends_at: ''
   });
 
   // --- Crash States ---
@@ -575,7 +575,7 @@ function App() {
       const data = await res.json();
       if (data.success) {
         alert('🏆 New dice clash tournament spawned!');
-        setDiceFormData({ name: '', entry_fee: 10, prize_pool: 100 });
+        setDiceFormData({ name: '', entry_fee: 10, prize_pool: 100, ends_at: '' });
         fetchDiceAdminData();
       } else {
         alert('Error: ' + data.error);
@@ -1240,6 +1240,18 @@ function App() {
                         />
                       </div>
                     </div>
+
+                    <div className="form-group" style={{ marginTop: '15px' }}>
+                      <label>Tournament End Time (Ends At)</label>
+                      <input 
+                        type="datetime-local" 
+                        value={diceFormData.ends_at} 
+                        onChange={e => setDiceFormData({ ...diceFormData, ends_at: e.target.value })} 
+                        required 
+                      />
+                      <span className="help-text">Select the exact date & time when the tournament will automatically end.</span>
+                    </div>
+
                     <button type="submit" className="primary-btn" style={{ marginTop: '15px' }}>SPAWN TOURNAMENT</button>
                   </form>
                 </div>
