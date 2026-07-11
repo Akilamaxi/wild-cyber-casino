@@ -93,6 +93,159 @@ function App() {
   const [shadowLogs, setShadowLogs] = useState([]);
   const [loadingAffiliate, setLoadingAffiliate] = useState(true);
 
+  // Security & Risk Management state
+  const [securityAlerts, setSecurityAlerts] = useState([]);
+  const [bonusRules, setBonusRules] = useState([]);
+  const [auditLogs, setAuditLogs] = useState([]);
+  const [gameLogs, setGameLogs] = useState({ plinko: [], dice: [], crash: [] });
+  
+  // 360 player search email state
+  const [searchPlayerEmail, setSearchPlayerEmail] = useState('');
+  const [player360Data, setPlayer360Data] = useState(null);
+  
+  // Tag editing state
+  const [tagInput, setTagInput] = useState('');
+  
+  // New rule builder form state
+  const [ruleForm, setRuleForm] = useState({
+    ruleName: '',
+    triggerType: 'HOURLY_LOSS',
+    threshold: '',
+    rewardType: 'CASH',
+    rewardAmount: ''
+  });
+
+  const fetchSecurityData = async () => {
+    try {
+      const resAlerts = await fetch(`${API_BASE}/api/admin/security/alerts`);
+      const dataAlerts = await resAlerts.json();
+      if (dataAlerts.success) setSecurityAlerts(dataAlerts.alerts);
+
+      const resRules = await fetch(`${API_BASE}/api/admin/bonus-rules`);
+      const dataRules = await resRules.json();
+      if (dataRules.success) setBonusRules(dataRules.rules);
+
+      const resAudit = await fetch(`${API_BASE}/api/admin/audit-logs`);
+      const dataAudit = await resAudit.json();
+      if (dataAudit.success) setAuditLogs(dataAudit.logs);
+
+      const resGames = await fetch(`${API_BASE}/api/admin/game-logs`);
+      const dataGames = await resGames.json();
+      if (dataGames.success) setGameLogs(dataGames);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleResolveAlert = async (alertId) => {
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/security/alerts/${alertId}/resolve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adminEmail: 'admin@test.com' })
+      });
+      const data = await res.json();
+      if (data.success) {
+        fetchSecurityData();
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleUpdatePlayerStatus = async (email, status) => {
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/users/${email}/status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status, adminEmail: 'admin@test.com' })
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert(`Player status updated to ${status}`);
+        handlePlayerSearch(email);
+        fetchSecurityData();
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleUpdatePlayerTags = async (email, newTags) => {
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/users/${email}/tags`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tags: newTags, adminEmail: 'admin@test.com' })
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert('Player tags updated.');
+        handlePlayerSearch(email);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleCreateRuleSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/bonus-rules`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ruleName: ruleForm.ruleName,
+          triggerType: ruleForm.triggerType,
+          threshold: ruleForm.threshold,
+          rewardType: ruleForm.rewardType,
+          rewardAmount: ruleForm.rewardAmount,
+          adminEmail: 'admin@test.com'
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert('Rule created successfully.');
+        setRuleForm({ ruleName: '', triggerType: 'HOURLY_LOSS', threshold: '', rewardType: 'CASH', rewardAmount: '' });
+        fetchSecurityData();
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleToggleRule = async (ruleId, active) => {
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/bonus-rules/${ruleId}/toggle`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ active: !active, adminEmail: 'admin@test.com' })
+      });
+      const data = await res.json();
+      if (data.success) {
+        fetchSecurityData();
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handlePlayerSearch = async (email) => {
+    if (!email) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/users/${encodeURIComponent(email)}/360-view`);
+      const data = await res.json();
+      if (data.success) {
+        setPlayer360Data(data.user);
+        setTagInput(data.user.tags ? data.user.tags.join(', ') : '');
+      } else {
+        alert(data.error || 'User not found.');
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   const canvasRef = useRef(null);
   const socketRef = useRef(null);
 
@@ -106,6 +259,7 @@ function App() {
       fetchCrashConfig();
       fetchPlinkoConfig();
       fetchAffiliateData();
+      fetchSecurityData();
 
       // Connect WebSockets for real-time config updates
       socketRef.current = io(API_BASE);
@@ -778,6 +932,14 @@ function App() {
                 className={`menu-btn ${activeTab === 'affiliate' ? 'active' : ''}`}
               >
                 🤝 Affiliate & Referrals
+              </button>
+            </li>
+            <li>
+              <button 
+                onClick={() => setActiveTab('security')} 
+                className={`menu-btn ${activeTab === 'security' ? 'active' : ''}`}
+              >
+                🛡️ Security & Risk Control
               </button>
             </li>
           </ul>
@@ -1550,6 +1712,270 @@ function App() {
                     </div>
                   </div>
                 )}
+              </div>
+            </div>
+          )}
+
+          {/* TAB 8: SECURITY & RISK CONTROL PANEL */}
+          {activeTab === 'security' && (
+            <div className="admin-content-card">
+              <div className="admin-card-header" style={{ background: 'linear-gradient(135deg, #1f122e 0%, #11091c 100%)', borderBottom: '1px solid rgba(255, 0, 85, 0.2)' }}>
+                <div>
+                  <h2 style={{ color: '#ff3366', textShadow: '0 0 10px rgba(255, 51, 102, 0.3)' }}>🛡️ SYSTEM RISK SHIELD & AUDITING GATEWAY</h2>
+                  <p style={{ fontSize: '12px', color: '#8b8493', margin: '5px 0 0 0' }}>Real-time IP Travel speed violations, Multi-account Sybil matching, Rules engine and Audit logs.</p>
+                </div>
+                <span className="status-badge" style={{ background: 'rgba(255, 51, 102, 0.1)', color: '#ff3366', border: '1px solid rgba(255, 51, 102, 0.3)' }}>SHIELD ON</span>
+              </div>
+              
+              <div className="admin-card-body" style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
+                
+                {/* 1. Risk Alerts & Travel Violations */}
+                <div>
+                  <h3 style={{ borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '8px', color: '#ffaa00' }}>Active Security & Risk Alerts</h3>
+                  <div className="table-responsive">
+                    <table className="admin-table">
+                      <thead>
+                        <tr>
+                          <th>ID</th>
+                          <th>Player</th>
+                          <th>Violation Type</th>
+                          <th>Severity</th>
+                          <th>Details</th>
+                          <th>Status</th>
+                          <th>Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {securityAlerts.length === 0 ? (
+                          <tr>
+                            <td colSpan="7" style={{ textAlign: 'center', padding: '15px' }}>No active security flags reported. System is healthy.</td>
+                          </tr>
+                        ) : (
+                          securityAlerts.map(alert => (
+                            <tr key={alert.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
+                              <td>{alert.id}</td>
+                              <td style={{ fontWeight: 'bold' }}>{alert.email}</td>
+                              <td>
+                                <span style={{ padding: '2px 8px', borderRadius: '4px', background: 'rgba(255,0,0,0.1)', color: '#ff4444', fontSize: '11px', fontWeight: 'bold' }}>
+                                  {alert.alert_type}
+                                </span>
+                              </td>
+                              <td>
+                                <span style={{ color: alert.severity === 'HIGH' ? '#ff3333' : '#ffaa00', fontWeight: 'bold' }}>
+                                  {alert.severity}
+                                </span>
+                              </td>
+                              <td style={{ fontSize: '12px', maxWidth: '300px', whiteSpace: 'normal', wordBreak: 'break-all' }}>{alert.details}</td>
+                              <td>{alert.resolved ? 'Resolved' : 'Active'}</td>
+                              <td>
+                                {!alert.resolved && (
+                                  <button onClick={() => handleResolveAlert(alert.id)} className="primary-btn" style={{ padding: '4px 10px', fontSize: '11px', background: '#00cc66' }}>
+                                    RESOLVE
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* 2. Player 360 View */}
+                <div>
+                  <h3 style={{ borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '8px', color: '#00ccff' }}>360-Degree Player Profile Inspector</h3>
+                  <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
+                    <input 
+                      type="email" 
+                      placeholder="Enter player email..." 
+                      value={searchPlayerEmail} 
+                      onChange={e => setSearchPlayerEmail(e.target.value)}
+                      style={{ flex: 1, padding: '10px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', borderRadius: '6px' }}
+                    />
+                    <button onClick={() => handlePlayerSearch(searchPlayerEmail)} className="primary-btn" style={{ background: '#00ccff', color: '#000' }}>INSPECT PLAYER</button>
+                  </div>
+
+                  {player360Data && (
+                    <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '12px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px' }}>
+                        <div>
+                          <label style={{ fontSize: '11px', color: '#888' }}>EMAIL / USERNAME</label>
+                          <div style={{ fontWeight: 'bold' }}>{player360Data.email} ({player360Data.username})</div>
+                        </div>
+                        <div>
+                          <label style={{ fontSize: '11px', color: '#888' }}>CURRENT BALANCE</label>
+                          <div style={{ color: '#00ff66', fontWeight: 'bold' }}>${player360Data.balance.toFixed(2)}</div>
+                        </div>
+                        <div>
+                          <label style={{ fontSize: '11px', color: '#888' }}>TOTAL GAMES / WON</label>
+                          <div>{player360Data.gamesPlayed} plays / ${player360Data.totalWon.toFixed(2)} won</div>
+                        </div>
+                        <div>
+                          <label style={{ fontSize: '11px', color: '#888' }}>ACCOUNT STATUS</label>
+                          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                            <span style={{ fontWeight: 'bold', color: player360Data.status === 'ACTIVE' ? '#00ff66' : '#ff3366' }}>{player360Data.status}</span>
+                            <select 
+                              value={player360Data.status} 
+                              onChange={e => handleUpdatePlayerStatus(player360Data.email, e.target.value)}
+                              style={{ padding: '2px 5px', background: '#000', color: '#fff', border: '1px solid #333' }}
+                            >
+                              <option value="ACTIVE">ACTIVE</option>
+                              <option value="FROZEN">FROZEN</option>
+                              <option value="BANNED">BANNED</option>
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Tagging Section */}
+                      <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '15px' }}>
+                        <label style={{ fontSize: '11px', color: '#888' }}>MANAGE PLAYER SEGMENTS / TAGS (Comma separated)</label>
+                        <div style={{ display: 'flex', gap: '10px', marginTop: '5px' }}>
+                          <input 
+                            type="text" 
+                            value={tagInput}
+                            onChange={e => setTagInput(e.target.value)}
+                            placeholder="e.g. VIP, HighRoller, SuspectedSybil"
+                            style={{ flex: 1, padding: '8px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', borderRadius: '6px' }}
+                          />
+                          <button 
+                            onClick={() => handleUpdatePlayerTags(player360Data.email, tagInput.split(',').map(s => s.trim()).filter(Boolean))} 
+                            className="primary-btn"
+                          >
+                            SAVE TAGS
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Recent Logs & Sessions for this player */}
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '15px' }}>
+                        <div>
+                          <h4 style={{ color: '#00ccff', marginBottom: '8px' }}>Active Geolocation Sessions</h4>
+                          <div style={{ maxHeight: '150px', overflowY: 'auto', fontSize: '12px' }}>
+                            {player360Data.sessions && player360Data.sessions.map((s, i) => (
+                              <div key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)', padding: '5px 0' }}>
+                                🌐 {s.ip_address} | {s.country}-{s.city} | {new Date(s.created_at).toLocaleString()}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                        <div>
+                          <h4 style={{ color: '#00ccff', marginBottom: '8px' }}>Recent Ledger Transactions</h4>
+                          <div style={{ maxHeight: '150px', overflowY: 'auto', fontSize: '12px' }}>
+                            {player360Data.transactions && player360Data.transactions.map((t, i) => (
+                              <div key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)', padding: '5px 0', display: 'flex', justifyContent: 'space-between' }}>
+                                <span>💸 {t.type}</span>
+                                <span style={{ color: t.amount >= 0 ? '#00ff66' : '#ff4444' }}>{t.amount >= 0 ? '+' : ''}${t.amount.toFixed(2)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* 3. Loyalty Rules Engine */}
+                <div>
+                  <h3 style={{ borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '8px', color: '#ff33bb' }}>Loyalty & Risk Rules Builder</h3>
+                  <form onSubmit={handleCreateRuleSubmit} className="admin-form" style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.03)', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '15px' }}>
+                      <div className="form-group">
+                        <label>Rule Name</label>
+                        <input type="text" value={ruleForm.ruleName} onChange={e => setRuleForm({ ...ruleForm, ruleName: e.target.value })} placeholder="e.g. Net Loss Guard" required />
+                      </div>
+                      <div className="form-group">
+                        <label>Trigger Type</label>
+                        <select value={ruleForm.triggerType} onChange={e => setRuleForm({ ...ruleForm, triggerType: e.target.value })}>
+                          <option value="HOURLY_LOSS">Hourly Net Loss ($)</option>
+                        </select>
+                      </div>
+                      <div className="form-group">
+                        <label>Threshold ($)</label>
+                        <input type="number" step="1" value={ruleForm.threshold} onChange={e => setRuleForm({ ...ruleForm, threshold: e.target.value })} required />
+                      </div>
+                      <div className="form-group">
+                        <label>Reward Type</label>
+                        <select value={ruleForm.rewardType} onChange={e => setRuleForm({ ...ruleForm, rewardType: e.target.value })}>
+                          <option value="CASH">Direct Wallet Balance Credit ($)</option>
+                          <option value="FREE_DROPS">Free Tourney Rolls / Drops</option>
+                        </select>
+                      </div>
+                      <div className="form-group">
+                        <label>Reward Value</label>
+                        <input type="number" step="0.1" value={ruleForm.rewardAmount} onChange={e => setRuleForm({ ...ruleForm, rewardAmount: e.target.value })} required />
+                      </div>
+                    </div>
+                    <button type="submit" className="primary-btn" style={{ marginTop: '15px', background: '#ff33bb', color: '#fff' }}>DEPLOY TRIGGER RULE</button>
+                  </form>
+
+                  <div className="table-responsive">
+                    <table className="admin-table">
+                      <thead>
+                        <tr>
+                          <th>ID</th>
+                          <th>Rule Name</th>
+                          <th>Trigger Type</th>
+                          <th>Threshold</th>
+                          <th>Bonus Reward</th>
+                          <th>Status</th>
+                          <th>Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {bonusRules.map(rule => {
+                          const reward = JSON.parse(rule.bonus_reward);
+                          return (
+                            <tr key={rule.id}>
+                              <td>{rule.id}</td>
+                              <td style={{ fontWeight: 'bold' }}>{rule.rule_name}</td>
+                              <td>{rule.trigger_type}</td>
+                              <td>${rule.threshold}</td>
+                              <td>{reward.type === 'CASH' ? `$${reward.amount} Cash` : `${reward.amount} Drops`}</td>
+                              <td>{rule.active ? 'ACTIVE' : 'INACTIVE'}</td>
+                              <td>
+                                <button onClick={() => handleToggleRule(rule.id, rule.active)} className="primary-btn" style={{ padding: '4px 10px', fontSize: '11px', background: rule.active ? '#ff4444' : '#00ff66' }}>
+                                  {rule.active ? 'DISABLE' : 'ENABLE'}
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* 4. Immutable Audit Logs & Raw cryptographic outcome streams */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
+                  <div>
+                    <h3 style={{ borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '8px', color: '#00ffcc' }}>Admin Audit Log Trail</h3>
+                    <div style={{ maxHeight: '200px', overflowY: 'auto', fontSize: '11px', background: '#08050e', border: '1px solid #1a1523', padding: '10px', borderRadius: '6px' }}>
+                      {auditLogs.map((log, idx) => (
+                        <div key={idx} style={{ padding: '6px 0', borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
+                          <span style={{ color: '#ff3366' }}>[{log.action}]</span> {log.details} by <span style={{ color: '#00ffcc' }}>{log.admin_email}</span> at {new Date(log.created_at).toLocaleString()}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <h3 style={{ borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '8px', color: '#00ffcc' }}>Raw Game Out-stream Logs</h3>
+                    <div style={{ maxHeight: '200px', overflowY: 'auto', fontSize: '11px', background: '#08050e', border: '1px solid #1a1523', padding: '10px', borderRadius: '6px' }}>
+                      {gameLogs.plinko && gameLogs.plinko.map((l, i) => (
+                        <div key={`p-${i}`} style={{ padding: '4px 0', borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
+                          🎮 PLINKO | Player: {l.email} | Risk: {l.risk} | Mult: {l.multiplier}x | Hash: {l.hash.substring(0, 10)}...
+                        </div>
+                      ))}
+                      {gameLogs.crash && gameLogs.crash.map((l, i) => (
+                        <div key={`c-${i}`} style={{ padding: '4px 0', borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
+                          🎮 CRASH | Game ID: {l.id} | Multiplier: {l.crash_point}x | Status: {l.status}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
               </div>
             </div>
           )}

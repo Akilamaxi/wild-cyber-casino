@@ -71,6 +71,49 @@ const init = async () => {
         console.error('[LOYALTY] Error processing purchase:', err);
       }
     }
+
+    if (data.type === 'WAGER_PROCESSED') {
+      try {
+        const { email, wagerAmount } = data;
+        const pointsEarned = Math.floor(wagerAmount); // 1 point per $1 wagered
+        
+        if (pointsEarned > 0) {
+          await db.executeTransaction(async (tx) => {
+            let profile = await tx.get('SELECT * FROM loyalty_profiles WHERE LOWER(email) = ?', [email.toLowerCase()]);
+            
+            if (!profile) {
+               await tx.run('INSERT INTO loyalty_profiles (email, points, tier) VALUES (?, 0, ?)', [email.toLowerCase(), 'BRONZE']);
+               profile = { email: email.toLowerCase(), points: 0, tier: 'BRONZE' };
+            }
+            
+            const newPoints = profile.points + pointsEarned;
+            let newTier = 'BRONZE';
+            if (newPoints >= TIER_THRESHOLDS.GOLD) newTier = 'GOLD';
+            else if (newPoints >= TIER_THRESHOLDS.SILVER) newTier = 'SILVER';
+
+            await tx.run('UPDATE loyalty_profiles SET points = ?, tier = ? WHERE LOWER(email) = ?', [newPoints, newTier, email.toLowerCase()]);
+
+            if (newTier !== profile.tier) {
+               console.log(`[LOYALTY] User ${email} leveled up to ${newTier}! Rewarding cash bonus.`);
+               const bonusAmount = LEVEL_UP_BONUS[newTier] || 0;
+               if (bonusAmount > 0) {
+                  const user = await tx.get('SELECT balance FROM users WHERE LOWER(email) = ?', [email.toLowerCase()]);
+                  await tx.run('UPDATE users SET balance = ? WHERE LOWER(email) = ?', [user.balance + bonusAmount, email.toLowerCase()]);
+                  
+                  await tx.run(
+                    'INSERT INTO transactions (id, email, type, amount, balanceAfter, timestamp) VALUES (?, ?, ?, ?, ?, ?)',
+                    [`bonus-${Date.now()}-${Math.floor(Math.random() * 1000)}`, email.toLowerCase(), 'VIP_BONUS', bonusAmount, user.balance + bonusAmount, new Date().toISOString()]
+                  );
+               }
+            }
+          });
+          
+          console.log(`[LOYALTY] Awarded ${pointsEarned} points for wager to ${email}`);
+        }
+      } catch (err) {
+        console.error('[LOYALTY] Error processing wager:', err);
+      }
+    }
   });
 
   app.get('/api/loyalty/status', async (req, res) => {

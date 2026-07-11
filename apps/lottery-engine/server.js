@@ -1,13 +1,73 @@
-
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const crypto = require('crypto');
+const jwt = require('jsonwebtoken');
+const geoip = require('geoip-lite');
 const { db, pubsub } = require('@cyber-casino/shared');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+const JWT_SECRET = process.env.JWT_SECRET || 'cyber-casino-secret-key-1337-punk';
+const localBlacklist = new Set();
+
+const isJtiBlacklisted = async (jti) => {
+  if (pubsub.isRedisConnected && pubsub.redisPublisher) {
+    try {
+      const val = await pubsub.redisPublisher.get(`blacklist:${jti}`);
+      return val !== null;
+    } catch (e) {
+      return localBlacklist.has(jti);
+    }
+  }
+  return localBlacklist.has(jti);
+};
+
+const blacklistJti = async (jti, exp) => {
+  const ttl = Math.max(0, exp - Math.floor(Date.now() / 1000));
+  if (pubsub.isRedisConnected && pubsub.redisPublisher) {
+    try {
+      await pubsub.redisPublisher.set(`blacklist:${jti}`, 'true', 'EX', ttl || 86400);
+    } catch (e) {
+      localBlacklist.add(jti);
+      setTimeout(() => localBlacklist.delete(jti), (ttl || 86400) * 1000);
+    }
+  } else {
+    localBlacklist.add(jti);
+    setTimeout(() => localBlacklist.delete(jti), (ttl || 86400) * 1000);
+  }
+};
+
+const requireAuth = async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ success: false, error: 'Unauthorized: Missing token.' });
+    }
+    const token = authHeader.split(' ')[1];
+    const decoded = jwt.verify(token, JWT_SECRET);
+
+    const isBlacklisted = await isJtiBlacklisted(decoded.jti);
+    if (isBlacklisted) {
+      return res.status(401).json({ success: false, error: 'Unauthorized: Session revoked.' });
+    }
+
+    const user = await db.get('SELECT status FROM users WHERE LOWER(email) = ?', [decoded.email.toLowerCase()]);
+    if (!user) {
+      return res.status(401).json({ success: false, error: 'Unauthorized: User not found.' });
+    }
+    if (user.status === 'FROZEN' || user.status === 'BANNED') {
+      return res.status(403).json({ success: false, error: `Account is ${user.status}.` });
+    }
+
+    req.user = decoded;
+    next();
+  } catch (err) {
+    return res.status(401).json({ success: false, error: 'Unauthorized: Invalid token.' });
+  }
+};
 
 let isKillSwitchActive = false;
 
@@ -29,12 +89,114 @@ const checkKillSwitch = (req, res, next) => {
   if (isKillSwitchActive) {
     return res.status(403).json({ 
       success: false, 
-      error: 'LOTTERY_PAUSED', 
-      message: 'Lottery ticket purchases are temporarily suspended for system maintenance.' 
+      error: 'Draw operations are currently disabled by administrator.' 
     });
   }
   next();
 };
+
+const logSessionAndCheckAlerts = async (email, ip, userAgent, deviceFingerprint, mockGeo = null) => {
+  try {
+    let country = 'LK', city = 'Colombo', lat = 6.9271, lon = 79.8612;
+    
+    // Check geoip
+    const geo = geoip.lookup(ip);
+    if (geo) {
+      country = geo.country || 'Unknown';
+      city = geo.city || 'Unknown';
+      lat = geo.ll[0];
+      lon = geo.ll[1];
+    } else if (mockGeo) {
+      country = mockGeo.country || country;
+      city = mockGeo.city || city;
+      lat = mockGeo.lat !== undefined ? mockGeo.lat : lat;
+      lon = mockGeo.lon !== undefined ? mockGeo.lon : lon;
+    }
+
+    const now = new Date().toISOString();
+
+    // Check last session for Impossible Travel
+    const lastSession = await db.get(
+      'SELECT * FROM user_session_logs WHERE LOWER(email) = ? ORDER BY created_at DESC LIMIT 1',
+      [email.toLowerCase()]
+    );
+
+    if (lastSession) {
+      const distKm = getDistanceFromLatLonInKm(lastSession.latitude, lastSession.longitude, lat, lon);
+      const timeHours = (new Date(now) - new Date(lastSession.created_at)) / 3600000;
+
+      if (distKm > 10 && timeHours > 0) {
+        const speed = distKm / timeHours;
+        if (speed > 1000) {
+          await db.run(
+            'INSERT INTO security_alerts (email, alert_type, severity, details, resolved, created_at) VALUES (?, "IMPOSSIBLE_TRAVEL", "HIGH", ?, 0, ?)',
+            [
+              email.toLowerCase(),
+              `Impossible Travel detected: moved ${distKm.toFixed(0)} km in ${(timeHours * 60).toFixed(1)} mins (speed: ${speed.toFixed(0)} km/h). Last: ${lastSession.city}, ${lastSession.country}. Current: ${city}, ${country}.`,
+              now
+            ]
+          );
+
+          await db.run('UPDATE users SET status = "FROZEN" WHERE LOWER(email) = ?', [email.toLowerCase()]);
+          console.warn(`[SECURITY] Account ${email} frozen due to Impossible Travel.`);
+        }
+      }
+    }
+
+    await db.run(
+      'INSERT INTO user_session_logs (email, ip_address, user_agent, device_fingerprint, country, city, latitude, longitude, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [email.toLowerCase(), ip, userAgent, deviceFingerprint, country, city, lat, lon, now]
+    );
+
+    const sameIpUsers = await db.all(
+      'SELECT DISTINCT LOWER(email) as email FROM user_session_logs WHERE ip_address = ? AND LOWER(email) != ?',
+      [ip, email.toLowerCase()]
+    );
+
+    const sameFingerprintUsers = await db.all(
+      'SELECT DISTINCT LOWER(email) as email FROM user_session_logs WHERE device_fingerprint = ? AND LOWER(email) != ?',
+      [deviceFingerprint, email.toLowerCase()]
+    );
+
+    if (sameIpUsers.length > 0 || sameFingerprintUsers.length > 0) {
+      const matchEmails = new Set();
+      sameIpUsers.forEach(u => matchEmails.add(u.email));
+      sameFingerprintUsers.forEach(u => matchEmails.add(u.email));
+
+      if (matchEmails.size > 0) {
+        await db.run(
+          'INSERT INTO security_alerts (email, alert_type, severity, details, resolved, created_at) VALUES (?, "MULTI_ACCOUNT", "MEDIUM", ?, 0, ?)',
+          [
+            email.toLowerCase(),
+            `Shared footprint matches: ${Array.from(matchEmails).join(', ')} (Matching IP: ${sameIpUsers.length > 0}, Matching Fingerprint: ${sameFingerprintUsers.length > 0})`,
+            now
+          ]
+        );
+      }
+    }
+
+  } catch (err) {
+    console.error('[SECURITY] Error running security rules:', err);
+  }
+};
+
+function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
+  const R = 6371;
+  const dLat = deg2rad(lat2-lat1);
+  const dLon = deg2rad(lon2-lon1); 
+  const a = 
+    Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * 
+    Math.sin(dLon/2) * Math.sin(dLon/2)
+    ; 
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
+  const d = R * c; 
+  return d;
+}
+
+function deg2rad(deg) {
+  return deg * (Math.PI/180);
+}
 
 // ============================================================================
 // REST API ENDPOINTS
@@ -43,13 +205,13 @@ const checkKillSwitch = (req, res, next) => {
 // --- Authentication ---
 app.post('/api/auth/login', async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, deviceFingerprint } = req.body;
     if (!email || !password) {
       return res.status(400).json({ success: false, error: 'Email and password are required.' });
     }
 
     const user = await db.get(
-      'SELECT email, username, balance, gamesPlayed, totalWon, role FROM users WHERE LOWER(email) = ? AND password = ?',
+      'SELECT email, username, balance, gamesPlayed, totalWon, role, status FROM users WHERE LOWER(email) = ? AND password = ?',
       [email.toLowerCase(), password]
     );
 
@@ -57,7 +219,33 @@ app.post('/api/auth/login', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Invalid email or password credentials.' });
     }
 
-    res.json({ success: true, user });
+    if (user.status === 'FROZEN' || user.status === 'BANNED') {
+      return res.status(403).json({ success: false, error: `Account is ${user.status}.` });
+    }
+
+    const ip = req.ip || req.headers['x-forwarded-for'] || '127.0.0.1';
+    const userAgent = req.headers['user-agent'] || 'Unknown';
+    
+    let mockGeo = null;
+    if (req.headers['x-mock-ip-country']) {
+      mockGeo = {
+        country: req.headers['x-mock-ip-country'],
+        city: req.headers['x-mock-ip-city'] || 'Unknown',
+        lat: parseFloat(req.headers['x-mock-ip-lat']),
+        lon: parseFloat(req.headers['x-mock-ip-lon'])
+      };
+    }
+
+    await logSessionAndCheckAlerts(user.email, ip, userAgent, deviceFingerprint || 'unknown-fingerprint', mockGeo);
+
+    const jti = crypto.randomUUID();
+    const token = jwt.sign(
+      { email: user.email, username: user.username, role: user.role, jti },
+      JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    res.json({ success: true, user, token });
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({ success: false, error: 'Internal Server Error' });
@@ -66,22 +254,19 @@ app.post('/api/auth/login', async (req, res) => {
 
 app.post('/api/auth/register', async (req, res) => {
   try {
-    const { username, email, password, referralCode } = req.body;
+    const { username, email, password, referralCode, deviceFingerprint, walletAddress } = req.body;
     if (!username || !email || !password) {
       return res.status(400).json({ success: false, error: 'All registration fields are required.' });
     }
 
-    // Run atomically
     const result = await db.executeTransaction(async (tx) => {
       const existing = await tx.get('SELECT email FROM users WHERE LOWER(email) = ?', [email.toLowerCase()]);
       if (existing) {
         throw new Error('Email address is already registered.');
       }
 
-      // Generate own unique referral code
       const ownReferralCode = 'REF-' + crypto.randomBytes(3).toString('hex').toUpperCase();
 
-      // Check optional referral code
       let referrerEmail = null;
       if (referralCode) {
         const referrer = await tx.get('SELECT email FROM user_referral_codes WHERE LOWER(referral_code) = ?', [referralCode.toLowerCase()]);
@@ -90,19 +275,16 @@ app.post('/api/auth/register', async (req, res) => {
         }
       }
 
-      // Insert user
       await tx.run(
-        'INSERT INTO users (email, username, password, balance, gamesPlayed, totalWon) VALUES (?, ?, ?, 1000.0, 0, 0.0)',
-        [email.toLowerCase(), username, password]
+        'INSERT INTO users (email, username, password, balance, gamesPlayed, totalWon, status, wallet_address) VALUES (?, ?, ?, 1000.0, 0, 0.0, "ACTIVE", ?)',
+        [email.toLowerCase(), username, password, walletAddress || null]
       );
 
-      // Save user referral code & connection
       await tx.run(
         'INSERT INTO user_referral_codes (email, referral_code, referred_by) VALUES (?, ?, ?)',
         [email.toLowerCase(), ownReferralCode, referrerEmail]
       );
 
-      // Create affiliate wallet
       await tx.run(
         'INSERT INTO user_affiliate_wallets (email, commission_balance, total_network_volume, current_rank) VALUES (?, 0.0, 0.0, "BRONZE")',
         [email.toLowerCase()]
@@ -116,7 +298,6 @@ app.post('/api/auth/register', async (req, res) => {
         );
       }
 
-      // Log Welcome Bonus
       const txId = generateTxId();
       await tx.run(
         'INSERT INTO transactions (id, email, type, amount, balanceAfter, timestamp) VALUES (?, ?, ?, 1000.0, 1000.0, ?)',
@@ -126,7 +307,29 @@ app.post('/api/auth/register', async (req, res) => {
       return { email: email.toLowerCase(), username, balance: 1000.0, gamesPlayed: 0, totalWon: 0.0, role: 'USER' };
     });
 
-    res.json({ success: true, user: result });
+    const ip = req.ip || req.headers['x-forwarded-for'] || '127.0.0.1';
+    const userAgent = req.headers['user-agent'] || 'Unknown';
+    
+    let mockGeo = null;
+    if (req.headers['x-mock-ip-country']) {
+      mockGeo = {
+        country: req.headers['x-mock-ip-country'],
+        city: req.headers['x-mock-ip-city'] || 'Unknown',
+        lat: parseFloat(req.headers['x-mock-ip-lat']),
+        lon: parseFloat(req.headers['x-mock-ip-lon'])
+      };
+    }
+
+    await logSessionAndCheckAlerts(result.email, ip, userAgent, deviceFingerprint || 'unknown-fingerprint', mockGeo);
+
+    const jti = crypto.randomUUID();
+    const token = jwt.sign(
+      { email: result.email, username: result.username, role: result.role, jti },
+      JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    res.json({ success: true, user: result, token });
   } catch (error) {
     console.error('Registration error:', error);
     res.status(400).json({ success: false, error: error.message || 'Registration failed.' });
@@ -202,6 +405,64 @@ const checkAndTriggerBounty = async (email, tx) => {
 
 const routeWagerCommission = async (refereeEmail, wagerAmount, gameType, tx) => {
   try {
+    // 1. Emit WAGER_PROCESSED for gamification workers
+    await pubsub.publish({
+      type: 'WAGER_PROCESSED',
+      email: refereeEmail.toLowerCase(),
+      wagerAmount,
+      gameType
+    });
+
+    // 2. Evaluate loss recovery bonus rules
+    const oneHourAgo = new Date(Date.now() - 3600000).toISOString();
+    
+    // Check if a recovery bonus was already dispatched in the last hour
+    const recentBonus = await tx.get(
+      "SELECT COUNT(*) as count FROM transactions WHERE LOWER(email) = ? AND type = 'RULE_BONUS_DISPATCH' AND timestamp >= ?",
+      [refereeEmail.toLowerCase(), oneHourAgo]
+    );
+
+    if (recentBonus && parseInt(recentBonus.count || 0, 10) === 0) {
+      // Calculate net loss in last hour
+      const lossRow = await tx.get(
+        "SELECT SUM(amount) as net FROM transactions WHERE LOWER(email) = ? AND timestamp >= ?",
+        [refereeEmail.toLowerCase(), oneHourAgo]
+      );
+      const netLoss = lossRow && lossRow.net ? parseFloat(lossRow.net) : 0.0;
+
+      // Net loss is overall negative balance changes in transactions
+      if (netLoss < 0 && Math.abs(netLoss) >= 500) {
+        // Fetch active HOURLY_LOSS rules
+        const activeRule = await tx.get(
+          "SELECT * FROM bonus_rules WHERE trigger_type = 'HOURLY_LOSS' AND active = 1 ORDER BY threshold DESC LIMIT 1"
+        );
+        if (activeRule && Math.abs(netLoss) >= activeRule.threshold) {
+          const reward = JSON.parse(activeRule.bonus_reward);
+          const user = await tx.get('SELECT balance FROM users WHERE LOWER(email) = ?', [refereeEmail.toLowerCase()]);
+          
+          if (user) {
+            let bonusAmount = 0;
+            if (reward.type === 'CASH') {
+              bonusAmount = parseFloat(reward.amount);
+            } else if (reward.type === 'FREE_DROPS') {
+              bonusAmount = parseFloat(reward.amount) * 1.5;
+            }
+            
+            const newBal = user.balance + bonusAmount;
+            await tx.run('UPDATE users SET balance = ? WHERE LOWER(email) = ?', [newBal, refereeEmail.toLowerCase()]);
+
+            const txId = generateTxId();
+            await tx.run(
+              "INSERT INTO transactions (id, email, type, amount, balanceAfter, timestamp) VALUES (?, ?, 'RULE_BONUS_DISPATCH', ?, ?, ?)",
+              [txId, refereeEmail.toLowerCase(), bonusAmount, newBal, new Date().toISOString()]
+            );
+
+            console.log(`[BONUS RULES] Dispatched bonus for ${refereeEmail}: $${bonusAmount} (Hourly net loss was: $${Math.abs(netLoss)})`);
+          }
+        }
+      }
+    }
+
     const referral = await tx.get('SELECT referred_by FROM user_referral_codes WHERE LOWER(email) = ?', [refereeEmail.toLowerCase()]);
     if (!referral || !referral.referred_by) return;
 
@@ -288,10 +549,9 @@ const routeWagerCommission = async (refereeEmail, wagerAmount, gameType, tx) => 
 
 // --- Affiliate Player APIs ---
 
-app.get('/api/affiliate/stats', async (req, res) => {
+app.get('/api/affiliate/stats', requireAuth, async (req, res) => {
   try {
-    const { email } = req.query;
-    if (!email) return res.status(400).json({ success: false, error: 'Email parameter required.' });
+    const email = req.user.email;
 
     let userRef = await db.get('SELECT referral_code FROM user_referral_codes WHERE LOWER(email) = ?', [email.toLowerCase()]);
     if (!userRef) {
@@ -329,10 +589,9 @@ app.get('/api/affiliate/stats', async (req, res) => {
   }
 });
 
-app.post('/api/affiliate/claim-commission', async (req, res) => {
+app.post('/api/affiliate/claim-commission', requireAuth, async (req, res) => {
   try {
-    const { email } = req.body;
-    if (!email) return res.status(400).json({ success: false, error: 'Email parameter required.' });
+    const email = req.user.email;
 
     const result = await db.executeTransaction(async (tx) => {
       const wallet = await tx.get('SELECT commission_balance FROM user_affiliate_wallets WHERE LOWER(email) = ?', [email.toLowerCase()]);
@@ -589,14 +848,10 @@ app.get('/api/plinko/history', async (req, res) => {
 });
 
 // --- Wallet & Balance Info ---
-app.get('/api/user/wallet', async (req, res) => {
+app.get('/api/user/wallet', requireAuth, async (req, res) => {
   try {
-    const { email } = req.query;
-    if (!email) {
-      return res.status(400).json({ success: false, error: 'User email is required.' });
-    }
-
-    const user = await db.get('SELECT balance FROM users WHERE LOWER(email) = ?', [email.toLowerCase()]);
+    const email = req.user.email;
+    const user = await db.get('SELECT balance, wallet_address FROM users WHERE LOWER(email) = ?', [email.toLowerCase()]);
     if (!user) {
       return res.status(404).json({ success: false, error: 'User not found.' });
     }
@@ -606,9 +861,42 @@ app.get('/api/user/wallet', async (req, res) => {
       [email.toLowerCase()]
     );
 
-    res.json({ success: true, balance: user.balance, transactions });
+    res.json({ success: true, balance: user.balance, walletAddress: user.wallet_address, transactions });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Internal Server Error' });
+  }
+});
+
+app.post('/api/user/wallet-address', requireAuth, async (req, res) => {
+  try {
+    const { walletAddress } = req.body;
+    const email = req.user.email;
+    if (!walletAddress) {
+      return res.status(400).json({ success: false, error: 'Wallet address is required.' });
+    }
+
+    await db.run('UPDATE users SET wallet_address = ? WHERE LOWER(email) = ?', [walletAddress, email.toLowerCase()]);
+
+    const duplicate = await db.all(
+      'SELECT LOWER(email) as email FROM users WHERE wallet_address = ? AND LOWER(email) != ?',
+      [walletAddress, email.toLowerCase()]
+    );
+
+    if (duplicate.length > 0) {
+      const matchEmails = duplicate.map(d => d.email).join(', ');
+      await db.run(
+        'INSERT INTO security_alerts (email, alert_type, severity, details, resolved, created_at) VALUES (?, "MULTI_ACCOUNT", "MEDIUM", ?, 0, ?)',
+        [
+          email.toLowerCase(),
+          `Shared withdrawal wallet address matched with: ${matchEmails}`,
+          new Date().toISOString()
+        ]
+      );
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
   }
 });
 
@@ -1807,11 +2095,12 @@ app.get('/api/dice/tournaments', async (req, res) => {
   }
 });
 
-app.post('/api/dice/tournament/join', async (req, res) => {
+app.post('/api/dice/tournament/join', requireAuth, async (req, res) => {
   try {
-    const { email, tournamentId } = req.body;
+    const { tournamentId } = req.body;
+    const email = req.user.email;
     const tourneyIdInt = parseInt(tournamentId, 10);
-    if (!email || isNaN(tourneyIdInt)) {
+    if (isNaN(tourneyIdInt)) {
       return res.status(400).json({ success: false, error: 'Invalid details.' });
     }
 
@@ -1857,11 +2146,12 @@ app.post('/api/dice/tournament/join', async (req, res) => {
   }
 });
 
-app.post('/api/dice/tournament/roll', async (req, res) => {
+app.post('/api/dice/tournament/roll', requireAuth, async (req, res) => {
   try {
-    const { email, tournamentId } = req.body;
+    const { tournamentId } = req.body;
+    const email = req.user.email;
     const tourneyIdInt = parseInt(tournamentId, 10);
-    if (!email || isNaN(tourneyIdInt)) {
+    if (isNaN(tourneyIdInt)) {
       return res.status(400).json({ success: false, error: 'Invalid details.' });
     }
 
@@ -1910,11 +2200,12 @@ app.post('/api/dice/tournament/roll', async (req, res) => {
   }
 });
 
-app.post('/api/dice/tournament/buy-rolls', async (req, res) => {
+app.post('/api/dice/tournament/buy-rolls', requireAuth, async (req, res) => {
   try {
-    const { email, tournamentId } = req.body;
+    const { tournamentId } = req.body;
+    const email = req.user.email;
     const tourneyIdInt = parseInt(tournamentId, 10);
-    if (!email || isNaN(tourneyIdInt)) {
+    if (isNaN(tourneyIdInt)) {
       return res.status(400).json({ success: false, error: 'Invalid details.' });
     }
 

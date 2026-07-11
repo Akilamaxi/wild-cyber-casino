@@ -30,9 +30,15 @@ function AuthModal({ isOpen, onClose, initialTab, onAuthSuccess }) {
       ? `${API_BASE}/api/auth/login` 
       : `${API_BASE}/api/auth/register`;
       
+    let fingerprint = localStorage.getItem('casino_device_fingerprint');
+    if (!fingerprint) {
+      fingerprint = 'FP-' + Math.random().toString(36).substring(2, 15).toUpperCase();
+      localStorage.setItem('casino_device_fingerprint', fingerprint);
+    }
+
     const payload = activeTab === 'login' 
-      ? { email, password } 
-      : { username, email, password, referralCode };
+      ? { email, password, deviceFingerprint: fingerprint } 
+      : { username, email, password, referralCode, deviceFingerprint: fingerprint };
 
     try {
       const response = await fetch(url, {
@@ -48,7 +54,7 @@ function AuthModal({ isOpen, onClose, initialTab, onAuthSuccess }) {
       }
 
       // Success
-      onAuthSuccess(data.user);
+      onAuthSuccess(data.user, data.token);
       onClose();
     } catch (err) {
       console.error('Auth Error:', err);

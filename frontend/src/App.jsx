@@ -44,15 +44,19 @@ function App() {
     }
   }, []);
 
-  const handleAuthSuccess = (user) => {
+  const handleAuthSuccess = (user, token) => {
     setCurrentUser(user);
     localStorage.setItem('casino_session', JSON.stringify(user));
-    setCurrentView('landing'); // Go to landing first
+    if (token) {
+      localStorage.setItem('casino_token', token);
+    }
+    setCurrentView('landing');
   };
 
   const handleLogout = () => {
     setCurrentUser(null);
     localStorage.removeItem('casino_session');
+    localStorage.removeItem('casino_token');
     setCurrentView('landing');
   };
 

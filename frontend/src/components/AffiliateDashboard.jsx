@@ -18,7 +18,9 @@ export default function AffiliateDashboard({ userSession, onWalletUpdate }) {
   const fetchStats = async () => {
     try {
       setLoading(true);
-      const res = await fetch(`/api/affiliate/stats?email=${encodeURIComponent(userSession.email)}`);
+      const res = await fetch(`/api/affiliate/stats?email=${encodeURIComponent(userSession.email)}`, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('casino_token')}` }
+      });
       const data = await res.json();
       if (data.success) {
         setStats(data);
@@ -58,7 +60,10 @@ export default function AffiliateDashboard({ userSession, onWalletUpdate }) {
 
       const res = await fetch('/api/affiliate/claim-commission', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('casino_token')}`
+        },
         body: JSON.stringify({ email: userSession.email })
       });
       const data = await res.json();

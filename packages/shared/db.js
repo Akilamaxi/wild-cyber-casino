@@ -632,6 +632,79 @@ const initDatabase = async () => {
       }
     }
 
+    // --- Security & Risk Management tables (Postgres) ---
+    try {
+      await run(`ALTER TABLE users ADD COLUMN status VARCHAR(50) DEFAULT 'ACTIVE'`);
+    } catch (e) {}
+    try {
+      await run(`ALTER TABLE users ADD COLUMN wallet_address VARCHAR(255)`);
+    } catch (e) {}
+
+    await run(`
+      CREATE TABLE IF NOT EXISTS user_session_logs (
+        id SERIAL PRIMARY KEY,
+        email VARCHAR(255) NOT NULL,
+        ip_address VARCHAR(100) NOT NULL,
+        user_agent VARCHAR(500) NOT NULL,
+        device_fingerprint VARCHAR(255) NOT NULL,
+        country VARCHAR(100),
+        city VARCHAR(100),
+        latitude DOUBLE PRECISION,
+        longitude DOUBLE PRECISION,
+        created_at VARCHAR(100) NOT NULL
+      )
+    `);
+
+    await run(`
+      CREATE TABLE IF NOT EXISTS security_alerts (
+        id SERIAL PRIMARY KEY,
+        email VARCHAR(255) NOT NULL,
+        alert_type VARCHAR(100) NOT NULL,
+        severity VARCHAR(50) NOT NULL,
+        details TEXT NOT NULL,
+        resolved INTEGER DEFAULT 0,
+        created_at VARCHAR(100) NOT NULL
+      )
+    `);
+
+    await run(`
+      CREATE TABLE IF NOT EXISTS user_tags (
+        email VARCHAR(255) NOT NULL,
+        tag VARCHAR(100) NOT NULL,
+        PRIMARY KEY (email, tag)
+      )
+    `);
+
+    await run(`
+      CREATE TABLE IF NOT EXISTS bonus_rules (
+        id SERIAL PRIMARY KEY,
+        rule_name VARCHAR(255) NOT NULL,
+        trigger_type VARCHAR(100) NOT NULL,
+        threshold DOUBLE PRECISION NOT NULL,
+        bonus_reward TEXT NOT NULL,
+        active INTEGER DEFAULT 1
+      )
+    `);
+
+    await run(`
+      CREATE TABLE IF NOT EXISTS admin_audit_trail (
+        id SERIAL PRIMARY KEY,
+        admin_email VARCHAR(255) NOT NULL,
+        action VARCHAR(100) NOT NULL,
+        target_email VARCHAR(255),
+        details TEXT NOT NULL,
+        created_at VARCHAR(100) NOT NULL
+      )
+    `);
+
+    const rulesCount = await get('SELECT COUNT(*) as count FROM bonus_rules');
+    if (parseInt(rulesCount.count, 10) === 0) {
+      await run(`
+        INSERT INTO bonus_rules (rule_name, trigger_type, threshold, bonus_reward, active)
+        VALUES ($1, $2, $3, $4, $5)
+      `, ['Hourly Loss Rebate', 'HOURLY_LOSS', 500.0, JSON.stringify({ type: 'FREE_DROPS', amount: 10 }), 1]);
+    }
+
     console.log('[DB] PostgreSQL migrations completed successfully.');
   } else {
     // Original SQLite migrations
@@ -1056,6 +1129,79 @@ const initDatabase = async () => {
           INSERT INTO affiliate_config (key, value) VALUES (?, ?)
         `, [cfg.key, cfg.value]);
       }
+    }
+
+    // --- Security & Risk Management tables (SQLite) ---
+    try {
+      await run(`ALTER TABLE users ADD COLUMN status TEXT DEFAULT 'ACTIVE'`);
+    } catch (e) {}
+    try {
+      await run(`ALTER TABLE users ADD COLUMN wallet_address TEXT`);
+    } catch (e) {}
+
+    await run(`
+      CREATE TABLE IF NOT EXISTS user_session_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        email TEXT NOT NULL,
+        ip_address TEXT NOT NULL,
+        user_agent TEXT NOT NULL,
+        device_fingerprint TEXT NOT NULL,
+        country TEXT,
+        city TEXT,
+        latitude REAL,
+        longitude REAL,
+        created_at TEXT NOT NULL
+      )
+    `);
+
+    await run(`
+      CREATE TABLE IF NOT EXISTS security_alerts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        email TEXT NOT NULL,
+        alert_type TEXT NOT NULL,
+        severity TEXT NOT NULL,
+        details TEXT NOT NULL,
+        resolved INTEGER DEFAULT 0,
+        created_at TEXT NOT NULL
+      )
+    `);
+
+    await run(`
+      CREATE TABLE IF NOT EXISTS user_tags (
+        email TEXT NOT NULL,
+        tag TEXT NOT NULL,
+        PRIMARY KEY (email, tag)
+      )
+    `);
+
+    await run(`
+      CREATE TABLE IF NOT EXISTS bonus_rules (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        rule_name TEXT NOT NULL,
+        trigger_type TEXT NOT NULL,
+        threshold REAL NOT NULL,
+        bonus_reward TEXT NOT NULL,
+        active INTEGER DEFAULT 1
+      )
+    `);
+
+    await run(`
+      CREATE TABLE IF NOT EXISTS admin_audit_trail (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        admin_email TEXT NOT NULL,
+        action TEXT NOT NULL,
+        target_email TEXT,
+        details TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      )
+    `);
+
+    const rulesCount = await get('SELECT COUNT(*) as count FROM bonus_rules');
+    if (rulesCount.count === 0) {
+      await run(`
+        INSERT INTO bonus_rules (rule_name, trigger_type, threshold, bonus_reward, active)
+        VALUES (?, ?, ?, ?, ?)
+      `, ['Hourly Loss Rebate', 'HOURLY_LOSS', 500.0, JSON.stringify({ type: 'FREE_DROPS', amount: 10 }), 1]);
     }
 
     console.log('[DB] SQLite migrations completed successfully.');

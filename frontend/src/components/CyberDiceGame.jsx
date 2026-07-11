@@ -202,7 +202,10 @@ function CyberDiceGame({ currentUser, onBalanceUpdate }) {
     try {
       const res = await fetch(`${API_BASE}/api/dice/tournament/join`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('casino_token')}`
+        },
         body: JSON.stringify({ email: currentUser.email, tournamentId: activeTourney.id })
       });
       const data = await res.json();
@@ -243,7 +246,10 @@ function CyberDiceGame({ currentUser, onBalanceUpdate }) {
     try {
       const res = await fetch(`${API_BASE}/api/dice/tournament/roll`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('casino_token')}`
+        },
         body: JSON.stringify({ email: currentUser.email, tournamentId: activeTourney.id })
       });
       const data = await res.json();
@@ -273,7 +279,10 @@ function CyberDiceGame({ currentUser, onBalanceUpdate }) {
     try {
       const res = await fetch(`${API_BASE}/api/dice/tournament/buy-rolls`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('casino_token')}`
+        },
         body: JSON.stringify({ email: currentUser.email, tournamentId: activeTourney.id })
       });
       const data = await res.json();

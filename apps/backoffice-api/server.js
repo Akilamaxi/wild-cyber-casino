@@ -441,21 +441,210 @@ app.get('/api/admin/audit-verify/:drawId', async (req, res) => {
   }
 });
 
-// 3. Stats Summary (For Admin Panel UI info)
-app.get('/api/admin/stats', async (req, res) => {
+// --- Security & Risk Management endpoints ---
+
+// Get active alerts
+app.get('/api/admin/security/alerts', async (req, res) => {
   try {
-    const totalUsers = await db.get('SELECT COUNT(*) as count FROM users');
-    const totalWinnings = await db.get('SELECT SUM(amount) as sum FROM transactions WHERE type = "LOTTERY_WINOUT"');
-    const activeKillSwitch = await db.get("SELECT value FROM game_settings WHERE key = 'kill_switch_active'");
+    const alerts = await db.all('SELECT * FROM security_alerts ORDER BY created_at DESC LIMIT 100');
+    res.json({ success: true, alerts });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Internal Server Error' });
+  }
+});
+
+// Resolve security alert
+app.post('/api/admin/security/alerts/:id/resolve', async (req, res) => {
+  try {
+    const alertId = parseInt(req.params.id, 10);
+    const { adminEmail } = req.body;
+    await db.run('UPDATE security_alerts SET resolved = 1 WHERE id = ?', [alertId]);
+    
+    // Log audit trail
+    await db.run(
+      'INSERT INTO admin_audit_trail (admin_email, action, details, created_at) VALUES (?, "RESOLVE_ALERT", ?, ?)',
+      [adminEmail || 'admin@test.com', `Resolved security alert ID: ${alertId}`, new Date().toISOString()]
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Internal Server Error' });
+  }
+});
+
+// Freeze / Unfreeze user account
+app.post('/api/admin/users/:email/status', async (req, res) => {
+  try {
+    const { status, adminEmail } = req.body;
+    const { email } = req.params;
+    if (!['ACTIVE', 'FROZEN', 'BANNED'].includes(status)) {
+      return res.status(400).json({ success: false, error: 'Invalid status value.' });
+    }
+
+    await db.run('UPDATE users SET status = ? WHERE LOWER(email) = ?', [status, email.toLowerCase()]);
+
+    if (status === 'FROZEN' || status === 'BANNED') {
+      // Invalidate all active sessions across cluster
+      if (pubsub.isRedisConnected && pubsub.redisPublisher) {
+        await pubsub.redisPublisher.set(`blacklist:${email.toLowerCase()}`, 'true', 'EX', 86400);
+      }
+    } else {
+      // Remove from blacklist
+      if (pubsub.isRedisConnected && pubsub.redisPublisher) {
+        await pubsub.redisPublisher.del(`blacklist:${email.toLowerCase()}`);
+      }
+    }
+
+    // Log audit trail
+    await db.run(
+      'INSERT INTO admin_audit_trail (admin_email, action, target_email, details, created_at) VALUES (?, "UPDATE_USER_STATUS", ?, ?, ?)',
+      [adminEmail || 'admin@test.com', email.toLowerCase(), `Updated status to: ${status}`, new Date().toISOString()]
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Internal Server Error' });
+  }
+});
+
+// Custom user tags
+app.get('/api/admin/users/:email/tags', async (req, res) => {
+  try {
+    const { email } = req.params;
+    const tags = await db.all('SELECT tag FROM user_tags WHERE LOWER(email) = ?', [email.toLowerCase()]);
+    res.json({ success: true, tags: tags.map(t => t.tag) });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Internal Server Error' });
+  }
+});
+
+app.post('/api/admin/users/:email/tags', async (req, res) => {
+  try {
+    const { email } = req.params;
+    const { tags, adminEmail } = req.body; // Array of tags
+    if (!Array.isArray(tags)) {
+      return res.status(400).json({ success: false, error: 'Tags must be an array.' });
+    }
+
+    await db.run('DELETE FROM user_tags WHERE LOWER(email) = ?', [email.toLowerCase()]);
+    for (const tag of tags) {
+      await db.run('INSERT INTO user_tags (email, tag) VALUES (?, ?)', [email.toLowerCase(), tag]);
+    }
+
+    // Log audit trail
+    await db.run(
+      'INSERT INTO admin_audit_trail (admin_email, action, target_email, details, created_at) VALUES (?, "UPDATE_USER_TAGS", ?, ?, ?)',
+      [adminEmail || 'admin@test.com', email.toLowerCase(), `Updated tags to: ${tags.join(', ')}`, new Date().toISOString()]
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Internal Server Error' });
+  }
+});
+
+// Rules Builder
+app.get('/api/admin/bonus-rules', async (req, res) => {
+  try {
+    const rules = await db.all('SELECT * FROM bonus_rules ORDER BY id DESC');
+    res.json({ success: true, rules });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Internal Server Error' });
+  }
+});
+
+app.post('/api/admin/bonus-rules', async (req, res) => {
+  try {
+    const { ruleName, triggerType, threshold, rewardType, rewardAmount, adminEmail } = req.body;
+    const thresh = parseFloat(threshold);
+    const amt = parseFloat(rewardAmount);
+    if (!ruleName || !triggerType || isNaN(thresh) || !rewardType || isNaN(amt)) {
+      return res.status(400).json({ success: false, error: 'Invalid trigger details.' });
+    }
+
+    const reward = JSON.stringify({ type: rewardType, amount: amt });
+
+    await db.run(
+      'INSERT INTO bonus_rules (rule_name, trigger_type, threshold, bonus_reward, active) VALUES (?, ?, ?, ?, 1)',
+      [ruleName, triggerType, thresh, reward]
+    );
+
+    // Log audit trail
+    await db.run(
+      'INSERT INTO admin_audit_trail (admin_email, action, details, created_at) VALUES (?, "CREATE_BONUS_RULE", ?, ?)',
+      [adminEmail || 'admin@test.com', `Created bonus rule: ${ruleName} (Threshold: ${thresh}, Reward: ${rewardType} ${amt})`, new Date().toISOString()]
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Internal Server Error' });
+  }
+});
+
+app.post('/api/admin/bonus-rules/:id/toggle', async (req, res) => {
+  try {
+    const ruleId = parseInt(req.params.id, 10);
+    const { active, adminEmail } = req.body;
+    await db.run('UPDATE bonus_rules SET active = ? WHERE id = ?', [active ? 1 : 0, ruleId]);
+
+    // Log audit trail
+    await db.run(
+      'INSERT INTO admin_audit_trail (admin_email, action, details, created_at) VALUES (?, "TOGGLE_BONUS_RULE", ?, ?)',
+      [adminEmail || 'admin@test.com', `Toggled rule ID: ${ruleId} to active=${active}`, new Date().toISOString()]
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Internal Server Error' });
+  }
+});
+
+// 360-Degree Player view
+app.get('/api/admin/users/:email/360-view', async (req, res) => {
+  try {
+    const { email } = req.params;
+    const user = await db.get('SELECT email, username, balance, gamesPlayed, totalWon, role, status, wallet_address FROM users WHERE LOWER(email) = ?', [email.toLowerCase()]);
+    if (!user) {
+      return res.status(404).json({ success: false, error: 'User not found.' });
+    }
+
+    const tags = await db.all('SELECT tag FROM user_tags WHERE LOWER(email) = ?', [email.toLowerCase()]);
+    const sessions = await db.all('SELECT ip_address, user_agent, country, city, created_at FROM user_session_logs WHERE LOWER(email) = ? ORDER BY created_at DESC LIMIT 10', [email.toLowerCase()]);
+    const transactions = await db.all('SELECT id, type, amount, balanceAfter, timestamp FROM transactions WHERE LOWER(email) = ? ORDER BY timestamp DESC LIMIT 20', [email.toLowerCase()]);
+    const alerts = await db.all('SELECT id, alert_type, severity, details, resolved, created_at FROM security_alerts WHERE LOWER(email) = ? ORDER BY created_at DESC', [email.toLowerCase()]);
 
     res.json({
       success: true,
-      stats: {
-        usersCount: totalUsers.count,
-        totalPayouts: totalWinnings.sum || 0,
-        killSwitchActive: activeKillSwitch ? activeKillSwitch.value === 'true' : false
+      user: {
+        ...user,
+        tags: tags.map(t => t.tag),
+        sessions,
+        transactions,
+        alerts
       }
     });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Internal Server Error' });
+  }
+});
+
+// Raw game logs
+app.get('/api/admin/game-logs', async (req, res) => {
+  try {
+    const plinko = await db.all('SELECT id, email, risk, bucket, payout, hash, multiplier, timestamp FROM plinko_drops ORDER BY id DESC LIMIT 50');
+    const dice = await db.all('SELECT id, name, status, created_at, ends_at FROM dice_tournaments ORDER BY id DESC LIMIT 50');
+    const crash = await db.all('SELECT id, crash_point, status, created_at FROM crash_games ORDER BY id DESC LIMIT 50');
+    res.json({ success: true, plinko, dice, crash });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Internal Server Error' });
+  }
+});
+
+// Admin Audit Trail logs
+app.get('/api/admin/audit-logs', async (req, res) => {
+  try {
+    const logs = await db.all('SELECT * FROM admin_audit_trail ORDER BY created_at DESC LIMIT 100');
+    res.json({ success: true, logs });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Internal Server Error' });
   }
