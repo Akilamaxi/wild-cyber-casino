@@ -66,7 +66,7 @@ app.post('/api/auth/login', async (req, res) => {
 
 app.post('/api/auth/register', async (req, res) => {
   try {
-    const { username, email, password } = req.body;
+    const { username, email, password, referralCode } = req.body;
     if (!username || !email || !password) {
       return res.status(400).json({ success: false, error: 'All registration fields are required.' });
     }
@@ -78,11 +78,43 @@ app.post('/api/auth/register', async (req, res) => {
         throw new Error('Email address is already registered.');
       }
 
+      // Generate own unique referral code
+      const ownReferralCode = 'REF-' + crypto.randomBytes(3).toString('hex').toUpperCase();
+
+      // Check optional referral code
+      let referrerEmail = null;
+      if (referralCode) {
+        const referrer = await tx.get('SELECT email FROM user_referral_codes WHERE LOWER(referral_code) = ?', [referralCode.toLowerCase()]);
+        if (referrer) {
+          referrerEmail = referrer.email;
+        }
+      }
+
       // Insert user
       await tx.run(
         'INSERT INTO users (email, username, password, balance, gamesPlayed, totalWon) VALUES (?, ?, ?, 1000.0, 0, 0.0)',
         [email.toLowerCase(), username, password]
       );
+
+      // Save user referral code & connection
+      await tx.run(
+        'INSERT INTO user_referral_codes (email, referral_code, referred_by) VALUES (?, ?, ?)',
+        [email.toLowerCase(), ownReferralCode, referrerEmail]
+      );
+
+      // Create affiliate wallet
+      await tx.run(
+        'INSERT INTO user_affiliate_wallets (email, commission_balance, total_network_volume, current_rank) VALUES (?, 0.0, 0.0, "BRONZE")',
+        [email.toLowerCase()]
+      );
+
+      if (referrerEmail) {
+        const referralId = 'REF-' + crypto.randomBytes(4).toString('hex').toUpperCase();
+        await tx.run(
+          'INSERT INTO referrals (id, referrer_email, referee_email, status, created_at) VALUES (?, ?, ?, "PENDING", ?)',
+          [referralId, referrerEmail, email.toLowerCase(), new Date().toISOString()]
+        );
+      }
 
       // Log Welcome Bonus
       const txId = generateTxId();
@@ -98,6 +130,235 @@ app.post('/api/auth/register', async (req, res) => {
   } catch (error) {
     console.error('Registration error:', error);
     res.status(400).json({ success: false, error: error.message || 'Registration failed.' });
+  }
+});
+
+// --- Referral & Affiliate Helpers ---
+
+const checkAndTriggerBounty = async (email, tx) => {
+  try {
+    const referral = await tx.get(
+      'SELECT id, referrer_email, referee_email, status FROM referrals WHERE LOWER(referee_email) = ? AND status = "PENDING"',
+      [email.toLowerCase()]
+    );
+    if (!referral) return;
+
+    const configs = await tx.all('SELECT * FROM affiliate_config');
+    const configMap = {};
+    configs.forEach(c => configMap[c.key] = c.value);
+
+    const minDeposit = parseFloat(configMap.min_deposit_threshold) || 15;
+    const minWager = parseFloat(configMap.min_wager_threshold) || 50;
+    const referrerBounty = parseFloat(configMap.bounty_referrer_amount) || 10;
+    const refereeBounty = 10.0;
+
+    const depositSum = await tx.get(
+      "SELECT SUM(amount) as total FROM transactions WHERE LOWER(email) = ? AND type = 'DEPOSIT'",
+      [email.toLowerCase()]
+    );
+    const totalDeposits = depositSum ? parseFloat(depositSum.total || 0) : 0;
+
+    const wagerSum = await tx.get(
+      "SELECT ABS(SUM(amount)) as total FROM transactions WHERE LOWER(email) = ? AND type IN ('DICE_PLAY', 'SLOTS_PLAY', 'CRASH_PLAY', 'PLINKO_DROP', 'LOTTERY_PLAY')",
+      [email.toLowerCase()]
+    );
+    const totalWagers = wagerSum ? parseFloat(wagerSum.total || 0) : 0;
+    if (totalDeposits >= minDeposit || totalWagers >= minWager) {
+      await tx.run(
+        'UPDATE referrals SET status = "BOUNTY_CLAIMED", bounty_claimed_at = ? WHERE id = ?',
+        [new Date().toISOString(), referral.id]
+      );
+
+      const referrerUser = await tx.get('SELECT balance FROM users WHERE LOWER(email) = ?', [referral.referrer_email.toLowerCase()]);
+      if (referrerUser) {
+        const newReferrerBalance = referrerUser.balance + referrerBounty;
+        await tx.run('UPDATE users SET balance = ? WHERE LOWER(email) = ?', [newReferrerBalance, referral.referrer_email.toLowerCase()]);
+
+        const referrerTxId = generateTxId();
+        await tx.run(
+          'INSERT INTO transactions (id, email, type, amount, balanceAfter, timestamp) VALUES (?, ?, "REFERRAL_BOUNTY", ?, ?, ?)',
+          [referrerTxId, referral.referrer_email.toLowerCase(), referrerBounty, newReferrerBalance, new Date().toISOString()]
+        );
+      }
+
+      const refereeUser = await tx.get('SELECT balance FROM users WHERE LOWER(email) = ?', [email.toLowerCase()]);
+      if (refereeUser) {
+        const newRefereeBalance = refereeUser.balance + refereeBounty;
+        await tx.run('UPDATE users SET balance = ? WHERE LOWER(email) = ?', [newRefereeBalance, email.toLowerCase()]);
+
+        const refereeTxId = generateTxId();
+        await tx.run(
+          'INSERT INTO transactions (id, email, type, amount, balanceAfter, timestamp) VALUES (?, ?, "REFEREE_WELCOME_BONUS", ?, ?, ?)',
+          [refereeTxId, email.toLowerCase(), refereeBounty, newRefereeBalance, new Date().toISOString()]
+        );
+      }
+
+      console.log(`[AFFILIATE ENGINE] Two-sided Bounty qualified and paid out for Referee: ${email} -> Referrer: ${referral.referrer_email}`);
+    }
+  } catch (err) {
+    console.error('Error triggering bounty:', err);
+  }
+};
+
+const routeWagerCommission = async (refereeEmail, wagerAmount, gameType, tx) => {
+  try {
+    const referral = await tx.get('SELECT referred_by FROM user_referral_codes WHERE LOWER(email) = ?', [refereeEmail.toLowerCase()]);
+    if (!referral || !referral.referred_by) return;
+
+    const referrerEmail = referral.referred_by;
+
+    const configs = await tx.all('SELECT * FROM affiliate_config');
+    const configMap = {};
+    configs.forEach(c => configMap[c.key] = c.value);
+
+    const wagerCommissionEnabled = configMap.wager_commission_enabled === 'true';
+
+    let houseEdge = 0.05; 
+    if (gameType === 'CRASH') {
+      const crashHouseEdge = await tx.get("SELECT value FROM crash_config WHERE key = 'house_edge'");
+      houseEdge = crashHouseEdge ? parseFloat(crashHouseEdge.value) : 0.01;
+    } else if (gameType === 'DICE') {
+      houseEdge = 0.023;
+    } else if (gameType === 'SLOTS') {
+      const slotsHouseEdge = await tx.get("SELECT value FROM slots_config WHERE key = 'target_rtp'");
+      houseEdge = slotsHouseEdge ? (1.0 - parseFloat(slotsHouseEdge.value)) : 0.10;
+    } else if (gameType === 'PLINKO') {
+      const plinkoHouseEdge = await tx.get("SELECT value FROM plinko_config WHERE key = 'house_edge'");
+      houseEdge = plinkoHouseEdge ? parseFloat(plinkoHouseEdge.value) : 0.05;
+    }
+
+    const referrerWallet = await tx.get('SELECT total_network_volume, commission_balance FROM user_affiliate_wallets WHERE LOWER(email) = ?', [referrerEmail.toLowerCase()]);
+    if (!referrerWallet) return;
+
+    let rankMultiplier = 0.05;
+    const currentVol = referrerWallet.total_network_volume;
+
+    const bronzeMult = parseFloat(configMap.rank_bronze_multiplier) || 0.05;
+    const silverMult = parseFloat(configMap.rank_silver_multiplier) || 0.10;
+    const goldMult = parseFloat(configMap.rank_gold_multiplier) || 0.15;
+    const diamondMult = parseFloat(configMap.rank_diamond_multiplier) || 0.25;
+
+    const silverVol = parseFloat(configMap.rank_silver_volume) || 1000;
+    const goldVol = parseFloat(configMap.rank_gold_volume) || 10000;
+    const diamondVol = parseFloat(configMap.rank_diamond_volume) || 100000;
+
+    let currentRank = 'BRONZE';
+    if (currentVol >= diamondVol) {
+      rankMultiplier = diamondMult;
+      currentRank = 'DIAMOND';
+    } else if (currentVol >= goldVol) {
+      rankMultiplier = goldMult;
+      currentRank = 'GOLD';
+    } else if (currentVol >= silverVol) {
+      rankMultiplier = silverMult;
+      currentRank = 'SILVER';
+    } else {
+      rankMultiplier = bronzeMult;
+      currentRank = 'BRONZE';
+    }
+
+    const potentialCommission = wagerAmount * houseEdge * rankMultiplier;
+
+    if (!wagerCommissionEnabled) {
+      await tx.run(
+        'INSERT INTO shadow_commission_logs (referee_email, referrer_email, wager_amount, potential_commission, timestamp) VALUES (?, ?, ?, ?, ?)',
+        [refereeEmail.toLowerCase(), referrerEmail.toLowerCase(), wagerAmount, potentialCommission, new Date().toISOString()]
+      );
+      console.log(`[AFFILIATE SHADOW MODE] Logged potential commission for ${referrerEmail}: $${potentialCommission}`);
+    } else {
+      const newCommissionBalance = referrerWallet.commission_balance + potentialCommission;
+      const newNetworkVolume = currentVol + wagerAmount;
+
+      let nextRank = 'BRONZE';
+      if (newNetworkVolume >= diamondVol) nextRank = 'DIAMOND';
+      else if (newNetworkVolume >= goldVol) nextRank = 'GOLD';
+      else if (newNetworkVolume >= silverVol) nextRank = 'SILVER';
+
+      await tx.run(
+        'UPDATE user_affiliate_wallets SET commission_balance = ?, total_network_volume = ?, current_rank = ? WHERE LOWER(email) = ?',
+        [newCommissionBalance, newNetworkVolume, nextRank, referrerEmail.toLowerCase()]
+      );
+
+      console.log(`[AFFILIATE ACTIVE MODE] Commission paid to ${referrerEmail}: $${potentialCommission} (Rank: ${nextRank})`);
+    }
+  } catch (err) {
+    console.error('Error routing commission:', err);
+  }
+};
+
+// --- Affiliate Player APIs ---
+
+app.get('/api/affiliate/stats', async (req, res) => {
+  try {
+    const { email } = req.query;
+    if (!email) return res.status(400).json({ success: false, error: 'Email parameter required.' });
+
+    let userRef = await db.get('SELECT referral_code FROM user_referral_codes WHERE LOWER(email) = ?', [email.toLowerCase()]);
+    if (!userRef) {
+      // Lazily sign up user for affiliate program if they don't have a profile yet
+      const ownReferralCode = 'REF-' + crypto.randomBytes(3).toString('hex').toUpperCase();
+      await db.executeTransaction(async (tx) => {
+        const innerRef = await tx.get('SELECT referral_code FROM user_referral_codes WHERE LOWER(email) = ?', [email.toLowerCase()]);
+        if (!innerRef) {
+          await tx.run(
+            'INSERT INTO user_referral_codes (email, referral_code, referred_by) VALUES (?, ?, NULL)',
+            [email.toLowerCase(), ownReferralCode]
+          );
+          await tx.run(
+            'INSERT INTO user_affiliate_wallets (email, commission_balance, total_network_volume, current_rank) VALUES (?, 0.0, 0.0, "BRONZE")',
+            [email.toLowerCase()]
+          );
+        }
+      });
+      userRef = await db.get('SELECT referral_code FROM user_referral_codes WHERE LOWER(email) = ?', [email.toLowerCase()]);
+    }
+
+    const wallet = await db.get('SELECT * FROM user_affiliate_wallets WHERE LOWER(email) = ?', [email.toLowerCase()]);
+    const referrals = await db.all('SELECT referee_email, status, created_at FROM referrals WHERE LOWER(referrer_email) = ?', [email.toLowerCase()]);
+
+    res.json({
+      success: true,
+      referralCode: userRef ? userRef.referral_code : '',
+      commissionBalance: wallet ? wallet.commission_balance : 0.0,
+      totalNetworkVolume: wallet ? wallet.total_network_volume : 0.0,
+      currentRank: wallet ? wallet.current_rank : 'BRONZE',
+      referrals
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/affiliate/claim-commission', async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ success: false, error: 'Email parameter required.' });
+
+    const result = await db.executeTransaction(async (tx) => {
+      const wallet = await tx.get('SELECT commission_balance FROM user_affiliate_wallets WHERE LOWER(email) = ?', [email.toLowerCase()]);
+      if (!wallet || wallet.commission_balance <= 0) {
+        throw new Error('No commission earnings available to claim.');
+      }
+
+      const claimAmount = wallet.commission_balance;
+      const user = await tx.get('SELECT balance FROM users WHERE LOWER(email) = ?', [email.toLowerCase()]);
+      const newBalance = user.balance + claimAmount;
+
+      await tx.run('UPDATE users SET balance = ? WHERE LOWER(email) = ?', [newBalance, email.toLowerCase()]);
+      await tx.run('UPDATE user_affiliate_wallets SET commission_balance = 0.0 WHERE LOWER(email) = ?', [email.toLowerCase()]);
+
+      const txId = generateTxId();
+      await tx.run(
+        'INSERT INTO transactions (id, email, type, amount, balanceAfter, timestamp) VALUES (?, ?, "AFFILIATE_CLAIM", ?, ?, ?)',
+        [txId, email.toLowerCase(), claimAmount, newBalance, new Date().toISOString()]
+      );
+
+      return { newBalance, claimed: claimAmount };
+    });
+
+    res.json({ success: true, ...result });
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message });
   }
 });
 
@@ -284,6 +545,10 @@ app.post('/api/plinko/drop', async (req, res) => {
         [email.toLowerCase(), wager, rowCount, risk, JSON.stringify(dropPath), destinationBin, multiplier, payout, serverSeed, clientSeed, nonce, new Date().toISOString()]
       );
 
+      // Route wager commission & trigger bounty check
+      await routeWagerCommission(email, wager, 'PLINKO', tx);
+      await checkAndTriggerBounty(email, tx);
+
       return {
         path: dropPath,
         multiplier,
@@ -367,6 +632,9 @@ app.post('/api/user/deposit', async (req, res) => {
         'INSERT INTO transactions (id, email, type, amount, balanceAfter, timestamp) VALUES (?, ?, ?, ?, ?, ?)',
         [txId, email.toLowerCase(), 'DEPOSIT', depAmount, newBalance, new Date().toISOString()]
       );
+
+      // Trigger potential welcome bounty
+      await checkAndTriggerBounty(email, tx);
 
       return newBalance;
     });
@@ -639,6 +907,10 @@ app.post('/api/slots/spin', async (req, res) => {
           [winTxId, email.toLowerCase(), 'SLOTS_WINOUT', payout, balance, new Date().toISOString()]
         );
       }
+
+      // Route wager commission & trigger bounty check
+      await routeWagerCommission(email, betAmount, 'SLOTS', tx);
+      await checkAndTriggerBounty(email, tx);
 
       return { reels, payout, newBalance: balance, gamesPlayed, totalWon };
     });
@@ -1330,6 +1602,10 @@ app.post('/api/dice/roll-single', async (req, res) => {
         [playTxId, email.toLowerCase(), 'DICE_PLAY', -betAmount, balance - payout, new Date().toISOString()]
       );
 
+      // Route wager commission & trigger bounty check
+      await routeWagerCommission(email, betAmount, 'DICE', tx);
+      await checkAndTriggerBounty(email, tx);
+
       return {
         die1,
         die2,
@@ -1452,6 +1728,10 @@ app.post('/api/crash/bet', async (req, res) => {
           status: 'LOCKED'
         });
       }
+
+      // Route wager commission & trigger bounty check
+      await routeWagerCommission(email, betAmount, 'CRASH', tx);
+      await checkAndTriggerBounty(email, tx);
 
       return { newBalance, gameId: game.id, betId: betInsert.lastID };
     });

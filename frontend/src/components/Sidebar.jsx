@@ -12,11 +12,12 @@ function Sidebar({ currentView, onViewChange, currentUser, onOpenLogin, isCollap
     { id: 'leaderboard', label: 'Leaderboard', icon: '🏆', playable: true },
     {id: 'wallet', label: 'Wallet Dashboard', icon: '💳', playable: true },
     {id: 'profile', label: 'User Profile', icon: '👤', playable: true },
+    {id: 'affiliate', label: 'Partners & Referrals', icon: '🤝', playable: true },
     {id: 'vip', label: 'VIP Rewards', icon: '👑', playable: false }
   ];
 
   const handleItemClick = (item) => {
-    if ((item.id === 'wallet' || item.id === 'profile') && !currentUser) {
+    if ((item.id === 'wallet' || item.id === 'profile' || item.id === 'affiliate') && !currentUser) {
       onOpenLogin();
       return;
     }

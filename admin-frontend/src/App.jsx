@@ -82,6 +82,17 @@ function App() {
   });
   const [loadingPlinko, setLoadingPlinko] = useState(true);
 
+  // --- Affiliate States ---
+  const [affiliateConfig, setAffiliateConfig] = useState({
+    wager_commission_enabled: 'false',
+    bounty_referrer_amount: '10',
+    bounty_referee_free_drops: '10',
+    min_deposit_threshold: '15',
+    min_wager_threshold: '50'
+  });
+  const [shadowLogs, setShadowLogs] = useState([]);
+  const [loadingAffiliate, setLoadingAffiliate] = useState(true);
+
   const canvasRef = useRef(null);
   const socketRef = useRef(null);
 
@@ -94,6 +105,7 @@ function App() {
       fetchDiceAdminData();
       fetchCrashConfig();
       fetchPlinkoConfig();
+      fetchAffiliateData();
 
       // Connect WebSockets for real-time config updates
       socketRef.current = io(API_BASE);
@@ -296,6 +308,47 @@ function App() {
     } catch (err) {
       console.error(err);
       alert('Failed to update Plinko config');
+    }
+  };
+
+  const fetchAffiliateData = async () => {
+    setLoadingAffiliate(true);
+    try {
+      const resCfg = await fetch(`${API_BASE}/api/admin/affiliate/config`);
+      const dataCfg = await resCfg.json();
+      if (dataCfg.success && dataCfg.config) {
+        setAffiliateConfig(dataCfg.config);
+      }
+
+      const resLogs = await fetch(`${API_BASE}/api/admin/affiliate/shadow-logs`);
+      const dataLogs = await resLogs.json();
+      if (dataLogs.success) {
+        setShadowLogs(dataLogs.logs);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+    setLoadingAffiliate(false);
+  };
+
+  const handleAffiliateConfigSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/affiliate/config`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(affiliateConfig)
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert('🤝 Affiliate and Referral configurations deployed successfully!');
+        fetchAffiliateData();
+      } else {
+        alert('Failed to update Affiliate settings: ' + data.error);
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Failed to update Affiliate settings.');
     }
   };
 
@@ -717,6 +770,14 @@ function App() {
                 className={`menu-btn ${activeTab === 'plinko' ? 'active' : ''}`}
               >
                 🎯 Plinko RTP Control
+              </button>
+            </li>
+            <li>
+              <button 
+                onClick={() => setActiveTab('affiliate')} 
+                className={`menu-btn ${activeTab === 'affiliate' ? 'active' : ''}`}
+              >
+                🤝 Affiliate & Referrals
               </button>
             </li>
           </ul>
@@ -1362,6 +1423,120 @@ function App() {
                       <button type="submit" className="primary-btn">UPDATE PLINKO CONFIG</button>
                     </div>
                   </form>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* TAB 7: AFFILIATE & REFERRALS MANAGEMENT */}
+          {activeTab === 'affiliate' && (
+            <div className="admin-content-card">
+              <div className="admin-card-header">
+                <h2>CYBER AFFILIATE & ROUTING GATEKEEPER</h2>
+                <span className="status-badge green">SYSTEM LIVE</span>
+              </div>
+              <div className="admin-card-body">
+                {loadingAffiliate ? <div className="loader">Loading...</div> : (
+                  <div>
+                    {/* Settings Form */}
+                    <form onSubmit={handleAffiliateConfigSubmit} className="admin-form" style={{ marginBottom: '40px' }}>
+                      <h3>System Configuration Parameters</h3>
+                      <div className="form-grid">
+                        <div className="form-group">
+                          <label>Dynamic Feature Flag: Wager Commission Payouts</label>
+                          <select
+                            value={affiliateConfig.wager_commission_enabled}
+                            onChange={e => setAffiliateConfig({ ...affiliateConfig, wager_commission_enabled: e.target.value })}
+                            required
+                          >
+                            <option value="true">ACTIVE (Pay Commission to Wallets)</option>
+                            <option value="false">SHADOW MODE (Log Calculations to Analytics)</option>
+                          </select>
+                          <span className="help-text">Active mode routes payouts immediately. Shadow mode acts as an internal marketing check.</span>
+                        </div>
+                        <div className="form-group">
+                          <label>Bounty: Referrer Reward Amount ($)</label>
+                          <input
+                            type="number"
+                            step="1"
+                            value={affiliateConfig.bounty_referrer_amount}
+                            onChange={e => setAffiliateConfig({ ...affiliateConfig, bounty_referrer_amount: e.target.value })}
+                            required
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label>Bounty: Referee Free Drops</label>
+                          <input
+                            type="number"
+                            step="1"
+                            value={affiliateConfig.bounty_referee_free_drops}
+                            onChange={e => setAffiliateConfig({ ...affiliateConfig, bounty_referee_free_drops: e.target.value })}
+                            required
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label>Welcome Threshold: Min Deposit ($)</label>
+                          <input
+                            type="number"
+                            step="1"
+                            value={affiliateConfig.min_deposit_threshold}
+                            onChange={e => setAffiliateConfig({ ...affiliateConfig, min_deposit_threshold: e.target.value })}
+                            required
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label>Welcome Threshold: Min Wager Volume ($)</label>
+                          <input
+                            type="number"
+                            step="1"
+                            value={affiliateConfig.min_wager_threshold}
+                            onChange={e => setAffiliateConfig({ ...affiliateConfig, min_wager_threshold: e.target.value })}
+                            required
+                          />
+                        </div>
+                      </div>
+                      <div className="button-group" style={{ marginTop: '20px' }}>
+                        <button type="submit" className="primary-btn">SAVE AFFILIATE ROUTING RULES</button>
+                      </div>
+                    </form>
+
+                    {/* Shadow Logs Panel */}
+                    <div style={{ marginTop: '20px' }}>
+                      <h3>Shadow Mode Commission Logs</h3>
+                      <div className="table-responsive">
+                        <table className="admin-table">
+                          <thead>
+                            <tr>
+                              <th>ID</th>
+                              <th>Referee Email</th>
+                              <th>Referrer Email</th>
+                              <th>Wager Amount</th>
+                              <th>Potential Commission</th>
+                              <th>Timestamp</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {shadowLogs.length === 0 ? (
+                              <tr>
+                                <td colSpan="6" style={{ textAlign: 'center', padding: '15px 0' }}>No shadow logs generated yet. Ensure feature flag is set to SHADOW.</td>
+                              </tr>
+                            ) : (
+                              shadowLogs.map(log => (
+                                <tr key={log.id}>
+                                  <td>{log.id}</td>
+                                  <td>{log.referee_email}</td>
+                                  <td>{log.referrer_email}</td>
+                                  <td>${log.wager_amount.toFixed(2)}</td>
+                                  <td style={{ color: '#00ff66' }}>${log.potential_commission.toFixed(4)}</td>
+                                  <td>{new Date(log.timestamp).toLocaleString()}</td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
                 )}
               </div>
             </div>

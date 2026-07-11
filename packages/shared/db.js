@@ -551,6 +551,80 @@ const initDatabase = async () => {
       )
     `);
 
+    // 14. Affiliate Config & Referrals Schema
+    await run(`
+      CREATE TABLE IF NOT EXISTS user_referral_codes (
+        email VARCHAR(255) PRIMARY KEY,
+        referral_code VARCHAR(50) UNIQUE NOT NULL,
+        referred_by VARCHAR(255),
+        FOREIGN KEY(email) REFERENCES users(email) ON DELETE CASCADE
+      )
+    `);
+
+    await run(`
+      CREATE TABLE IF NOT EXISTS referrals (
+        id VARCHAR(255) PRIMARY KEY,
+        referrer_email VARCHAR(255) NOT NULL,
+        referee_email VARCHAR(255) UNIQUE NOT NULL,
+        status VARCHAR(50) DEFAULT 'PENDING',
+        bounty_claimed_at VARCHAR(100),
+        created_at VARCHAR(100) NOT NULL,
+        FOREIGN KEY(referrer_email) REFERENCES users(email) ON DELETE CASCADE,
+        FOREIGN KEY(referee_email) REFERENCES users(email) ON DELETE CASCADE
+      )
+    `);
+
+    await run(`
+      CREATE TABLE IF NOT EXISTS user_affiliate_wallets (
+        email VARCHAR(255) PRIMARY KEY,
+        commission_balance DOUBLE PRECISION DEFAULT 0.0,
+        total_network_volume DOUBLE PRECISION DEFAULT 0.0,
+        current_rank VARCHAR(50) DEFAULT 'BRONZE',
+        FOREIGN KEY(email) REFERENCES users(email) ON DELETE CASCADE
+      )
+    `);
+
+    await run(`
+      CREATE TABLE IF NOT EXISTS shadow_commission_logs (
+        id SERIAL PRIMARY KEY,
+        referee_email VARCHAR(255) NOT NULL,
+        referrer_email VARCHAR(255) NOT NULL,
+        wager_amount DOUBLE PRECISION NOT NULL,
+        potential_commission DOUBLE PRECISION NOT NULL,
+        timestamp VARCHAR(100) NOT NULL
+      )
+    `);
+
+    await run(`
+      CREATE TABLE IF NOT EXISTS affiliate_config (
+        key VARCHAR(255) PRIMARY KEY,
+        value TEXT NOT NULL
+      )
+    `);
+
+    const affiliateCfgCount = await get('SELECT COUNT(*) as count FROM affiliate_config');
+    if (parseInt(affiliateCfgCount.count, 10) === 0) {
+      const defaultAffiliateConfigs = [
+        { key: 'wager_commission_enabled', value: 'false' },
+        { key: 'bounty_referrer_amount', value: '10' },
+        { key: 'bounty_referee_free_drops', value: '10' },
+        { key: 'min_deposit_threshold', value: '15' },
+        { key: 'min_wager_threshold', value: '50' },
+        { key: 'rank_bronze_multiplier', value: '0.05' },
+        { key: 'rank_silver_multiplier', value: '0.10' },
+        { key: 'rank_gold_multiplier', value: '0.15' },
+        { key: 'rank_diamond_multiplier', value: '0.25' },
+        { key: 'rank_silver_volume', value: '1000' },
+        { key: 'rank_gold_volume', value: '10000' },
+        { key: 'rank_diamond_volume', value: '100000' }
+      ];
+      for (const cfg of defaultAffiliateConfigs) {
+        await run(`
+          INSERT INTO affiliate_config (key, value) VALUES ($1, $2)
+        `, [cfg.key, cfg.value]);
+      }
+    }
+
     console.log('[DB] PostgreSQL migrations completed successfully.');
   } else {
     // Original SQLite migrations
@@ -895,6 +969,80 @@ const initDatabase = async () => {
         timestamp TEXT NOT NULL
       )
     `);
+
+    // 14. Affiliate Config & Referrals Schema
+    await run(`
+      CREATE TABLE IF NOT EXISTS user_referral_codes (
+        email TEXT PRIMARY KEY,
+        referral_code TEXT UNIQUE NOT NULL,
+        referred_by TEXT,
+        FOREIGN KEY(email) REFERENCES users(email) ON DELETE CASCADE
+      )
+    `);
+
+    await run(`
+      CREATE TABLE IF NOT EXISTS referrals (
+        id TEXT PRIMARY KEY,
+        referrer_email TEXT NOT NULL,
+        referee_email TEXT UNIQUE NOT NULL,
+        status TEXT DEFAULT 'PENDING',
+        bounty_claimed_at TEXT,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY(referrer_email) REFERENCES users(email) ON DELETE CASCADE,
+        FOREIGN KEY(referee_email) REFERENCES users(email) ON DELETE CASCADE
+      )
+    `);
+
+    await run(`
+      CREATE TABLE IF NOT EXISTS user_affiliate_wallets (
+        email TEXT PRIMARY KEY,
+        commission_balance REAL DEFAULT 0.0,
+        total_network_volume REAL DEFAULT 0.0,
+        current_rank TEXT DEFAULT 'BRONZE',
+        FOREIGN KEY(email) REFERENCES users(email) ON DELETE CASCADE
+      )
+    `);
+
+    await run(`
+      CREATE TABLE IF NOT EXISTS shadow_commission_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        referee_email TEXT NOT NULL,
+        referrer_email TEXT NOT NULL,
+        wager_amount REAL NOT NULL,
+        potential_commission REAL NOT NULL,
+        timestamp TEXT NOT NULL
+      )
+    `);
+
+    await run(`
+      CREATE TABLE IF NOT EXISTS affiliate_config (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      )
+    `);
+
+    const affiliateCfgCount = await get('SELECT COUNT(*) as count FROM affiliate_config');
+    if (affiliateCfgCount.count === 0) {
+      const defaultAffiliateConfigs = [
+        { key: 'wager_commission_enabled', value: 'false' },
+        { key: 'bounty_referrer_amount', value: '10' },
+        { key: 'bounty_referee_free_drops', value: '10' },
+        { key: 'min_deposit_threshold', value: '15' },
+        { key: 'min_wager_threshold', value: '50' },
+        { key: 'rank_bronze_multiplier', value: '0.05' },
+        { key: 'rank_silver_multiplier', value: '0.10' },
+        { key: 'rank_gold_multiplier', value: '0.15' },
+        { key: 'rank_diamond_multiplier', value: '0.25' },
+        { key: 'rank_silver_volume', value: '1000' },
+        { key: 'rank_gold_volume', value: '10000' },
+        { key: 'rank_diamond_volume', value: '100000' }
+      ];
+      for (const cfg of defaultAffiliateConfigs) {
+        await run(`
+          INSERT INTO affiliate_config (key, value) VALUES (?, ?)
+        `, [cfg.key, cfg.value]);
+      }
+    }
 
     console.log('[DB] SQLite migrations completed successfully.');
   }

@@ -13,6 +13,7 @@ import CyberChat from './components/CyberChat';
 import CyberDiceGame from './components/CyberDiceGame';
 import CyberCrashGame from './components/CyberCrashGame';
 import NeonPlinko from './components/NeonPlinko';
+import AffiliateDashboard from './components/AffiliateDashboard';
 
 function App() {
   const [currentUser, setCurrentUser] = useState(null);
@@ -24,6 +25,14 @@ function App() {
 
   // Load user session from LocalStorage on mount
   useEffect(() => {
+    // Save referral code if present in URL
+    const params = new URLSearchParams(window.location.search);
+    const ref = params.get('ref');
+    if (ref) {
+      sessionStorage.setItem('referral_code', ref);
+      console.log('[AFFILIATE] Saved referral code from URL:', ref);
+    }
+
     const savedUser = localStorage.getItem('casino_session');
     if (savedUser) {
       try {
@@ -162,6 +171,12 @@ function App() {
             <UserProfile 
               currentUser={currentUser}
               onBalanceUpdate={handleBalanceUpdate}
+            />
+          )}
+          {currentView === 'affiliate' && currentUser && (
+            <AffiliateDashboard 
+              userSession={currentUser}
+              onWalletUpdate={handleBalanceUpdate}
             />
           )}
         </main>

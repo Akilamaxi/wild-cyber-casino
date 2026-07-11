@@ -5,8 +5,18 @@ function AuthModal({ isOpen, onClose, initialTab, onAuthSuccess }) {
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [referralCode, setReferralCode] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  React.useEffect(() => {
+    if (activeTab === 'register') {
+      const code = sessionStorage.getItem('referral_code');
+      if (code) {
+        setReferralCode(code);
+      }
+    }
+  }, [activeTab]);
 
   if (!isOpen) return null;
 
@@ -22,7 +32,7 @@ function AuthModal({ isOpen, onClose, initialTab, onAuthSuccess }) {
       
     const payload = activeTab === 'login' 
       ? { email, password } 
-      : { username, email, password };
+      : { username, email, password, referralCode };
 
     try {
       const response = await fetch(url, {
@@ -119,6 +129,19 @@ function AuthModal({ isOpen, onClose, initialTab, onAuthSuccess }) {
               required
             />
           </div>
+
+          {activeTab === 'register' && (
+            <div className="form-group">
+              <label htmlFor="referralCode">Referral Code (Optional)</label>
+              <input 
+                type="text" 
+                id="referralCode" 
+                placeholder="REF-XXXXXX" 
+                value={referralCode}
+                onChange={(e) => setReferralCode(e.target.value)}
+              />
+            </div>
+          )}
 
           {activeTab === 'register' && (
             <div className="form-checkbox-group">

@@ -360,6 +360,50 @@ app.put('/api/admin/plinko/config', async (req, res) => {
   }
 });
 
+// --- Affiliate Admin Endpoints ---
+app.get('/api/admin/affiliate/config', async (req, res) => {
+  try {
+    const config = await db.all('SELECT * FROM affiliate_config');
+    const configMap = {};
+    config.forEach(c => configMap[c.key] = c.value);
+    res.json({ success: true, config: configMap });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Internal Server Error' });
+  }
+});
+
+app.put('/api/admin/affiliate/config', async (req, res) => {
+  try {
+    const { 
+      wager_commission_enabled, 
+      bounty_referrer_amount, 
+      bounty_referee_free_drops, 
+      min_deposit_threshold, 
+      min_wager_threshold 
+    } = req.body;
+
+    await db.executeTransaction(async (tx) => {
+      if (wager_commission_enabled !== undefined) await tx.run('INSERT OR REPLACE INTO affiliate_config (key, value) VALUES ("wager_commission_enabled", ?)', [wager_commission_enabled.toString()]);
+      if (bounty_referrer_amount !== undefined) await tx.run('INSERT OR REPLACE INTO affiliate_config (key, value) VALUES ("bounty_referrer_amount", ?)', [bounty_referrer_amount.toString()]);
+      if (bounty_referee_free_drops !== undefined) await tx.run('INSERT OR REPLACE INTO affiliate_config (key, value) VALUES ("bounty_referee_free_drops", ?)', [bounty_referee_free_drops.toString()]);
+      if (min_deposit_threshold !== undefined) await tx.run('INSERT OR REPLACE INTO affiliate_config (key, value) VALUES ("min_deposit_threshold", ?)', [min_deposit_threshold.toString()]);
+      if (min_wager_threshold !== undefined) await tx.run('INSERT OR REPLACE INTO affiliate_config (key, value) VALUES ("min_wager_threshold", ?)', [min_wager_threshold.toString()]);
+    });
+    res.json({ success: true });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/admin/affiliate/shadow-logs', async (req, res) => {
+  try {
+    const logs = await db.all('SELECT * FROM shadow_commission_logs ORDER BY timestamp DESC LIMIT 100');
+    res.json({ success: true, logs });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Internal Server Error' });
+  }
+});
+
 // 2. RNG Audit Verification
 app.get('/api/admin/audit-verify/:drawId', async (req, res) => {
   try {
