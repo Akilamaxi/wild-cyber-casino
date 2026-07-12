@@ -390,7 +390,7 @@ function App() {
   const fetchDiceAdminData = async () => {
     setLoadingDice(true);
     try {
-      const resCfg = await fetch(`${API_BASE}/api/dice/config`);
+      const resCfg = await fetch(`${API_BASE}/api/admin/dice/config`);
       const dataCfg = await resCfg.json();
       if (dataCfg.success && dataCfg.config) {
         setDiceConfig(dataCfg.config);
@@ -671,6 +671,34 @@ function App() {
       }
     } catch (err) {
       alert('Failed to delete prize sector');
+    }
+  };
+
+  const handleMovePrize = async (index, direction) => {
+    const nextIndex = index + direction;
+    if (nextIndex < 0 || nextIndex >= prizes.length) return;
+    
+    const reordered = [...prizes];
+    // Swap elements
+    const temp = reordered[index];
+    reordered[index] = reordered[nextIndex];
+    reordered[nextIndex] = temp;
+    
+    try {
+      const orderedIds = reordered.map(p => p.id);
+      const res = await fetch(`${API_BASE}/api/admin/spinwheel-prizes/reorder`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderedIds })
+      });
+      const data = await res.json();
+      if (data.success) {
+        fetchPrizes();
+      } else {
+        alert('Error reordering: ' + data.error);
+      }
+    } catch (err) {
+      alert('Network error reordering sectors');
     }
   };
 
@@ -1187,7 +1215,7 @@ function App() {
                       </tr>
                     </thead>
                     <tbody>
-                      {prizes.map(p => (
+                      {prizes.map((p, index) => (
                         <tr key={p.id}>
                           <td>{p.id}</td>
                           <td>
@@ -1218,6 +1246,8 @@ function App() {
                           </td>
                           <td>
                             <div className="table-actions">
+                              <button onClick={() => handleMovePrize(index, -1)} disabled={index === 0} className="edit-btn" style={{ padding: '3px 8px', minWidth: 'auto', background: 'rgba(255,255,255,0.05)', color: '#fff', border: '1px solid rgba(255,255,255,0.1)' }}>▲</button>
+                              <button onClick={() => handleMovePrize(index, 1)} disabled={index === prizes.length - 1} className="edit-btn" style={{ padding: '3px 8px', minWidth: 'auto', background: 'rgba(255,255,255,0.05)', color: '#fff', border: '1px solid rgba(255,255,255,0.1)' }}>▼</button>
                               <button onClick={() => startEditPrize(p)} className="edit-btn">Edit</button>
                               <button onClick={() => handleDeletePrize(p.id)} className="delete-btn">Delete</button>
                             </div>
@@ -1271,9 +1301,8 @@ function App() {
                         value={slotsConfig.target_rtp} 
                         onChange={e => setSlotsConfig({ ...slotsConfig, target_rtp: e.target.value })} 
                         required 
-                        disabled={slotsConfig.payout_strategy !== 'CONTROLLED_RTP'}
                       />
-                      <span className="input-helper-text">Configures payout limits for the CONTROLLED_RTP strategy. Default: 0.90 (90% Return-to-Player).</span>
+                      <span className="input-helper-text">Configures target RTP for the active strategy rules. Default: 0.90 (90% Return-to-Player).</span>
                     </div>
 
                     <button type="submit" className="primary-btn">DEPLOY STRATEGY RULES</button>

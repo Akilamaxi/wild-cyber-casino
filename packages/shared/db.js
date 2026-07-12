@@ -352,7 +352,8 @@ const initDatabase = async () => {
         color VARCHAR(50) NOT NULL,
         textColor VARCHAR(50) NOT NULL,
         mult DOUBLE PRECISION NOT NULL,
-        isBonus INTEGER DEFAULT 0
+        isBonus INTEGER DEFAULT 0,
+        display_order INTEGER DEFAULT 0
       )
     `);
 
@@ -639,6 +640,9 @@ const initDatabase = async () => {
     try {
       await run(`ALTER TABLE users ADD COLUMN wallet_address VARCHAR(255)`);
     } catch (e) {}
+    try {
+      await run(`ALTER TABLE spin_wheel_prizes ADD COLUMN display_order INTEGER DEFAULT 0`);
+    } catch (e) {}
 
     await run(`
       CREATE TABLE IF NOT EXISTS user_session_logs (
@@ -857,7 +861,8 @@ const initDatabase = async () => {
         color TEXT NOT NULL,
         textColor TEXT NOT NULL,
         mult REAL NOT NULL,
-        isBonus INTEGER DEFAULT 0
+        isBonus INTEGER DEFAULT 0,
+        display_order INTEGER DEFAULT 0
       )
     `);
 
@@ -1137,6 +1142,9 @@ const initDatabase = async () => {
     } catch (e) {}
     try {
       await run(`ALTER TABLE users ADD COLUMN wallet_address TEXT`);
+    } catch (e) {}
+    try {
+      await run(`ALTER TABLE spin_wheel_prizes ADD COLUMN display_order INTEGER DEFAULT 0`);
     } catch (e) {}
 
     await run(`

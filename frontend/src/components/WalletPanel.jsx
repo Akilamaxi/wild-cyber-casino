@@ -20,7 +20,10 @@ function WalletPanel({ currentUser, onBalanceUpdate }) {
 
   const fetchTransactions = async () => {
     try {
-      const response = await fetch(`${API_BASE}/api/user/wallet?email=${currentUser.email}`);
+      const token = localStorage.getItem('casino_token');
+      const response = await fetch(`${API_BASE}/api/user/wallet?email=${currentUser.email}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
       const data = await response.json();
       if (data.success) {
         setTransactions(data.transactions);
@@ -45,9 +48,13 @@ function WalletPanel({ currentUser, onBalanceUpdate }) {
 
     setLoading(true);
     try {
+      const token = localStorage.getItem('casino_token');
       const response = await fetch(`${API_BASE}/api/user/withdraw`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({ email: currentUser.email, amount: amt })
       });
       const data = await response.json();
@@ -308,9 +315,13 @@ function PaymentGatewayModal({ isOpen, onClose, amount, currentUser, onSuccess }
 
   const submitDepositToServer = async () => {
     try {
+      const token = localStorage.getItem('casino_token');
       const response = await fetch(`${API_BASE}/api/user/deposit`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({ email: currentUser.email, amount: amount })
       });
       const data = await response.json();

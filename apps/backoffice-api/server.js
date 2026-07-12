@@ -106,7 +106,7 @@ app.put('/api/admin/games/:id', async (req, res) => {
 // --- Spin Wheel Configuration CRUD ---
 app.get('/api/admin/spinwheel-prizes', async (req, res) => {
   try {
-    const prizes = await db.all('SELECT * FROM spin_wheel_prizes ORDER BY id ASC');
+    const prizes = await db.all('SELECT * FROM spin_wheel_prizes ORDER BY display_order ASC, id ASC');
     res.json({ success: true, prizes });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Internal Server Error' });
@@ -116,9 +116,13 @@ app.get('/api/admin/spinwheel-prizes', async (req, res) => {
 app.post('/api/admin/spinwheel-prizes', async (req, res) => {
   try {
     const { text, color, textColor, mult, isBonus } = req.body;
+    // Get max display order
+    const maxOrderRow = await db.get('SELECT MAX(display_order) as max_order FROM spin_wheel_prizes');
+    const nextOrder = (maxOrderRow && maxOrderRow.max_order !== null) ? parseInt(maxOrderRow.max_order, 10) + 1 : 0;
+    
     await db.run(
-      'INSERT INTO spin_wheel_prizes (text, color, textColor, mult, isBonus) VALUES (?, ?, ?, ?, ?)',
-      [text, color || '#ffffff', textColor || '#000000', parseFloat(mult) || 0.0, isBonus ? 1 : 0]
+      'INSERT INTO spin_wheel_prizes (text, color, textColor, mult, isBonus, display_order) VALUES (?, ?, ?, ?, ?, ?)',
+      [text, color || '#ffffff', textColor || '#000000', parseFloat(mult) || 0.0, isBonus ? 1 : 0, nextOrder]
     );
     await pubsub.publish({ type: 'SPIN_WHEEL_CONFIG_UPDATED' });
     res.json({ success: true });
@@ -151,7 +155,24 @@ app.delete('/api/admin/spinwheel-prizes/:id', async (req, res) => {
   }
 });
 
-// --- Slots Configuration CRUD ---
+app.post('/api/admin/spinwheel-prizes/reorder', async (req, res) => {
+  try {
+    const { orderedIds } = req.body;
+    if (!Array.isArray(orderedIds)) {
+      return res.status(400).json({ success: false, error: 'Invalid payload: orderedIds array required.' });
+    }
+    await db.executeTransaction(async (tx) => {
+      for (let i = 0; i < orderedIds.length; i++) {
+        await tx.run('UPDATE spin_wheel_prizes SET display_order = ? WHERE id = ?', [i, orderedIds[i]]);
+      }
+    });
+    await pubsub.publish({ type: 'SPIN_WHEEL_CONFIG_UPDATED' });
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 app.get('/api/admin/slots/config', async (req, res) => {
   try {
     const config = await db.all('SELECT * FROM slots_config');
