@@ -628,17 +628,45 @@ app.get('/api/admin/users/:email/360-view', async (req, res) => {
   }
 });
 
-// Raw game logs
+// Raw game logs (all game types)
 app.get('/api/admin/game-logs', async (req, res) => {
   try {
-    const plinko = await db.all('SELECT id, email, risk, bucket, payout, hash, multiplier, timestamp FROM plinko_drops ORDER BY id DESC LIMIT 50');
-    const dice = await db.all('SELECT id, name, status, created_at, ends_at FROM dice_tournaments ORDER BY id DESC LIMIT 50');
+    const plinko = await db.all(
+      'SELECT id, email, risk, destination_bin, payout, multiplier, wager_amount, rows, server_seed, client_seed, nonce, timestamp FROM plinko_drops ORDER BY id DESC LIMIT 50'
+    );
+    const dice = await db.all('SELECT id, name, status, entry_fee, created_at, ends_at FROM dice_tournaments ORDER BY id DESC LIMIT 50');
     const crash = await db.all('SELECT id, crash_point, status, created_at FROM crash_games ORDER BY id DESC LIMIT 50');
-    res.json({ success: true, plinko, dice, crash });
+    const slots = await db.all(
+      "SELECT id, email, type, amount, balanceAfter as balance_after, timestamp FROM transactions WHERE type IN ('SLOTS_PLAY','SLOTS_WINOUT') ORDER BY timestamp DESC LIMIT 50"
+    );
+    res.json({ success: true, plinko, dice, crash, slots });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Internal Server Error' });
   }
 });
+
+// Affiliate performance stats
+app.get('/api/admin/affiliate/stats', async (req, res) => {
+  try {
+    const totalReferrals = await db.get('SELECT COUNT(*) as count FROM referrals');
+    const completedReferrals = await db.get("SELECT COUNT(*) as count FROM referrals WHERE status = 'COMPLETED'");
+    const totalCommissions = await db.get("SELECT COALESCE(SUM(amount), 0) as total FROM transactions WHERE type = 'REFERRAL_COMMISSION'");
+    const shadowTotal = await db.get('SELECT COALESCE(SUM(potential_commission), 0) as total FROM shadow_commission_logs');
+    res.json({
+      success: true,
+      stats: {
+        totalReferrals: totalReferrals?.count || 0,
+        completedReferrals: completedReferrals?.count || 0,
+        conversionRate: totalReferrals?.count > 0 ? ((completedReferrals?.count / totalReferrals?.count) * 100).toFixed(1) : '0.0',
+        totalCommissionsPaid: parseFloat(totalCommissions?.total || 0).toFixed(2),
+        shadowLoggedCommissions: parseFloat(shadowTotal?.total || 0).toFixed(4)
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Internal Server Error' });
+  }
+});
+
 
 // Admin Audit Trail logs
 app.get('/api/admin/audit-logs', async (req, res) => {

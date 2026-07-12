@@ -77,8 +77,8 @@ function App() {
     house_edge: 0.05,
     min_bet: 1,
     max_bet: 1000,
-    rtp_bias: 12,
-    throw_out_chance: 0.20
+    rtp_bias: 8,
+    throw_out_chance: 0.02
   });
   const [loadingPlinko, setLoadingPlinko] = useState(true);
 
@@ -114,6 +114,16 @@ function App() {
     rewardType: 'CASH',
     rewardAmount: ''
   });
+
+  // Toast notification state
+  const [toast, setToast] = useState({ show: false, msg: '', type: 'success' });
+  const showToast = (msg, type = 'success') => {
+    setToast({ show: true, msg, type });
+    setTimeout(() => setToast({ show: false, msg: '', type: 'success' }), 4000);
+  };
+
+  // Affiliate performance stats
+  const [affiliateStats, setAffiliateStats] = useState(null);
 
   const fetchSecurityData = async () => {
     try {
@@ -479,6 +489,13 @@ function App() {
       if (dataLogs.success) {
         setShadowLogs(dataLogs.logs);
       }
+
+      // Fetch affiliate performance stats
+      try {
+        const resStats = await fetch(`${API_BASE}/api/admin/affiliate/stats`);
+        const dataStats = await resStats.json();
+        if (dataStats.success) setAffiliateStats(dataStats.stats);
+      } catch (_) { /* stats endpoint may not exist on older builds */ }
     } catch (err) {
       console.error(err);
     }
@@ -495,14 +512,14 @@ function App() {
       });
       const data = await res.json();
       if (data.success) {
-        alert('🤝 Affiliate and Referral configurations deployed successfully!');
+        showToast('🤝 Affiliate routing rules deployed successfully!');
         fetchAffiliateData();
       } else {
-        alert('Failed to update Affiliate settings: ' + data.error);
+        showToast('Failed to update Affiliate settings: ' + data.error, 'error');
       }
     } catch (err) {
       console.error(err);
-      alert('Failed to update Affiliate settings.');
+      showToast('Failed to update Affiliate settings.', 'error');
     }
   };
 
@@ -858,6 +875,24 @@ function App() {
 
   return (
     <div className="admin-dashboard-container">
+      {/* Global Toast Notification */}
+      {toast.show && (
+        <div style={{
+          position: 'fixed', top: '20px', right: '24px', zIndex: 9999,
+          background: toast.type === 'error' ? 'rgba(255,40,80,0.95)' : 'rgba(0,200,80,0.95)',
+          color: '#fff', padding: '14px 22px', borderRadius: '10px',
+          boxShadow: '0 4px 30px rgba(0,0,0,0.5)',
+          fontFamily: 'Orbitron', fontSize: '13px', fontWeight: 'bold',
+          letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '10px',
+          animation: 'slideInRight 0.3s ease',
+          maxWidth: '420px',
+        }}>
+          <span>{toast.type === 'error' ? '⚠️' : '✅'}</span>
+          <span style={{ flex: 1 }}>{toast.msg}</span>
+          <button onClick={() => setToast({ show: false, msg: '', type: 'success' })}
+            style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontSize: '16px', lineHeight: 1 }}>✕</button>
+        </div>
+      )}
       {/* Top Navigation Header */}
       <header className="admin-header">
         <div className="header-branding">
@@ -1606,14 +1641,39 @@ function App() {
           {activeTab === 'affiliate' && (
             <div className="admin-content-card">
               <div className="admin-card-header">
-                <h2>CYBER AFFILIATE & ROUTING GATEKEEPER</h2>
-                <span className="status-badge green">SYSTEM LIVE</span>
+                <div>
+                  <h2>CYBER AFFILIATE &amp; ROUTING GATEKEEPER</h2>
+                  <p style={{ fontSize: '12px', color: '#8b8493', margin: '4px 0 0 0' }}>Commission routing, referral bounties, shadow-mode analytics and live network performance.</p>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span className="status-badge green">SYSTEM LIVE</span>
+                  <button onClick={fetchAffiliateData} className="primary-btn" style={{ padding: '6px 14px', fontSize: '11px', background: 'rgba(0,255,204,0.1)', border: '1px solid rgba(0,255,204,0.3)', color: '#00ffcc' }}>↻ REFRESH</button>
+                </div>
               </div>
               <div className="admin-card-body">
                 {loadingAffiliate ? <div className="loader">Loading...</div> : (
-                  <div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
+
+                    {/* Performance Stats Row */}
+                    {affiliateStats && (
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '16px' }}>
+                        {[
+                          { label: 'Total Referrals', value: affiliateStats.totalReferrals, color: '#00ccff' },
+                          { label: 'Conversions', value: affiliateStats.completedReferrals, color: '#00ff66' },
+                          { label: 'Conversion Rate', value: `${affiliateStats.conversionRate}%`, color: '#ffaa00' },
+                          { label: 'Commissions Paid', value: `$${affiliateStats.totalCommissionsPaid}`, color: '#ff66cc' },
+                          { label: 'Shadow Logged', value: `$${affiliateStats.shadowLoggedCommissions}`, color: '#aaaaff' },
+                        ].map(stat => (
+                          <div key={stat.label} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '10px', padding: '14px 16px' }}>
+                            <div style={{ fontSize: '10px', color: '#888', fontFamily: 'Orbitron', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '6px' }}>{stat.label}</div>
+                            <div style={{ fontSize: '1.4rem', fontFamily: 'Orbitron', fontWeight: 'bold', color: stat.color }}>{stat.value}</div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
                     {/* Settings Form */}
-                    <form onSubmit={handleAffiliateConfigSubmit} className="admin-form" style={{ marginBottom: '40px' }}>
+                    <form onSubmit={handleAffiliateConfigSubmit} className="admin-form">
                       <h3>System Configuration Parameters</h3>
                       <div className="form-grid">
                         <div className="form-group">
@@ -1630,43 +1690,23 @@ function App() {
                         </div>
                         <div className="form-group">
                           <label>Bounty: Referrer Reward Amount ($)</label>
-                          <input
-                            type="number"
-                            step="1"
-                            value={affiliateConfig.bounty_referrer_amount}
-                            onChange={e => setAffiliateConfig({ ...affiliateConfig, bounty_referrer_amount: e.target.value })}
-                            required
-                          />
+                          <input type="number" step="1" value={affiliateConfig.bounty_referrer_amount}
+                            onChange={e => setAffiliateConfig({ ...affiliateConfig, bounty_referrer_amount: e.target.value })} required />
                         </div>
                         <div className="form-group">
                           <label>Bounty: Referee Free Drops</label>
-                          <input
-                            type="number"
-                            step="1"
-                            value={affiliateConfig.bounty_referee_free_drops}
-                            onChange={e => setAffiliateConfig({ ...affiliateConfig, bounty_referee_free_drops: e.target.value })}
-                            required
-                          />
+                          <input type="number" step="1" value={affiliateConfig.bounty_referee_free_drops}
+                            onChange={e => setAffiliateConfig({ ...affiliateConfig, bounty_referee_free_drops: e.target.value })} required />
                         </div>
                         <div className="form-group">
                           <label>Welcome Threshold: Min Deposit ($)</label>
-                          <input
-                            type="number"
-                            step="1"
-                            value={affiliateConfig.min_deposit_threshold}
-                            onChange={e => setAffiliateConfig({ ...affiliateConfig, min_deposit_threshold: e.target.value })}
-                            required
-                          />
+                          <input type="number" step="1" value={affiliateConfig.min_deposit_threshold}
+                            onChange={e => setAffiliateConfig({ ...affiliateConfig, min_deposit_threshold: e.target.value })} required />
                         </div>
                         <div className="form-group">
                           <label>Welcome Threshold: Min Wager Volume ($)</label>
-                          <input
-                            type="number"
-                            step="1"
-                            value={affiliateConfig.min_wager_threshold}
-                            onChange={e => setAffiliateConfig({ ...affiliateConfig, min_wager_threshold: e.target.value })}
-                            required
-                          />
+                          <input type="number" step="1" value={affiliateConfig.min_wager_threshold}
+                            onChange={e => setAffiliateConfig({ ...affiliateConfig, min_wager_threshold: e.target.value })} required />
                         </div>
                       </div>
                       <div className="button-group" style={{ marginTop: '20px' }}>
@@ -1675,8 +1715,11 @@ function App() {
                     </form>
 
                     {/* Shadow Logs Panel */}
-                    <div style={{ marginTop: '20px' }}>
-                      <h3>Shadow Mode Commission Logs</h3>
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                        <h3 style={{ margin: 0 }}>Shadow Mode Commission Logs</h3>
+                        <span style={{ fontSize: '11px', color: '#666' }}>{shadowLogs.length} records</span>
+                      </div>
                       <div className="table-responsive">
                         <table className="admin-table">
                           <thead>
@@ -1692,7 +1735,7 @@ function App() {
                           <tbody>
                             {shadowLogs.length === 0 ? (
                               <tr>
-                                <td colSpan="6" style={{ textAlign: 'center', padding: '15px 0' }}>No shadow logs generated yet. Ensure feature flag is set to SHADOW.</td>
+                                <td colSpan="6" style={{ textAlign: 'center', padding: '15px 0', color: '#555' }}>No shadow logs generated yet. Ensure feature flag is set to SHADOW MODE.</td>
                               </tr>
                             ) : (
                               shadowLogs.map(log => (
@@ -1700,8 +1743,8 @@ function App() {
                                   <td>{log.id}</td>
                                   <td>{log.referee_email}</td>
                                   <td>{log.referrer_email}</td>
-                                  <td>${log.wager_amount.toFixed(2)}</td>
-                                  <td style={{ color: '#00ff66' }}>${log.potential_commission.toFixed(4)}</td>
+                                  <td>${(parseFloat(log.wager_amount) || 0).toFixed(2)}</td>
+                                  <td style={{ color: '#00ff66' }}>${(parseFloat(log.potential_commission) || 0).toFixed(4)}</td>
                                   <td>{new Date(log.timestamp).toLocaleString()}</td>
                                 </tr>
                               ))
@@ -1710,6 +1753,27 @@ function App() {
                         </table>
                       </div>
                     </div>
+
+                    {/* Affiliate Config Change Audit Trail */}
+                    <div>
+                      <h3 style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '8px', color: '#00ffcc' }}>Recent Config Changes (Audit Trail)</h3>
+                      <div style={{ maxHeight: '180px', overflowY: 'auto', background: '#08050e', border: '1px solid #1a1523', borderRadius: '8px', padding: '12px' }}>
+                        {auditLogs.filter(l => l.action && l.action.includes('AFFILIATE') || l.details?.toLowerCase().includes('affiliate') || l.details?.toLowerCase().includes('bounty') || l.details?.toLowerCase().includes('bonus')).length === 0 ? (
+                          <div style={{ color: '#444', fontSize: '12px', padding: '8px 0' }}>No affiliate config changes logged yet.</div>
+                        ) : (
+                          auditLogs
+                            .filter(l => l.action?.includes('AFFILIATE') || l.details?.toLowerCase().includes('affiliate') || l.details?.toLowerCase().includes('bounty') || l.details?.toLowerCase().includes('bonus'))
+                            .map((log, idx) => (
+                              <div key={idx} style={{ padding: '6px 0', borderBottom: '1px solid rgba(255,255,255,0.03)', fontSize: '11px' }}>
+                                <span style={{ color: '#ff3366' }}>[{log.action}]</span>{' '}
+                                {log.details}{' '}by <span style={{ color: '#00ffcc' }}>{log.admin_email}</span>{' '}
+                                <span style={{ color: '#555' }}>— {new Date(log.created_at).toLocaleString()}</span>
+                              </div>
+                            ))
+                        )}
+                      </div>
+                    </div>
+
                   </div>
                 )}
               </div>
@@ -1951,25 +2015,49 @@ function App() {
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
                   <div>
                     <h3 style={{ borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '8px', color: '#00ffcc' }}>Admin Audit Log Trail</h3>
-                    <div style={{ maxHeight: '200px', overflowY: 'auto', fontSize: '11px', background: '#08050e', border: '1px solid #1a1523', padding: '10px', borderRadius: '6px' }}>
-                      {auditLogs.map((log, idx) => (
+                    <div style={{ maxHeight: '220px', overflowY: 'auto', fontSize: '11px', background: '#08050e', border: '1px solid #1a1523', padding: '10px', borderRadius: '6px' }}>
+                      {auditLogs.length === 0 ? (
+                        <div style={{ color: '#444', padding: '8px 0' }}>No admin actions recorded yet.</div>
+                      ) : auditLogs.map((log, idx) => (
                         <div key={idx} style={{ padding: '6px 0', borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
-                          <span style={{ color: '#ff3366' }}>[{log.action}]</span> {log.details} by <span style={{ color: '#00ffcc' }}>{log.admin_email}</span> at {new Date(log.created_at).toLocaleString()}
+                          <span style={{ color: '#ff3366', fontWeight: 'bold' }}>[{log.action}]</span>{' '}
+                          {log.details}{log.target_email ? ` → ${log.target_email}` : ''}{' '}by{' '}
+                          <span style={{ color: '#00ffcc' }}>{log.admin_email}</span>{' '}
+                          <span style={{ color: '#444' }}>@ {new Date(log.created_at).toLocaleString()}</span>
                         </div>
                       ))}
                     </div>
                   </div>
                   <div>
                     <h3 style={{ borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '8px', color: '#00ffcc' }}>Raw Game Out-stream Logs</h3>
-                    <div style={{ maxHeight: '200px', overflowY: 'auto', fontSize: '11px', background: '#08050e', border: '1px solid #1a1523', padding: '10px', borderRadius: '6px' }}>
-                      {gameLogs.plinko && gameLogs.plinko.map((l, i) => (
-                        <div key={`p-${i}`} style={{ padding: '4px 0', borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
-                          🎮 PLINKO | Player: {l.email} | Risk: {l.risk} | Mult: {l.multiplier}x | Hash: {l.hash.substring(0, 10)}...
+                    <div style={{ maxHeight: '220px', overflowY: 'auto', fontSize: '11px', background: '#08050e', border: '1px solid #1a1523', padding: '10px', borderRadius: '6px' }}>
+                      {(!gameLogs.plinko?.length && !gameLogs.crash?.length && !gameLogs.dice?.length && !gameLogs.slots?.length) && (
+                        <div style={{ color: '#444', padding: '8px 0' }}>No game logs recorded yet.</div>
+                      )}
+                      {gameLogs.plinko?.map((l, i) => (
+                        <div key={`p-${i}`} style={{ padding: '4px 0', borderBottom: '1px solid rgba(255,255,255,0.02)', display: 'flex', gap: '6px', alignItems: 'flex-start' }}>
+                          <span style={{ background: 'rgba(0,255,102,0.15)', color: '#00ff66', borderRadius: '3px', padding: '1px 5px', fontSize: '9px', fontWeight: 'bold', whiteSpace: 'nowrap', marginTop: '1px' }}>PLINKO</span>
+                          <span style={{ color: '#aaa' }}>
+                            {l.email} | {l.rows}R {l.risk} | {l.multiplier}x | ${(l.payout || 0).toFixed(2)} | Bin {l.destination_bin ?? '?'} | Seed: {(l.server_seed || '').substring(0, 8)}…
+                          </span>
                         </div>
                       ))}
-                      {gameLogs.crash && gameLogs.crash.map((l, i) => (
-                        <div key={`c-${i}`} style={{ padding: '4px 0', borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
-                          🎮 CRASH | Game ID: {l.id} | Multiplier: {l.crash_point}x | Status: {l.status}
+                      {gameLogs.crash?.map((l, i) => (
+                        <div key={`c-${i}`} style={{ padding: '4px 0', borderBottom: '1px solid rgba(255,255,255,0.02)', display: 'flex', gap: '6px', alignItems: 'flex-start' }}>
+                          <span style={{ background: 'rgba(255,51,102,0.15)', color: '#ff3366', borderRadius: '3px', padding: '1px 5px', fontSize: '9px', fontWeight: 'bold', whiteSpace: 'nowrap', marginTop: '1px' }}>CRASH</span>
+                          <span style={{ color: '#aaa' }}>Game #{l.id} | {l.crash_point}x | {l.status} | {new Date(l.created_at).toLocaleTimeString()}</span>
+                        </div>
+                      ))}
+                      {gameLogs.dice?.map((l, i) => (
+                        <div key={`d-${i}`} style={{ padding: '4px 0', borderBottom: '1px solid rgba(255,255,255,0.02)', display: 'flex', gap: '6px', alignItems: 'flex-start' }}>
+                          <span style={{ background: 'rgba(255,170,0,0.15)', color: '#ffaa00', borderRadius: '3px', padding: '1px 5px', fontSize: '9px', fontWeight: 'bold', whiteSpace: 'nowrap', marginTop: '1px' }}>DICE</span>
+                          <span style={{ color: '#aaa' }}>Tournament: {l.name} | Fee ${l.entry_fee ?? '?'} | {l.status} | {new Date(l.created_at).toLocaleTimeString()}</span>
+                        </div>
+                      ))}
+                      {gameLogs.slots?.map((l, i) => (
+                        <div key={`s-${i}`} style={{ padding: '4px 0', borderBottom: '1px solid rgba(255,255,255,0.02)', display: 'flex', gap: '6px', alignItems: 'flex-start' }}>
+                          <span style={{ background: 'rgba(0,204,255,0.15)', color: '#00ccff', borderRadius: '3px', padding: '1px 5px', fontSize: '9px', fontWeight: 'bold', whiteSpace: 'nowrap', marginTop: '1px' }}>SLOTS</span>
+                          <span style={{ color: '#aaa' }}>{l.email} | {l.type} | ${(Math.abs(l.amount) || 0).toFixed(2)} | Bal: ${(l.balance_after || 0).toFixed(2)}</span>
                         </div>
                       ))}
                     </div>

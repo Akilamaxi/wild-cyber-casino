@@ -6,6 +6,7 @@ function AuthModal({ isOpen, onClose, initialTab, onAuthSuccess }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [referralCode, setReferralCode] = useState('');
+  const [isRefCodeFromUrl, setIsRefCodeFromUrl] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -14,6 +15,7 @@ function AuthModal({ isOpen, onClose, initialTab, onAuthSuccess }) {
       const code = sessionStorage.getItem('referral_code');
       if (code) {
         setReferralCode(code);
+        setIsRefCodeFromUrl(true);
       }
     }
   }, [activeTab]);
@@ -138,13 +140,39 @@ function AuthModal({ isOpen, onClose, initialTab, onAuthSuccess }) {
 
           {activeTab === 'register' && (
             <div className="form-group">
-              <label htmlFor="referralCode">Referral Code (Optional)</label>
-              <input 
-                type="text" 
-                id="referralCode" 
-                placeholder="REF-XXXXXX" 
+              <label htmlFor="referralCode">
+                Referral Code
+                <span style={{ color: 'rgba(255,255,255,0.3)', fontWeight: 'normal', fontSize: '11px', marginLeft: '6px' }}>(Optional)</span>
+              </label>
+              {isRefCodeFromUrl && referralCode && (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  background: 'rgba(0, 255, 102, 0.06)',
+                  border: '1px solid rgba(0, 255, 102, 0.25)',
+                  borderRadius: '6px',
+                  padding: '6px 10px',
+                  marginBottom: '6px',
+                  fontSize: '11px',
+                  color: '#00ff66',
+                }}>
+                  <span>🔗</span>
+                  <span style={{ flex: 1 }}>Referral link applied: <strong>{referralCode}</strong></span>
+                  <button
+                    type="button"
+                    onClick={() => { setReferralCode(''); setIsRefCodeFromUrl(false); sessionStorage.removeItem('referral_code'); }}
+                    style={{ background: 'none', border: 'none', color: '#ff4477', cursor: 'pointer', fontSize: '14px', padding: '0 2px', lineHeight: 1 }}
+                    title="Remove referral code"
+                  >✕</button>
+                </div>
+              )}
+              <input
+                type="text"
+                id="referralCode"
+                placeholder="REF-XXXXXX"
                 value={referralCode}
-                onChange={(e) => setReferralCode(e.target.value)}
+                onChange={(e) => { setReferralCode(e.target.value.toUpperCase()); setIsRefCodeFromUrl(false); }}
               />
             </div>
           )}

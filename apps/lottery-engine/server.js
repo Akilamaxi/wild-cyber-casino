@@ -693,7 +693,7 @@ const PLINKO_MULTIPLIERS = {
   }
 };
 
-const generatePlinkoPath = (serverSeed, clientSeed, nonce, rows, biasFactor = 12, throwOutChance = 0.20) => {
+const generatePlinkoPath = (serverSeed, clientSeed, nonce, rows, biasFactor = 8, throwOutChance = 0.02) => {
   const combined = `${serverSeed}:${clientSeed}:${nonce}`;
   const hash = crypto.createHash('sha256').update(combined).digest('hex');
   
@@ -740,7 +740,7 @@ const generatePlinkoPath = (serverSeed, clientSeed, nonce, rows, biasFactor = 12
 };
 
 // --- Plinko API Endpoints ---
-app.post('/api/plinko/drop', async (req, res) => {
+app.post('/api/plinko/drop', requireAuth, async (req, res) => {
   try {
     const { email, wagerAmount, rows, risk } = req.body;
 
@@ -768,8 +768,8 @@ app.post('/api/plinko/drop', async (req, res) => {
 
     const minBet = parseFloat(configMap.min_bet) || 1;
     const maxBet = parseFloat(configMap.max_bet) || 1000;
-    const biasFactor = configMap.rtp_bias !== undefined ? parseInt(configMap.rtp_bias, 10) : 12;
-    const throwOutChance = configMap.throw_out_chance !== undefined ? parseFloat(configMap.throw_out_chance) : 0.20;
+    const biasFactor = configMap.rtp_bias !== undefined ? parseInt(configMap.rtp_bias, 10) : 8;
+    const throwOutChance = configMap.throw_out_chance !== undefined ? parseFloat(configMap.throw_out_chance) : 0.02;
 
     if (wager < minBet || wager > maxBet) {
       return res.status(400).json({ success: false, error: `Wager must be between $${minBet} and $${maxBet}.` });
