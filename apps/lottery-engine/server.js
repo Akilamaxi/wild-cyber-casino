@@ -238,6 +238,12 @@ app.post('/api/auth/login', async (req, res) => {
 
     await logSessionAndCheckAlerts(user.email, ip, userAgent, deviceFingerprint || 'unknown-fingerprint', mockGeo);
 
+    // Re-fetch status AFTER session log (impossible travel may have just frozen the account)
+    const freshStatus = await db.get('SELECT status FROM users WHERE LOWER(email) = ?', [user.email.toLowerCase()]);
+    if (freshStatus && (freshStatus.status === 'FROZEN' || freshStatus.status === 'BANNED')) {
+      return res.status(403).json({ success: false, error: `Account is ${freshStatus.status}. Login blocked by security system.` });
+    }
+
     const jti = crypto.randomUUID();
     const token = jwt.sign(
       { email: user.email, username: user.username, role: user.role, jti },
@@ -260,9 +266,18 @@ app.post('/api/auth/register', async (req, res) => {
     }
 
     const result = await db.executeTransaction(async (tx) => {
+      // Check users table
       const existing = await tx.get('SELECT email FROM users WHERE LOWER(email) = ?', [email.toLowerCase()]);
       if (existing) {
         throw new Error('Email address is already registered.');
+      }
+
+      // Also check for orphaned referral code row (from a previous failed attempt)
+      const orphanRef = await tx.get('SELECT email FROM user_referral_codes WHERE LOWER(email) = ?', [email.toLowerCase()]);
+      if (orphanRef) {
+        // Clean up orphaned row before re-inserting
+        await tx.run('DELETE FROM user_referral_codes WHERE LOWER(email) = ?', [email.toLowerCase()]);
+        await tx.run('DELETE FROM user_affiliate_wallets WHERE LOWER(email) = ?', [email.toLowerCase()]);
       }
 
       const ownReferralCode = 'REF-' + crypto.randomBytes(3).toString('hex').toUpperCase();
@@ -280,20 +295,21 @@ app.post('/api/auth/register', async (req, res) => {
         [email.toLowerCase(), username, password, walletAddress || null]
       );
 
+      // Use INSERT OR REPLACE as safety net against constraint errors
       await tx.run(
-        'INSERT INTO user_referral_codes (email, referral_code, referred_by) VALUES (?, ?, ?)',
+        'INSERT OR REPLACE INTO user_referral_codes (email, referral_code, referred_by) VALUES (?, ?, ?)',
         [email.toLowerCase(), ownReferralCode, referrerEmail]
       );
 
       await tx.run(
-        'INSERT INTO user_affiliate_wallets (email, commission_balance, total_network_volume, current_rank) VALUES (?, 0.0, 0.0, "BRONZE")',
+        'INSERT OR IGNORE INTO user_affiliate_wallets (email, commission_balance, total_network_volume, current_rank) VALUES (?, 0.0, 0.0, "BRONZE")',
         [email.toLowerCase()]
       );
 
       if (referrerEmail) {
         const referralId = 'REF-' + crypto.randomBytes(4).toString('hex').toUpperCase();
         await tx.run(
-          'INSERT INTO referrals (id, referrer_email, referee_email, status, created_at) VALUES (?, ?, ?, "PENDING", ?)',
+          'INSERT OR IGNORE INTO referrals (id, referrer_email, referee_email, status, created_at) VALUES (?, ?, ?, "PENDING", ?)',
           [referralId, referrerEmail, email.toLowerCase(), new Date().toISOString()]
         );
       }
@@ -320,7 +336,14 @@ app.post('/api/auth/register', async (req, res) => {
       };
     }
 
+    // Log session BEFORE signing token so travel-freeze is reflected in the token check
     await logSessionAndCheckAlerts(result.email, ip, userAgent, deviceFingerprint || 'unknown-fingerprint', mockGeo);
+
+    // Re-fetch status in case logSession just froze the account
+    const freshUser = await db.get('SELECT status FROM users WHERE LOWER(email) = ?', [result.email]);
+    if (freshUser && (freshUser.status === 'FROZEN' || freshUser.status === 'BANNED')) {
+      return res.status(403).json({ success: false, error: `Account flagged and ${freshUser.status} during registration security check.` });
+    }
 
     const jti = crypto.randomUUID();
     const token = jwt.sign(
