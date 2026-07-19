@@ -33,6 +33,12 @@ export class RegisterDto {
   @IsOptional()
   @IsString()
   deviceFingerprint?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  @Matches(/^[A-Za-z0-9_-]+$/, { message: 'Referral code contains invalid characters' })
+  referralCode?: string;
 }
 
 export class WalletAddressDto {
