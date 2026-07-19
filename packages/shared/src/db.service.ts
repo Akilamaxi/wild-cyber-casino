@@ -1,7 +1,18 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { Pool } from 'pg';
+import * as crypto from 'crypto';
 
 const usePostgres = true;
+
+async function hashBootstrapPassword(password: string): Promise<string> {
+  const salt = crypto.randomBytes(16);
+  const derived = await new Promise<Buffer>((resolve, reject) => {
+    crypto.scrypt(password, salt, 64, { N: 32768, r: 8, p: 1, maxmem: 64 * 1024 * 1024 }, (error, key) => {
+      if (error) reject(error); else resolve(key as Buffer);
+    });
+  });
+  return `scrypt$32768$8$1$${salt.toString('base64')}$${derived.toString('base64')}`;
+}
 
 @Injectable()
 export class DbService implements OnModuleDestroy {
@@ -373,15 +384,20 @@ export class DbService implements OnModuleDestroy {
       // successful checkout impossible and are therefore migrated to 60 seconds.
       await this.run('UPDATE games_config SET draw_interval_ms = 60000 WHERE draw_interval_ms < 60000');
 
-      if (process.env.NODE_ENV !== 'production') {
+      if (process.env.ENABLE_LOCAL_BOOTSTRAP === 'true') {
+        const adminEmail = (process.env.BOOTSTRAP_ADMIN_EMAIL || 'admin@casino.com').trim().toLowerCase();
+        const adminPassword = process.env.BOOTSTRAP_ADMIN_PASSWORD || '';
+        if (adminPassword.length < 12) {
+          throw new Error('BOOTSTRAP_ADMIN_PASSWORD must contain at least 12 characters when local bootstrap is enabled.');
+        }
         await this.run(`
           INSERT INTO users (email, username, password, balance, gamesPlayed, totalWon, role)
-          VALUES ('demo@casino.com', 'DemoPlayer', 'password123', 1000.0, 0, 0.0, 'USER') ON CONFLICT DO NOTHING
-        `);
+          VALUES ('demo@casino.com', 'DemoPlayer', $1, 1000.0, 0, 0.0, 'USER') ON CONFLICT DO NOTHING
+        `, [await hashBootstrapPassword('password123')]);
         await this.run(`
           INSERT INTO users (email, username, password, balance, gamesPlayed, totalWon, role)
-          VALUES ('admin@casino.com', 'SuperAdmin', 'admin123', 99999.0, 0, 0.0, 'ADMIN') ON CONFLICT DO NOTHING
-        `);
+          VALUES ($1, 'SuperAdmin', $2, 99999.0, 0, 0.0, 'ADMIN') ON CONFLICT DO NOTHING
+        `, [adminEmail, await hashBootstrapPassword(adminPassword)]);
       }
 
       await this.run(`

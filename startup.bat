@@ -35,6 +35,12 @@ if defined GENERATE_ENV (
   echo Created .env with unique local credentials. Do not commit this file.
 )
 
+powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%~dp0scripts\ensure-local-bootstrap.ps1"
+if errorlevel 1 (
+  echo Error: Could not configure local administrator bootstrap. 1>&2
+  exit /b 1
+)
+
 echo Validating configuration...
 docker compose --env-file .env config --quiet
 if errorlevel 1 exit /b 1
@@ -47,6 +53,8 @@ echo.
 echo Cyber Casino is ready.
 echo Player application: http://localhost:8080/
 echo Admin portal:      http://localhost:8080/admin/
+echo Local admin email: admin@casino.com
+echo Local admin password: see BOOTSTRAP_ADMIN_PASSWORD in .env
 echo.
 echo Use "docker compose --env-file .env logs -f" to follow logs.
 echo Use "docker compose --env-file .env down" to stop the stack.

@@ -17,6 +17,9 @@ try {
         'ADMIN_MFA_SECRET='
         'ADMIN_MFA_REQUIRED=false'
         'ALLOW_MOCK_PAYMENTS=true'
+        'ENABLE_LOCAL_BOOTSTRAP=true'
+        'BOOTSTRAP_ADMIN_EMAIL=admin@casino.com'
+        'BOOTSTRAP_ADMIN_PASSWORD=' + (New-HexSecret)
         'CORS_ORIGINS=http://localhost:8080'
         'ADMIN_CORS_ORIGINS=http://localhost:8080'
     ) | Set-Content -Encoding ascii -LiteralPath '.env'

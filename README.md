@@ -463,13 +463,20 @@ cd secure-casino-spinwheel
 ./startup.sh
 docker compose ps
 docker compose logs -f lottery-engine
-curl http://localhost:8080/api/lottery/games
+curl http://localhost:8080/api/v1/lottery/games
 ```
 
 On first run, `startup.sh` or `startup.bat` creates the ignored `.env` file with
 unique cryptographically random local secrets. Existing `.env` files are never
 overwritten unless they still contain the example generation markers. For deployment,
 supply secrets through your platform's secret manager.
+
+For local Docker startup only, the launcher also provisions
+`BOOTSTRAP_ADMIN_EMAIL` using the unique `BOOTSTRAP_ADMIN_PASSWORD` stored in
+the ignored `.env` file. The default local email is `admin@casino.com`; read the
+generated password from `.env`. Existing `.env` files are safely augmented with
+these variables without changing PostgreSQL, Redis, or JWT secrets. Cloud Run
+does not enable local bootstrap and never creates a default administrator.
 
 The platform launchers provide full-stack startup with configuration validation, a
 three-minute readiness timeout, and failure logs:
@@ -485,7 +492,7 @@ rem Windows Command Prompt or PowerShell
 startup.bat
 ```
 
-PostgreSQL schema initialization currently occurs during service initialization; there is no migration CLI. Production creates no default credentials. Register a player through `/api/auth/register` and provision administrators through a controlled operational migration/identity workflow.
+PostgreSQL schema initialization currently occurs during service initialization; there is no migration CLI. Production creates no default credentials. Register a player through `/api/v1/auth/register` and provision administrators through a controlled operational migration/identity workflow.
 
 Native development:
 
