@@ -9,6 +9,9 @@
     "start:prod": "node dist/main"
   },
   "dependencies": {
-    "@cyber-casino/shared": "*"
+    "@cyber-casino/shared": "*",
+    "@nestjs/swagger": "^11.4.6",
+    "jsonwebtoken": "^9.0.3",
+    "swagger-ui-express": "^5.0.1"
   }
 }

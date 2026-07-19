@@ -4,6 +4,17 @@ import './App.css';
 
 const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:5000' : '';
 
+const fetch = (input, init = {}) => {
+  const token = sessionStorage.getItem('cyber_admin_token');
+  return window.fetch(input, {
+    ...init,
+    headers: {
+      ...(init.headers || {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
+    }
+  });
+};
+
 const SYMBOL_MAP = {
   'BAR': { emoji: '➖', label: 'BAR' },
   'CHERRY': { emoji: '🍒', label: 'CHERRY' },
@@ -16,7 +27,7 @@ const SYMBOL_MAP = {
 function App() {
   const [currentUser, setCurrentUser] = useState(() => {
     const saved = localStorage.getItem('cyber_admin_user');
-    return saved ? JSON.parse(saved) : null;
+    return saved && sessionStorage.getItem('cyber_admin_token') ? JSON.parse(saved) : null;
   });
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
@@ -272,7 +283,9 @@ function App() {
       fetchSecurityData();
 
       // Connect WebSockets for real-time config updates
-      socketRef.current = io(API_BASE);
+      socketRef.current = io(API_BASE, {
+        auth: { token: sessionStorage.getItem('cyber_admin_token') }
+      });
       socketRef.current.on('connect', () => {
         console.log('[WS] Admin connected to WebSocket server.');
       });
@@ -326,6 +339,7 @@ function App() {
         if (data.user.role === 'ADMIN') {
           setCurrentUser(data.user);
           localStorage.setItem('cyber_admin_user', JSON.stringify(data.user));
+          sessionStorage.setItem('cyber_admin_token', data.token);
         } else {
           setLoginError('Access denied. You do not have administrative privileges.');
         }
@@ -340,6 +354,7 @@ function App() {
   const handleLogout = () => {
     setCurrentUser(null);
     localStorage.removeItem('cyber_admin_user');
+    sessionStorage.removeItem('cyber_admin_token');
   };
 
   // --- Fetchers ---

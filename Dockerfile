@@ -1,7 +1,8 @@
+# syntax=docker/dockerfile:1.7
 # ==========================================
 # STAGE 1: Build Frontend SPA assets
 # ==========================================
-FROM node:20-alpine AS frontend-builder
+FROM node:20.19-alpine AS frontend-builder
 WORKDIR /app
 
 # Copy root workspace configurations
@@ -14,17 +15,18 @@ COPY apps/payout-worker/package*.json ./apps/payout-worker/
 COPY apps/backoffice-api/package*.json ./apps/backoffice-api/
 COPY apps/loyalty-engine/package*.json ./apps/loyalty-engine/
 
-# Bootstrap all monorepo links and install modules
-# Removing package-lock.json before install resolves the cross-platform Vite/Rollup native binary issue
-RUN rm -f package-lock.json */package-lock.json */*/package-lock.json && npm install
+# Reproducible workspace install from the committed lockfile.
+RUN --mount=type=cache,target=/root/.npm npm ci
 
 # Copy source codes
 COPY packages/ ./packages/
+COPY apps/ ./apps/
 COPY frontend/ ./frontend/
 COPY admin-frontend/ ./admin-frontend/
 
 # Compile frontend production bundles and NestJS microservices
-RUN npm run build:frontend && npm run build:admin && \
+RUN npm run build --workspace=@cyber-casino/shared && \
+    npm run build:frontend && npm run build:admin && \
     npx nest build lottery-engine --config apps/lottery-engine/nest-cli.json --path apps/lottery-engine/tsconfig.json && \
     npx nest build loyalty-engine --config apps/loyalty-engine/nest-cli.json --path apps/loyalty-engine/tsconfig.json && \
     npx nest build payout-worker --config apps/payout-worker/nest-cli.json --path apps/payout-worker/tsconfig.json && \
@@ -33,11 +35,13 @@ RUN npm run build:frontend && npm run build:admin && \
 # ==========================================
 # STAGE 2: Build slim production runner
 # ==========================================
-FROM node:20-alpine
+FROM node:20.19-alpine
 WORKDIR /app
 
 # Copy root configurations and workspace lists
 COPY package*.json ./
+COPY frontend/package*.json ./frontend/
+COPY admin-frontend/package*.json ./admin-frontend/
 COPY packages/shared/package*.json ./packages/shared/
 COPY apps/lottery-engine/package*.json ./apps/lottery-engine/
 COPY apps/payout-worker/package*.json ./apps/payout-worker/
@@ -45,11 +49,15 @@ COPY apps/backoffice-api/package*.json ./apps/backoffice-api/
 COPY apps/loyalty-engine/package*.json ./apps/loyalty-engine/
 
 # Install only production dependencies
-RUN npm install --omit=dev
+RUN --mount=type=cache,target=/root/.npm npm ci --omit=dev && npm cache clean --force
 
 # Copy server packages source codes and compiled NestJS outputs
-COPY packages/ ./packages/
-COPY apps/ ./apps/
+COPY --chown=node:node packages/ ./packages/
+COPY --from=frontend-builder --chown=node:node /app/packages/shared/dist ./packages/shared/dist
+COPY --chown=node:node apps/lottery-engine/package*.json ./apps/lottery-engine/
+COPY --chown=node:node apps/loyalty-engine/package*.json ./apps/loyalty-engine/
+COPY --chown=node:node apps/payout-worker/package*.json ./apps/payout-worker/
+COPY --chown=node:node apps/backoffice-api/package*.json ./apps/backoffice-api/
 COPY --from=frontend-builder /app/apps/lottery-engine/dist ./apps/lottery-engine/dist
 COPY --from=frontend-builder /app/apps/loyalty-engine/dist ./apps/loyalty-engine/dist
 COPY --from=frontend-builder /app/apps/payout-worker/dist ./apps/payout-worker/dist
@@ -67,6 +75,8 @@ WORKDIR /app/apps/lottery-engine
 ENV PORT=8080
 ENV NODE_ENV=production
 ENV RUN_WORKER_CONCURRENTLY=true
+
+USER node
 
 # Start API server (which forks scheduling worker process on boot)
 CMD ["npm", "run", "start:prod"]

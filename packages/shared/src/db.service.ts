@@ -9,6 +9,11 @@ export class DbService implements OnModuleDestroy {
 
   constructor() {
     console.log('[DB] Connecting to PostgreSQL...');
+    if (process.env.NODE_ENV === 'production') {
+      if (!process.env.DATABASE_URL && (!process.env.PGPASSWORD || process.env.PGPASSWORD === 'postgres')) {
+        throw new Error('A non-default PostgreSQL credential is required in production.');
+      }
+    }
     const poolConfig = process.env.DATABASE_URL 
       ? { connectionString: process.env.DATABASE_URL }
       : {
@@ -20,7 +25,7 @@ export class DbService implements OnModuleDestroy {
         };
     this.pgPool = new Pool({
       ...poolConfig,
-      max: 20,
+      max: parseInt(process.env.PG_POOL_MAX || '10', 10),
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 10000,
     });
@@ -132,7 +137,9 @@ export class DbService implements OnModuleDestroy {
   async executeTransaction(operationsCallback: (tx: any) => Promise<any>): Promise<any> {
     const client = await this.pgPool.connect();
     try {
-      await client.query('BEGIN');
+      // Financial operations must not observe stale balances when concurrent
+      // wager/deposit/payout requests target the same account.
+      await client.query('BEGIN ISOLATION LEVEL SERIALIZABLE');
       
       const clientRun = (sql: string, params: any[] = []) => {
         let pgSql = this.translateQuery(sql);
@@ -188,9 +195,14 @@ export class DbService implements OnModuleDestroy {
           balance DOUBLE PRECISION DEFAULT 1000.0,
           gamesPlayed INTEGER DEFAULT 0,
           totalWon DOUBLE PRECISION DEFAULT 0.0,
-          role VARCHAR(50) DEFAULT 'USER'
+          role VARCHAR(50) DEFAULT 'USER',
+          status VARCHAR(50) DEFAULT 'ACTIVE',
+          wallet_address VARCHAR(255)
         )
       `);
+
+      await this.run(`ALTER TABLE users ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'ACTIVE'`);
+      await this.run(`ALTER TABLE users ADD COLUMN IF NOT EXISTS wallet_address VARCHAR(255)`);
 
       await this.run(`
         CREATE TABLE IF NOT EXISTS loyalty_profiles (
@@ -303,15 +315,16 @@ export class DbService implements OnModuleDestroy {
         `, [g.id, g.name, g.interval, g.price]);
       }
 
-      await this.run(`
-        INSERT INTO users (email, username, password, balance, gamesPlayed, totalWon, role) 
-        VALUES ('demo@casino.com', 'DemoPlayer', 'password123', 1000.0, 0, 0.0, 'USER') ON CONFLICT DO NOTHING
-      `);
-      
-      await this.run(`
-        INSERT INTO users (email, username, password, balance, gamesPlayed, totalWon, role) 
-        VALUES ('admin@casino.com', 'SuperAdmin', 'admin123', 99999.0, 0, 0.0, 'ADMIN') ON CONFLICT DO NOTHING
-      `);
+      if (process.env.NODE_ENV !== 'production') {
+        await this.run(`
+          INSERT INTO users (email, username, password, balance, gamesPlayed, totalWon, role)
+          VALUES ('demo@casino.com', 'DemoPlayer', 'password123', 1000.0, 0, 0.0, 'USER') ON CONFLICT DO NOTHING
+        `);
+        await this.run(`
+          INSERT INTO users (email, username, password, balance, gamesPlayed, totalWon, role)
+          VALUES ('admin@casino.com', 'SuperAdmin', 'admin123', 99999.0, 0, 0.0, 'ADMIN') ON CONFLICT DO NOTHING
+        `);
+      }
 
       await this.run(`
         CREATE TABLE IF NOT EXISTS spin_wheel_prizes (

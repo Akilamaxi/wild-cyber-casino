@@ -1,12 +1,14 @@
-import { Controller, Post, Get, Req, Res, Body, Query, Param, UseGuards } from '@nestjs/common';
+import { Controller, Post, Get, Req, Res, Body, Query, Param } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { LotteryService } from './lottery.service';
+import { Public, Roles } from './security.decorators';
 
 @Controller('api')
 export class LotteryController {
   constructor(private readonly service: LotteryService) {}
 
   @Post('auth/login')
+  @Public()
   async login(@Body() body: any, @Req() req: Request, @Res() res: Response) {
     try {
       const ip = req.ip || req.headers['x-forwarded-for'] || '127.0.0.1';
@@ -38,6 +40,7 @@ export class LotteryController {
   }
 
   @Post('auth/register')
+  @Public()
   async register(@Body() body: any, @Req() req: Request, @Res() res: Response) {
     try {
       const ip = req.ip || req.headers['x-forwarded-for'] || '127.0.0.1';
@@ -61,6 +64,7 @@ export class LotteryController {
   }
 
   @Get('leaderboard')
+  @Public()
   async getLeaderboard(@Res() res: Response) {
     try {
       const leaderboard = await this.service.getLeaderboard();
@@ -71,6 +75,7 @@ export class LotteryController {
   }
 
   @Get('spin-wheel/prizes')
+  @Public()
   async getSpinwheelPrizes(@Res() res: Response) {
     try {
       const prizes = await this.service.getSpinwheelPrizes();
@@ -91,6 +96,7 @@ export class LotteryController {
   }
 
   @Get('slots/config')
+  @Public()
   async getSlotsConfig(@Res() res: Response) {
     try {
       const config = await this.service.getSlotsConfig();
@@ -177,6 +183,7 @@ export class LotteryController {
   }
 
   @Get('lottery/games')
+  @Public()
   async getLotteryGames(@Res() res: Response) {
     try {
       const games = await this.service.getLotteryGames();
@@ -207,6 +214,7 @@ export class LotteryController {
   }
 
   @Get('lottery/winners/:gameName')
+  @Public()
   async getLotteryWinners(@Param('gameName') gameName: string, @Res() res: Response) {
     try {
       const draws = await this.service.getLotteryWinners(gameName);
@@ -257,6 +265,7 @@ export class LotteryController {
   }
 
   @Get('dice/config')
+  @Public()
   async getDiceConfig(@Res() res: Response) {
     try {
       const config = await this.service.getDiceConfig();
@@ -277,6 +286,7 @@ export class LotteryController {
   }
 
   @Get('dice/tournaments')
+  @Public()
   async getDiceTournaments(@Res() res: Response) {
     try {
       const tournaments = await this.service.getDiceTournaments();
@@ -323,6 +333,7 @@ export class LotteryController {
   }
 
   @Get('dice/tournament/leaderboard/:tournamentId')
+  @Public()
   async tournamentLeaderboard(@Param('tournamentId') tournamentId: string, @Res() res: Response) {
     try {
       const leaderboard = await this.service.tournamentLeaderboard(tournamentId);
@@ -373,6 +384,7 @@ export class LotteryController {
   }
 
   @Get('admin/stats')
+  @Roles('ADMIN')
   async getAdminStats(@Res() res: Response) {
     try {
       const stats = await this.service.getAdminStats();
@@ -383,6 +395,7 @@ export class LotteryController {
   }
 
   @Post('admin/kill-switch')
+  @Roles('ADMIN')
   async toggleKillSwitch(@Body() body: any, @Res() res: Response) {
     try {
       const result = await this.service.toggleKillSwitch(body.active);
@@ -393,6 +406,7 @@ export class LotteryController {
   }
 
   @Get('admin/audit-verify/:drawId')
+  @Roles('ADMIN')
   async verifyAudit(@Param('drawId') drawId: string, @Res() res: Response) {
     try {
       const result = await this.service.verifyAudit(drawId);
@@ -404,10 +418,12 @@ export class LotteryController {
 
   // Reverse Proxies
   @Post('admin/*')
+  @Roles('ADMIN')
   async proxyAdminPost(@Req() req: Request, @Res() res: Response) {
     return this.service.proxyToBackoffice(req, res);
   }
   @Get('admin/*')
+  @Roles('ADMIN')
   async proxyAdminGet(@Req() req: Request, @Res() res: Response) {
     return this.service.proxyToBackoffice(req, res);
   }

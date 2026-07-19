@@ -7,8 +7,43 @@ import { DbService, PubSubService, CryptoRngService } from '@cyber-casino/shared
 import { LotteryGateway } from './lottery.gateway';
 import { CrashService } from './crash.service';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'cyber-casino-secret-key-1337-punk';
 const localBlacklist = new Set<string>();
+
+const getJwtSecret = () => {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) throw new Error('JWT_SECRET is required.');
+  return secret;
+};
+
+const hashPassword = async (password: string): Promise<string> => {
+  const salt = crypto.randomBytes(16);
+  const derived = await new Promise<Buffer>((resolve, reject) => {
+    crypto.scrypt(password, salt, 64, { N: 32768, r: 8, p: 1, maxmem: 64 * 1024 * 1024 }, (error, key) => {
+      if (error) reject(error);
+      else resolve(key as Buffer);
+    });
+  });
+  return `scrypt$32768$8$1$${salt.toString('base64')}$${derived.toString('base64')}`;
+};
+
+const verifyPassword = async (password: string, stored: string): Promise<boolean> => {
+  if (!stored.startsWith('scrypt$')) {
+    const supplied = Buffer.from(password);
+    const legacy = Buffer.from(stored);
+    return supplied.length === legacy.length && crypto.timingSafeEqual(supplied, legacy);
+  }
+  const [, n, r, p, saltB64, hashB64] = stored.split('$');
+  const expected = Buffer.from(hashB64, 'base64');
+  const actual = await new Promise<Buffer>((resolve, reject) => {
+    crypto.scrypt(password, Buffer.from(saltB64, 'base64'), expected.length, {
+      N: Number(n), r: Number(r), p: Number(p), maxmem: 64 * 1024 * 1024,
+    }, (error, key) => {
+      if (error) reject(error);
+      else resolve(key as Buffer);
+    });
+  });
+  return actual.length === expected.length && crypto.timingSafeEqual(actual, expected);
+};
 
 const PLINKO_MULTIPLIERS: Record<number, Record<string, number[]>> = {
   8: {
@@ -106,7 +141,11 @@ export class LotteryService implements OnModuleInit {
     }
     const token = authHeader.split(' ')[1];
     try {
-      const decoded = jwt.verify(token, JWT_SECRET) as any;
+      const decoded = jwt.verify(token, getJwtSecret(), {
+        algorithms: ['HS256'],
+        issuer: process.env.JWT_ISSUER || 'cyber-casino',
+        audience: process.env.JWT_AUDIENCE || 'cyber-casino-api',
+      }) as any;
       const isBlacklisted = await this.isJtiBlacklisted(decoded.jti);
       if (isBlacklisted) {
         throw new ForbiddenException('Unauthorized: Session revoked.');
@@ -235,12 +274,16 @@ export class LotteryService implements OnModuleInit {
       throw new BadRequestException('Email and password are required.');
     }
     const user = await this.db.get(
-      'SELECT email, username, balance, gamesPlayed, totalWon, role, status FROM users WHERE LOWER(email) = ? AND password = ?',
-      [email.toLowerCase(), password]
+      'SELECT email, username, password, balance, gamesPlayed, totalWon, role, status FROM users WHERE LOWER(email) = ?',
+      [email.toLowerCase()]
     );
-    if (!user) {
+    if (!user || !(await verifyPassword(String(password), user.password))) {
       throw new BadRequestException('Invalid email or password credentials.');
     }
+    if (!user.password.startsWith('scrypt$')) {
+      await this.db.run('UPDATE users SET password = ? WHERE LOWER(email) = ?', [await hashPassword(password), email.toLowerCase()]);
+    }
+    delete user.password;
     if (user.status === 'FROZEN' || user.status === 'BANNED') {
       throw new ForbiddenException(`Account is ${user.status}.`);
     }
@@ -255,8 +298,13 @@ export class LotteryService implements OnModuleInit {
     const jti = crypto.randomUUID();
     const token = jwt.sign(
       { email: user.email, username: user.username, role: user.role, jti },
-      JWT_SECRET,
-      { expiresIn: '24h' }
+      getJwtSecret(),
+      {
+        expiresIn: process.env.JWT_ACCESS_TTL || '15m',
+        issuer: process.env.JWT_ISSUER || 'cyber-casino',
+        audience: process.env.JWT_AUDIENCE || 'cyber-casino-api',
+        algorithm: 'HS256',
+      }
     );
     return { user, token };
   }
@@ -289,7 +337,7 @@ export class LotteryService implements OnModuleInit {
 
       await tx.run(
         `INSERT INTO users (email, username, password, balance, gamesPlayed, totalWon, status, wallet_address) VALUES (?, ?, ?, 1000.0, 0, 0.0, 'ACTIVE', ?)`,
-        [email.toLowerCase(), username, password, walletAddress || null]
+        [email.toLowerCase(), username, await hashPassword(String(password)), walletAddress || null]
       );
       await tx.run(
         'INSERT OR REPLACE INTO user_referral_codes (email, referral_code, referred_by) VALUES (?, ?, ?)',
@@ -327,8 +375,13 @@ export class LotteryService implements OnModuleInit {
     const jti = crypto.randomUUID();
     const token = jwt.sign(
       { email: result.email, username: result.username, role: result.role, jti },
-      JWT_SECRET,
-      { expiresIn: '24h' }
+      getJwtSecret(),
+      {
+        expiresIn: process.env.JWT_ACCESS_TTL || '15m',
+        issuer: process.env.JWT_ISSUER || 'cyber-casino',
+        audience: process.env.JWT_AUDIENCE || 'cyber-casino-api',
+        algorithm: 'HS256',
+      }
     );
     return { user: result, token };
   }
@@ -717,17 +770,21 @@ export class LotteryService implements OnModuleInit {
   }
 
   async deposit(email: string, amount: any) {
+    if (process.env.NODE_ENV === 'production' && process.env.ALLOW_MOCK_PAYMENTS !== 'true') {
+      throw new ForbiddenException('Direct deposits are disabled. Use the verified payment-provider webhook.');
+    }
     const depAmount = parseFloat(amount);
-    if (!email || isNaN(depAmount) || depAmount <= 0) {
+    if (!email || !Number.isFinite(depAmount) || depAmount <= 0 || depAmount > 1_000_000) {
       throw new BadRequestException('Invalid deposit values.');
     }
 
     return this.db.executeTransaction(async (tx: any) => {
-      const user = await tx.get('SELECT balance FROM users WHERE LOWER(email) = ?', [email.toLowerCase()]);
+      const user = await tx.get(
+        'UPDATE users SET balance = balance + ? WHERE LOWER(email) = ? RETURNING balance',
+        [depAmount, email.toLowerCase()],
+      );
       if (!user) throw new Error('User not found.');
-
-      const newBalance = user.balance + depAmount;
-      await tx.run('UPDATE users SET balance = ? WHERE LOWER(email) = ?', [newBalance, email.toLowerCase()]);
+      const newBalance = user.balance;
 
       const txId = this.generateTxId();
       await tx.run(
@@ -742,17 +799,17 @@ export class LotteryService implements OnModuleInit {
 
   async withdraw(email: string, amount: any) {
     const witAmount = parseFloat(amount);
-    if (!email || isNaN(witAmount) || witAmount <= 0) {
+    if (!email || !Number.isFinite(witAmount) || witAmount <= 0 || witAmount > 1_000_000) {
       throw new BadRequestException('Invalid withdrawal values.');
     }
 
     return this.db.executeTransaction(async (tx: any) => {
-      const user = await tx.get('SELECT balance FROM users WHERE LOWER(email) = ?', [email.toLowerCase()]);
-      if (!user) throw new Error('User not found.');
-      if (user.balance < witAmount) throw new Error('Insufficient wallet balance.');
-
-      const newBalance = user.balance - witAmount;
-      await tx.run('UPDATE users SET balance = ? WHERE LOWER(email) = ?', [newBalance, email.toLowerCase()]);
+      const user = await tx.get(
+        'UPDATE users SET balance = balance - ? WHERE LOWER(email) = ? AND balance >= ? RETURNING balance',
+        [witAmount, email.toLowerCase(), witAmount],
+      );
+      if (!user) throw new Error('User not found or insufficient wallet balance.');
+      const newBalance = user.balance;
 
       const txId = this.generateTxId();
       await tx.run(

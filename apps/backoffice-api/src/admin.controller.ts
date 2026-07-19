@@ -1,4 +1,5 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, BadRequestException, OnModuleInit } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, BadRequestException, OnModuleInit, Req } from '@nestjs/common';
+import { Request } from 'express';
 import { AdminService } from './admin.service';
 
 @Controller('api/admin')
@@ -86,8 +87,8 @@ export class AdminController implements OnModuleInit {
   }
 
   @Post('dice/tournaments/:id/complete')
-  async completeDiceTournament(@Param('id') id: string, @Body('adminEmail') adminEmail: string) {
-    return this.adminService.completeDiceTournament(id, adminEmail);
+  async completeDiceTournament(@Param('id') id: string, @Req() req: Request & { user?: any }) {
+    return this.adminService.completeDiceTournament(id, req.user.email);
   }
 
   @Get('crash/config')
@@ -136,13 +137,13 @@ export class AdminController implements OnModuleInit {
   }
 
   @Post('security/alerts/:id/resolve')
-  async resolveSecurityAlert(@Param('id') id: string, @Body('adminEmail') adminEmail: string) {
-    return this.adminService.resolveSecurityAlert(id, adminEmail);
+  async resolveSecurityAlert(@Param('id') id: string, @Req() req: Request & { user?: any }) {
+    return this.adminService.resolveSecurityAlert(id, req.user.email);
   }
 
   @Post('users/:email/status')
-  async updateUserStatus(@Param('email') email: string, @Body() body: any) {
-    return this.adminService.updateUserStatus(email, body.status, body.adminEmail);
+  async updateUserStatus(@Param('email') email: string, @Body() body: any, @Req() req: Request & { user?: any }) {
+    return this.adminService.updateUserStatus(email, body.status, req.user.email);
   }
 
   @Get('users/:email/tags')
@@ -151,8 +152,8 @@ export class AdminController implements OnModuleInit {
   }
 
   @Post('users/:email/tags')
-  async updateUserTags(@Param('email') email: string, @Body() body: any) {
-    return this.adminService.updateUserTags(email, body.tags, body.adminEmail);
+  async updateUserTags(@Param('email') email: string, @Body() body: any, @Req() req: Request & { user?: any }) {
+    return this.adminService.updateUserTags(email, body.tags, req.user.email);
   }
 
   @Get('bonus-rules')
@@ -161,13 +162,13 @@ export class AdminController implements OnModuleInit {
   }
 
   @Post('bonus-rules')
-  async createBonusRule(@Body() body: any) {
-    return this.adminService.createBonusRule(body);
+  async createBonusRule(@Body() body: any, @Req() req: Request & { user?: any }) {
+    return this.adminService.createBonusRule({ ...body, adminEmail: req.user.email });
   }
 
   @Post('bonus-rules/:id/toggle')
-  async toggleBonusRule(@Param('id') id: string, @Body() body: any) {
-    return this.adminService.toggleBonusRule(id, body.active, body.adminEmail);
+  async toggleBonusRule(@Param('id') id: string, @Body() body: any, @Req() req: Request & { user?: any }) {
+    return this.adminService.toggleBonusRule(id, body.active, req.user.email);
   }
 
   @Get('users/:email/360-view')
