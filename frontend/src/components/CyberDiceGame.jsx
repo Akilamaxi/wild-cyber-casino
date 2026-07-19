@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import io from 'socket.io-client';
 
-const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:5000' : '';
+const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:3000' : '';
 
 function CyberDiceGame({ currentUser, onBalanceUpdate }) {
   const [activeMode, setActiveMode] = useState('single'); // 'single' | 'tournament'

@@ -23,8 +23,12 @@ COPY packages/ ./packages/
 COPY frontend/ ./frontend/
 COPY admin-frontend/ ./admin-frontend/
 
-# Compile frontend production bundles
-RUN npm run build:frontend && npm run build:admin
+# Compile frontend production bundles and NestJS microservices
+RUN npm run build:frontend && npm run build:admin && \
+    npx nest build lottery-engine --config apps/lottery-engine/nest-cli.json --path apps/lottery-engine/tsconfig.json && \
+    npx nest build loyalty-engine --config apps/loyalty-engine/nest-cli.json --path apps/loyalty-engine/tsconfig.json && \
+    npx nest build payout-worker --config apps/payout-worker/nest-cli.json --path apps/payout-worker/tsconfig.json && \
+    npx nest build backoffice-api --config apps/backoffice-api/nest-cli.json --path apps/backoffice-api/tsconfig.json
 
 # ==========================================
 # STAGE 2: Build slim production runner
@@ -43,9 +47,13 @@ COPY apps/loyalty-engine/package*.json ./apps/loyalty-engine/
 # Install only production dependencies
 RUN npm install --omit=dev
 
-# Copy server packages source codes
+# Copy server packages source codes and compiled NestJS outputs
 COPY packages/ ./packages/
 COPY apps/ ./apps/
+COPY --from=frontend-builder /app/apps/lottery-engine/dist ./apps/lottery-engine/dist
+COPY --from=frontend-builder /app/apps/loyalty-engine/dist ./apps/loyalty-engine/dist
+COPY --from=frontend-builder /app/apps/payout-worker/dist ./apps/payout-worker/dist
+COPY --from=frontend-builder /app/apps/backoffice-api/dist ./apps/backoffice-api/dist
 
 # Copy built frontend bundle from Stage 1 into main server static assets
 COPY --from=frontend-builder /app/frontend/dist ./apps/lottery-engine/dist
@@ -61,4 +69,4 @@ ENV NODE_ENV=production
 ENV RUN_WORKER_CONCURRENTLY=true
 
 # Start API server (which forks scheduling worker process on boot)
-CMD ["node", "server.js"]
+CMD ["npm", "run", "start:prod"]

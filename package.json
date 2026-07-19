@@ -17,17 +17,43 @@
     "build:frontend": "npm run build --workspace=frontend",
     "build:admin": "npm run build --workspace=admin-frontend",
     "start:frontend": "npm start --workspace=frontend",
-    "start:admin": "npm run dev --workspace=admin-frontend"
+    "start:admin": "npm run dev --workspace=admin-frontend",
+    "test:e2e": "npx playwright test",
+    "test:e2e:ui": "npx playwright test --ui",
+    "test:e2e:headed": "npx playwright test --headed",
+    "test:e2e:chromium": "npx playwright test --project=chromium",
+    "test:e2e:report": "npx playwright show-report tests/playwright/playwright-report",
+    "test:e2e:smoke": "npx playwright test tests/playwright/10-api-smoke.spec.ts --project=chromium"
   },
   "dependencies": {
-    "bullmq": "^5.8.3",
+    "@nestjs/bullmq": "^11.0.4",
+    "@nestjs/common": "^11.1.28",
+    "@nestjs/core": "^11.1.28",
+    "@nestjs/microservices": "^11.1.28",
+    "@nestjs/platform-express": "^11.1.28",
+    "@nestjs/platform-socket.io": "^11.1.28",
+    "@nestjs/websockets": "^11.1.28",
+    "bullmq": "^5.80.9",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "geoip-lite": "^2.0.3",
-    "ioredis": "^5.4.1",
+    "ioredis": "^5.11.1",
     "jsonwebtoken": "^9.0.3",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2",
     "socket.io": "^4.7.5",
     "sqlite3": "^5.1.7"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^11.0.24",
+    "@playwright/test": "^1.61.1",
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.1.1",
+    "@types/pg": "^8.20.0",
+    "rimraf": "^6.1.3",
+    "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
+    "typescript": "^5.9.3"
   }
 }

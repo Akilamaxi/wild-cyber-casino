@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import * as PIXI from 'pixi.js';
 
-const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:5000' : '';
+const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:3000' : '';
 
 const PLINKO_MULTIPLIERS = {
   8: {

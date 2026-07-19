@@ -10,7 +10,7 @@ function Leaderboard({ currentUser }) {
 
   const fetchLeaderboard = async () => {
     try {
-      const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:5000' : '';
+      const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:3000' : '';
       const response = await fetch(`${API_BASE}/api/leaderboard`);
       const data = await response.json();
       if (data.success) {

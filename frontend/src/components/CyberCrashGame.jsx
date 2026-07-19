@@ -4,7 +4,7 @@ import { io } from 'socket.io-client';
 import CrashPlayersTable from './CrashPlayersTable';
 import CrashHistoryTable from './CrashHistoryTable';
 
-const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:5000' : '';
+const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:3000' : '';
 
 function BettingPanel({ id, state, setState, onBet, onCashOut, gameState, currentUser }) {
   const { betAmount, isBetPlaced, isCashedOut, winnings } = state;

@@ -1,0 +1,43 @@
+Issue Id,Type,Summary,Description,Priority,State
+CC-EPIC-1,Epic,Player Frontend Cave,React SPA core player application including game components and wallet dashboard.,Major,Open
+CC-EPIC-2,Epic,Admin Backoffice Cave,React SPA dashboard for backoffice administration management configuration and reporting.,Major,Open
+CC-EPIC-3,Epic,Core Engine Cave,Central backend server managing WebSockets JWT auth provably fair system and session states.,Critical,Open
+CC-EPIC-4,Epic,Microservices Cave,Decoupled helper services for loyalty processing admin APIs and background transaction workers.,Major,Open
+CC-EPIC-5,Epic,Data Cave,Database schema initialization migrations indexes database triggers and Redis state stores.,Critical,Open
+CC-EPIC-6,Epic,Infra/Go-Live Cave,Orchestration reverse proxy certificate management server hardening and configuration.,Critical,Open
+CC-EPIC-7,Epic,Pre-Launch Bugs,Critical testing bugs to resolve before deploying the application to production.,Critical,Open
+CC-1,Task,Setup React SPA with Vite & Tailwind,Initialize frontend repository configure build pipeline path aliases and Tailwind CSS themes.,Normal,Open
+CC-2,Subtask,Setup Base Routes and Routing Router,Implement React Router v6 secure routes auth guards and general layout wrappers.,Normal,Open
+CC-3,Subtask,Setup WebSocket Context Provider,Create React Context for Socket.IO with automatic reconnect and event hook mappings.,Normal,Open
+CC-4,Subtask,Setup State Store for Player Wallet,Implement Zustand or Redux store to manage player balance profile state and real-time balance updates.,Normal,Open
+CC-5,Task,Build SpinWheel Game Component,Create interactive SVG spin wheel canvas element with spin animations and betting panels.,Normal,Open
+CC-6,Subtask,Implement Real-time Wheel Sync,Listen to server rotation results and trigger dynamic braking animation to stop at target segment.,Normal,Open
+CC-7,Task,Build Crash Game Component,Interactive real-time graph displaying exponential multiplier curve with live cashout buttons.,Major,Open
+CC-8,Subtask,Implement Crash Multiplier Counter,Real-time display tick sync showing rising multiplier and current active player bets.,Major,Open
+CC-9,Task,Build Dice Game Component,Interactive slider for Win Chance / Target Multiplier toggling Roll Under/Over with result views.,Normal,Open
+CC-10,Task,Build Slots Game Component,Three-reel slot machine with animated spinning symbols winning line indicators and automatic play features.,Normal,Open
+CC-11,Task,Build Lottery Game Component,Interface to purchase tickets view current prize pool count down to next draw and ticket history.,Normal,Open
+CC-12,Task,Build Neon Plinko Game Component,HTML5 Canvas plinko physics simulator showing falling balls hitting pegs and landing in multipliers.,Normal,Open
+CC-13,Task,Build Wallet Panel Component,Create balance panel displaying deposit addresses transaction logs withdrawal forms and coin selectors.,Critical,Open
+CC-14,Task,Setup Admin Frontend Scaffold,Initialize backoffice SPA configure admin routes API clients and base layout dashboard.,Normal,Open
+CC-15,Task,Build Admin User Management Panel,Datatable containing user accounts balances status triggers to search ban edit or credit players.,Major,Open
+CC-16,Task,Build Admin Financial Reports,Dashboards displaying Gross Gaming Revenue (GGR) transaction logs payout lists and deposit histories.,Major,Open
+CC-17,Task,Build Admin Game Config Panel,Global settings management view to adjust house edge payout thresholds max bet limits and active banners.,Normal,Open
+CC-18,Task,Initialize core engine server structure,Setup Express app middleware and HTTP/WS socket server configuration.,Critical,Open
+CC-19,Task,Implement JWT Player Authentication,Secure token-based auth middleware for WebSocket connections and REST endpoints checking signature expiration.,Critical,Open
+CC-20,Task,Implement Provably Fair RNG System,Crypto seed generation tracking Client Seed Server Seed Nonce and verifying results using HMAC-SHA256.,Critical,Open
+CC-21,Task,Implement Core Game Session Logic,Centralized state machines for game types ensuring bets cannot be edited after round begins.,Critical,Open
+CC-22,Task,Implement Crash Game Daemon,Dedicated event loop managing crash multiplier calculations crash timing bust logic and cashouts.,Critical,Open
+CC-23,Task,Build Backoffice API Service,REST APIs serving admin panels querying DB data and triggering system configuration updates.,Major,Open
+CC-24,Task,Build Loyalty Engine Microservice,XP awarding microservice calculating level boundaries database updates and syncing leaderboards.,Normal,Open
+CC-25,Task,Build Payout Worker Service,Async Queue consumer processing payout requests executing validations and calling external networks.,Critical,Open
+CC-26,Task,Setup PostgreSQL Schema & Migrations,Create SQL tables constraints schema indexes foreign key relations and write migrations.,Critical,Open
+CC-27,Task,Configure Redis Store & BullMQ Connections,Setup Redis connection instances for session persistence state locks caching and BullMQ backends.,Critical,Open
+CC-28,Task,Docker Compose Orchestration,Write root multi-stage Dockerfiles and docker-compose.yml linking app components and services.,Critical,Open
+CC-29,Task,Traefik Reverse Proxy & SSL Configuration,Configure Traefik dynamic routing Let's Encrypt automated TLS certificates and middleware.,Critical,Open
+CC-30,Task,VPS Server Hardening,Disable password logins setup UFW firewall restrict internal ports configure fail2ban policies.,Critical,Open
+CC-31,Bug,Fix Wallet Balance Race Condition,Users double-clicking spin button triggers concurrent API requests executing before first balance write.,Critical,Open
+CC-32,Bug,Fix WebSocket Disconnect State Loss,Player disconnects mid-round does not auto-cashout in Crash game causing loss or stuck socket.,Critical,Open
+CC-33,Bug,Fix BullMQ Stuck Payout Jobs,Failed database queries leave payout jobs in active state blocking the queue pipeline.,Critical,Open
+CC-34,Bug,Fix Provably Fair Verification Discrepancy,Server SHA256 hashes generated do not match client-side calculation output using seed pairs.,Major,Open
+CC-35,Bug,Fix Redis Out-of-Memory Crash,Real-time chat histories or inactive user sessions consume system RAM crashing Redis container.,Major,Open

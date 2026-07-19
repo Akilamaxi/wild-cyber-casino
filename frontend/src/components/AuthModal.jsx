@@ -27,7 +27,7 @@ function AuthModal({ isOpen, onClose, initialTab, onAuthSuccess }) {
     setErrorMsg('');
     setIsLoading(true);
 
-    const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:5000' : '';
+    const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:3000' : '';
     const url = activeTab === 'login' 
       ? `${API_BASE}/api/auth/login` 
       : `${API_BASE}/api/auth/register`;

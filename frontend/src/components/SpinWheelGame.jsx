@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import io from 'socket.io-client';
 
-const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:5000' : '';
+const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:3000' : '';
 
 const DEFAULT_PRIZES = [
   { text: '10% CASHBACK', color: '#ff0055', textColor: '#ffffff' },

@@ -1,0 +1,116 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:alpine
+    container_name: cyber-casino-redis
+    ports:
+      - "6379:6379"
+    restart: always
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: cyber-casino-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=cyber_casino
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    restart: always
+
+  payout-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cyber-payout-worker
+    depends_on:
+      - redis
+      - postgres
+    environment:
+      - NODE_ENV=production
+      - REDIS_URL=redis://redis:6379
+      - PGHOST=postgres
+      - PGUSER=postgres
+      - PGPASSWORD=postgres
+      - PGDATABASE=cyber_casino
+      - PGPORT=5432
+      - RUN_WORKER_CONCURRENTLY=false
+    working_dir: /app/apps/payout-worker
+    command: ["npm", "run", "start:prod"]
+    restart: always
+
+  loyalty-engine:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cyber-loyalty-engine
+    ports:
+      - "5002:5002"
+    depends_on:
+      - redis
+      - postgres
+    environment:
+      - NODE_ENV=production
+      - PORT=5002
+      - REDIS_URL=redis://redis:6379
+      - PGHOST=postgres
+      - PGUSER=postgres
+      - PGPASSWORD=postgres
+      - PGDATABASE=cyber_casino
+      - PGPORT=5432
+    working_dir: /app/apps/loyalty-engine
+    command: ["npm", "run", "start:prod"]
+    restart: always
+
+  backoffice-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cyber-backoffice-api
+    ports:
+      - "5001:5001"
+    depends_on:
+      - redis
+      - postgres
+    environment:
+      - NODE_ENV=production
+      - PORT=5001
+      - REDIS_URL=redis://redis:6379
+      - PGHOST=postgres
+      - PGUSER=postgres
+      - PGPASSWORD=postgres
+      - PGDATABASE=cyber_casino
+      - PGPORT=5432
+    working_dir: /app/apps/backoffice-api
+    command: ["npm", "run", "start:prod"]
+    restart: always
+
+  lottery-engine:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cyber-lottery-engine
+    ports:
+      - "8080:8080"
+    depends_on:
+      - redis
+      - postgres
+    environment:
+      - NODE_ENV=production
+      - PORT=8080
+      - REDIS_URL=redis://redis:6379
+      - PGHOST=postgres
+      - PGUSER=postgres
+      - PGPASSWORD=postgres
+      - PGDATABASE=cyber_casino
+      - PGPORT=5432
+      - RUN_WORKER_CONCURRENTLY=false
+    working_dir: /app/apps/lottery-engine
+    command: ["npm", "run", "start:prod"]
+    restart: always
+
+volumes:
+  pg-data:
