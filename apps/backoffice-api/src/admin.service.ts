@@ -60,6 +60,14 @@ export class AdminService {
     return { success: true };
   }
 
+  async deleteGame(id: string) {
+    const game = await this.db.get('SELECT id FROM games_config WHERE id = ?', [id]);
+    if (!game) throw new NotFoundException('Lottery game not found.');
+    await this.db.run('DELETE FROM games_config WHERE id = ?', [id]);
+    await this.pubsub.publish({ type: 'GAME_CONFIG_UPDATED' });
+    return { success: true };
+  }
+
   async getSpinwheelPrizes() {
     const prizes = await this.db.all('SELECT * FROM spin_wheel_prizes ORDER BY display_order ASC, id ASC');
     return { success: true, prizes };
@@ -238,12 +246,12 @@ export class AdminService {
   async updateCrashConfig(body: any) {
     const { lobby_time_ms, house_edge, min_bet, max_bet, max_multiplier, crash_delay_ms } = body;
     await this.db.executeTransaction(async (tx: any) => {
-      if (lobby_time_ms !== undefined) await tx.run('INSERT OR REPLACE INTO crash_config (key, value) VALUES ("lobby_time_ms", ?)', [lobby_time_ms.toString()]);
-      if (house_edge !== undefined) await tx.run('INSERT OR REPLACE INTO crash_config (key, value) VALUES ("house_edge", ?)', [house_edge.toString()]);
-      if (min_bet !== undefined) await tx.run('INSERT OR REPLACE INTO crash_config (key, value) VALUES ("min_bet", ?)', [min_bet.toString()]);
-      if (max_bet !== undefined) await tx.run('INSERT OR REPLACE INTO crash_config (key, value) VALUES ("max_bet", ?)', [max_bet.toString()]);
-      if (max_multiplier !== undefined) await tx.run('INSERT OR REPLACE INTO crash_config (key, value) VALUES ("max_multiplier", ?)', [max_multiplier.toString()]);
-      if (crash_delay_ms !== undefined) await tx.run('INSERT OR REPLACE INTO crash_config (key, value) VALUES ("crash_delay_ms", ?)', [crash_delay_ms.toString()]);
+      if (lobby_time_ms !== undefined) await tx.run("INSERT OR REPLACE INTO crash_config (key, value) VALUES ('lobby_time_ms', ?)", [lobby_time_ms.toString()]);
+      if (house_edge !== undefined) await tx.run("INSERT OR REPLACE INTO crash_config (key, value) VALUES ('house_edge', ?)", [house_edge.toString()]);
+      if (min_bet !== undefined) await tx.run("INSERT OR REPLACE INTO crash_config (key, value) VALUES ('min_bet', ?)", [min_bet.toString()]);
+      if (max_bet !== undefined) await tx.run("INSERT OR REPLACE INTO crash_config (key, value) VALUES ('max_bet', ?)", [max_bet.toString()]);
+      if (max_multiplier !== undefined) await tx.run("INSERT OR REPLACE INTO crash_config (key, value) VALUES ('max_multiplier', ?)", [max_multiplier.toString()]);
+      if (crash_delay_ms !== undefined) await tx.run("INSERT OR REPLACE INTO crash_config (key, value) VALUES ('crash_delay_ms', ?)", [crash_delay_ms.toString()]);
     });
     await this.pubsub.publish({ type: 'CRASH_CONFIG_UPDATED' });
     return { success: true };
@@ -259,11 +267,11 @@ export class AdminService {
   async updatePlinkoConfig(body: any) {
     const { house_edge, min_bet, max_bet, rtp_bias, throw_out_chance } = body;
     await this.db.executeTransaction(async (tx: any) => {
-      if (house_edge !== undefined) await tx.run('INSERT OR REPLACE INTO plinko_config (key, value) VALUES ("house_edge", ?)', [house_edge.toString()]);
-      if (min_bet !== undefined) await tx.run('INSERT OR REPLACE INTO plinko_config (key, value) VALUES ("min_bet", ?)', [min_bet.toString()]);
-      if (max_bet !== undefined) await tx.run('INSERT OR REPLACE INTO plinko_config (key, value) VALUES ("max_bet", ?)', [max_bet.toString()]);
-      if (rtp_bias !== undefined) await tx.run('INSERT OR REPLACE INTO plinko_config (key, value) VALUES ("rtp_bias", ?)', [rtp_bias.toString()]);
-      if (throw_out_chance !== undefined) await tx.run('INSERT OR REPLACE INTO plinko_config (key, value) VALUES ("throw_out_chance", ?)', [throw_out_chance.toString()]);
+      if (house_edge !== undefined) await tx.run("INSERT OR REPLACE INTO plinko_config (key, value) VALUES ('house_edge', ?)", [house_edge.toString()]);
+      if (min_bet !== undefined) await tx.run("INSERT OR REPLACE INTO plinko_config (key, value) VALUES ('min_bet', ?)", [min_bet.toString()]);
+      if (max_bet !== undefined) await tx.run("INSERT OR REPLACE INTO plinko_config (key, value) VALUES ('max_bet', ?)", [max_bet.toString()]);
+      if (rtp_bias !== undefined) await tx.run("INSERT OR REPLACE INTO plinko_config (key, value) VALUES ('rtp_bias', ?)", [rtp_bias.toString()]);
+      if (throw_out_chance !== undefined) await tx.run("INSERT OR REPLACE INTO plinko_config (key, value) VALUES ('throw_out_chance', ?)", [throw_out_chance.toString()]);
     });
     await this.pubsub.publish({ type: 'PLINKO_CONFIG_UPDATED' });
     return { success: true };
@@ -286,11 +294,11 @@ export class AdminService {
     } = body;
 
     await this.db.executeTransaction(async (tx: any) => {
-      if (wager_commission_enabled !== undefined) await tx.run('INSERT OR REPLACE INTO affiliate_config (key, value) VALUES ("wager_commission_enabled", ?)', [wager_commission_enabled.toString()]);
-      if (bounty_referrer_amount !== undefined) await tx.run('INSERT OR REPLACE INTO affiliate_config (key, value) VALUES ("bounty_referrer_amount", ?)', [bounty_referrer_amount.toString()]);
-      if (bounty_referee_free_drops !== undefined) await tx.run('INSERT OR REPLACE INTO affiliate_config (key, value) VALUES ("bounty_referee_free_drops", ?)', [bounty_referee_free_drops.toString()]);
-      if (min_deposit_threshold !== undefined) await tx.run('INSERT OR REPLACE INTO affiliate_config (key, value) VALUES ("min_deposit_threshold", ?)', [min_deposit_threshold.toString()]);
-      if (min_wager_threshold !== undefined) await tx.run('INSERT OR REPLACE INTO affiliate_config (key, value) VALUES ("min_wager_threshold", ?)', [min_wager_threshold.toString()]);
+      if (wager_commission_enabled !== undefined) await tx.run("INSERT OR REPLACE INTO affiliate_config (key, value) VALUES ('wager_commission_enabled', ?)", [wager_commission_enabled.toString()]);
+      if (bounty_referrer_amount !== undefined) await tx.run("INSERT OR REPLACE INTO affiliate_config (key, value) VALUES ('bounty_referrer_amount', ?)", [bounty_referrer_amount.toString()]);
+      if (bounty_referee_free_drops !== undefined) await tx.run("INSERT OR REPLACE INTO affiliate_config (key, value) VALUES ('bounty_referee_free_drops', ?)", [bounty_referee_free_drops.toString()]);
+      if (min_deposit_threshold !== undefined) await tx.run("INSERT OR REPLACE INTO affiliate_config (key, value) VALUES ('min_deposit_threshold', ?)", [min_deposit_threshold.toString()]);
+      if (min_wager_threshold !== undefined) await tx.run("INSERT OR REPLACE INTO affiliate_config (key, value) VALUES ('min_wager_threshold', ?)", [min_wager_threshold.toString()]);
     });
     return { success: true };
   }

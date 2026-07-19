@@ -1,7 +1,7 @@
 import { Controller, Get, Query, BadRequestException, OnModuleInit } from '@nestjs/common';
 import { LoyaltyService } from './loyalty.service';
 
-@Controller('api/loyalty')
+@Controller('api/v1/loyalty')
 export class LoyaltyController implements OnModuleInit {
   constructor(private readonly loyaltyService: LoyaltyService) {}
 

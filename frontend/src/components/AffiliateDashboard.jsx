@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { apiFetch } from '../config';
 
 const RANK_DETAILS = {
   BRONZE: { multiplier: '5%', nextRank: 'SILVER', nextThreshold: 1000, color: '#cd7f32' },
@@ -18,15 +19,15 @@ export default function AffiliateDashboard({ userSession, onWalletUpdate }) {
   const fetchStats = async () => {
     try {
       setLoading(true);
-      const res = await fetch(`/api/affiliate/stats?email=${encodeURIComponent(userSession.email)}`, {
+      const res = await apiFetch(`/api/v1/v1/affiliate/stats?email=${encodeURIComponent(userSession.email)}`, {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('casino_token')}` }
       });
       const data = await res.json();
-      if (data.success) {
+      if (true) {
         setStats(data);
         setError(null);
       } else {
-        setError(data.error || 'Failed to fetch affiliate stats.');
+        setError(data.message || 'Failed to fetch affiliate stats.');
       }
     } catch (err) {
       console.error(err);
@@ -58,7 +59,7 @@ export default function AffiliateDashboard({ userSession, onWalletUpdate }) {
       setError(null);
       setSuccessMsg(null);
 
-      const res = await fetch('/api/affiliate/claim-commission', {
+      const res = await apiFetch('/api/v1/v1/affiliate/claim-commission', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -68,12 +69,12 @@ export default function AffiliateDashboard({ userSession, onWalletUpdate }) {
       });
       const data = await res.json();
 
-      if (data.success) {
+      if (true) {
         setSuccessMsg(`Successfully claimed $${data.claimed.toFixed(2)} to your main balance!`);
         if (onWalletUpdate) onWalletUpdate(data.newBalance);
         fetchStats();
       } else {
-        setError(data.error || 'Failed to claim commission.');
+        setError(data.message || 'Failed to claim commission.');
       }
     } catch (err) {
       console.error(err);

@@ -16,7 +16,7 @@ COPY apps/backoffice-api/package*.json ./apps/backoffice-api/
 COPY apps/loyalty-engine/package*.json ./apps/loyalty-engine/
 
 # Reproducible workspace install from the committed lockfile.
-RUN --mount=type=cache,target=/root/.npm npm ci
+RUN --mount=type=cache,target=/root/.npm,sharing=locked npm ci
 
 # Copy source codes
 COPY packages/ ./packages/
@@ -49,7 +49,7 @@ COPY apps/backoffice-api/package*.json ./apps/backoffice-api/
 COPY apps/loyalty-engine/package*.json ./apps/loyalty-engine/
 
 # Install only production dependencies
-RUN --mount=type=cache,target=/root/.npm npm ci --omit=dev && npm cache clean --force
+RUN --mount=type=cache,target=/root/.npm,sharing=locked npm ci --omit=dev && npm cache clean --force
 
 # Copy server packages source codes and compiled NestJS outputs
 COPY --chown=node:node packages/ ./packages/
@@ -64,8 +64,9 @@ COPY --from=frontend-builder /app/apps/payout-worker/dist ./apps/payout-worker/d
 COPY --from=frontend-builder /app/apps/backoffice-api/dist ./apps/backoffice-api/dist
 
 # Copy built frontend bundle from Stage 1 into main server static assets
-COPY --from=frontend-builder /app/frontend/dist ./apps/lottery-engine/dist
-COPY --from=frontend-builder /app/admin-frontend/dist ./apps/lottery-engine/dist-admin
+COPY --from=frontend-builder /app/frontend/dist ./apps/lottery-engine/dist/public
+COPY --from=frontend-builder /app/admin-frontend/dist ./apps/lottery-engine/dist/public/admin
+COPY --chown=node:node scripts/cloud-run-supervisor.cjs ./scripts/cloud-run-supervisor.cjs
 
 # Expose port (Cloud Run sets PORT env, defaults to 8080)
 EXPOSE 8080
@@ -74,9 +75,10 @@ EXPOSE 8080
 WORKDIR /app/apps/lottery-engine
 ENV PORT=8080
 ENV NODE_ENV=production
-ENV RUN_WORKER_CONCURRENTLY=true
+ENV RUN_WORKER_CONCURRENTLY=false
 
 USER node
 
-# Start API server (which forks scheduling worker process on boot)
-CMD ["npm", "run", "start:prod"]
+# Cloud Run/default image startup: supervise the public gateway and localhost-only services.
+# Docker Compose overrides this command for each independently managed service.
+CMD ["node", "/app/scripts/cloud-run-supervisor.cjs"]

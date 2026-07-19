@@ -10,8 +10,14 @@
   },
   "dependencies": {
     "@cyber-casino/shared": "*",
+    "@nest-lab/throttler-storage-redis": "^1.2.0",
     "@nestjs/swagger": "^11.4.6",
+    "@nestjs/throttler": "^6.5.0",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.15.1",
+    "ioredis": "^5.11.1",
     "jsonwebtoken": "^9.0.3",
-    "swagger-ui-express": "^5.0.1"
+    "swagger-ui-express": "^5.0.1",
+    "uuid": "^14.0.1"
   }
 }

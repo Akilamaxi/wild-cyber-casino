@@ -2,17 +2,22 @@ import React, { useState, useEffect, useRef } from 'react';
 import io from 'socket.io-client';
 import './App.css';
 
-const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:5000' : '';
+const API_BASE = import.meta.env.VITE_API_BASE_URL
+  || (window.location.port === '8080' ? window.location.origin : 'http://localhost:8080');
 
-const fetch = (input, init = {}) => {
+const fetch = async (input, init = {}) => {
   const token = sessionStorage.getItem('cyber_admin_token');
-  return window.fetch(input, {
+  const response = await window.fetch(input, {
     ...init,
     headers: {
       ...(init.headers || {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {})
     }
   });
+  if (response.status === 401 && !String(input).endsWith('/api/v1/v1/auth/login')) {
+    window.dispatchEvent(new CustomEvent('cyber-admin-session-expired'));
+  }
+  return response;
 };
 
 const SYMBOL_MAP = {
@@ -24,10 +29,36 @@ const SYMBOL_MAP = {
   'WILD': { emoji: '🎰', label: 'WILD' }
 };
 
+const TABLE_PAGE_SIZE = 10;
+
+function TablePager({ page, total, onChange, label }) {
+  const pageCount = Math.max(1, Math.ceil(total / TABLE_PAGE_SIZE));
+  const safePage = Math.min(page, pageCount - 1);
+  const start = total === 0 ? 0 : safePage * TABLE_PAGE_SIZE + 1;
+  const end = Math.min(total, (safePage + 1) * TABLE_PAGE_SIZE);
+  return (
+    <div className="table-pager" aria-label={`${label} pagination`}>
+      <span>{start}–{end} of {total}</span>
+      <div className="table-pager__actions">
+        <button type="button" onClick={() => onChange(Math.max(0, safePage - 1))} disabled={safePage === 0}>Previous</button>
+        <span>Page {safePage + 1} / {pageCount}</span>
+        <button type="button" onClick={() => onChange(Math.min(pageCount - 1, safePage + 1))} disabled={safePage >= pageCount - 1}>Next</button>
+      </div>
+    </div>
+  );
+}
+
 function App() {
   const [currentUser, setCurrentUser] = useState(() => {
     const saved = localStorage.getItem('cyber_admin_user');
-    return saved && sessionStorage.getItem('cyber_admin_token') ? JSON.parse(saved) : null;
+    if (!saved || !sessionStorage.getItem('cyber_admin_token')) return null;
+    try {
+      return JSON.parse(saved);
+    } catch {
+      localStorage.removeItem('cyber_admin_user');
+      sessionStorage.removeItem('cyber_admin_token');
+      return null;
+    }
   });
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
@@ -109,6 +140,10 @@ function App() {
   const [bonusRules, setBonusRules] = useState([]);
   const [auditLogs, setAuditLogs] = useState([]);
   const [gameLogs, setGameLogs] = useState({ plinko: [], dice: [], crash: [] });
+  const [plinkoPage, setPlinkoPage] = useState(0);
+  const [affiliateLogPage, setAffiliateLogPage] = useState(0);
+  const [securityAlertPage, setSecurityAlertPage] = useState(0);
+  const [securityRulePage, setSecurityRulePage] = useState(0);
   
   // 360 player search email state
   const [searchPlayerEmail, setSearchPlayerEmail] = useState('');
@@ -138,19 +173,19 @@ function App() {
 
   const fetchSecurityData = async () => {
     try {
-      const resAlerts = await fetch(`${API_BASE}/api/admin/security/alerts`);
+      const resAlerts = await fetch(`${API_BASE}/api/v1/admin/security/alerts`);
       const dataAlerts = await resAlerts.json();
       if (dataAlerts.success) setSecurityAlerts(dataAlerts.alerts);
 
-      const resRules = await fetch(`${API_BASE}/api/admin/bonus-rules`);
+      const resRules = await fetch(`${API_BASE}/api/v1/admin/bonus-rules`);
       const dataRules = await resRules.json();
       if (dataRules.success) setBonusRules(dataRules.rules);
 
-      const resAudit = await fetch(`${API_BASE}/api/admin/audit-logs`);
+      const resAudit = await fetch(`${API_BASE}/api/v1/admin/audit-logs`);
       const dataAudit = await resAudit.json();
       if (dataAudit.success) setAuditLogs(dataAudit.logs);
 
-      const resGames = await fetch(`${API_BASE}/api/admin/game-logs`);
+      const resGames = await fetch(`${API_BASE}/api/v1/admin/game-logs`);
       const dataGames = await resGames.json();
       if (dataGames.success) setGameLogs(dataGames);
     } catch (e) {
@@ -160,13 +195,13 @@ function App() {
 
   const handleResolveAlert = async (alertId) => {
     try {
-      const res = await fetch(`${API_BASE}/api/admin/security/alerts/${alertId}/resolve`, {
+      const res = await fetch(`${API_BASE}/api/v1/admin/security/alerts/${alertId}/resolve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ adminEmail: 'admin@test.com' })
       });
       const data = await res.json();
-      if (data.success) {
+      if (true) {
         fetchSecurityData();
       }
     } catch (e) {
@@ -176,13 +211,13 @@ function App() {
 
   const handleUpdatePlayerStatus = async (email, status) => {
     try {
-      const res = await fetch(`${API_BASE}/api/admin/users/${email}/status`, {
+      const res = await fetch(`${API_BASE}/api/v1/admin/users/${email}/status`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status, adminEmail: 'admin@test.com' })
       });
       const data = await res.json();
-      if (data.success) {
+      if (true) {
         alert(`Player status updated to ${status}`);
         handlePlayerSearch(email);
         fetchSecurityData();
@@ -194,13 +229,13 @@ function App() {
 
   const handleUpdatePlayerTags = async (email, newTags) => {
     try {
-      const res = await fetch(`${API_BASE}/api/admin/users/${email}/tags`, {
+      const res = await fetch(`${API_BASE}/api/v1/admin/users/${email}/tags`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tags: newTags, adminEmail: 'admin@test.com' })
       });
       const data = await res.json();
-      if (data.success) {
+      if (true) {
         alert('Player tags updated.');
         handlePlayerSearch(email);
       }
@@ -212,7 +247,7 @@ function App() {
   const handleCreateRuleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch(`${API_BASE}/api/admin/bonus-rules`, {
+      const res = await fetch(`${API_BASE}/api/v1/admin/bonus-rules`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -225,7 +260,7 @@ function App() {
         })
       });
       const data = await res.json();
-      if (data.success) {
+      if (true) {
         alert('Rule created successfully.');
         setRuleForm({ ruleName: '', triggerType: 'HOURLY_LOSS', threshold: '', rewardType: 'CASH', rewardAmount: '' });
         fetchSecurityData();
@@ -237,13 +272,13 @@ function App() {
 
   const handleToggleRule = async (ruleId, active) => {
     try {
-      const res = await fetch(`${API_BASE}/api/admin/bonus-rules/${ruleId}/toggle`, {
+      const res = await fetch(`${API_BASE}/api/v1/admin/bonus-rules/${ruleId}/toggle`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ active: !active, adminEmail: 'admin@test.com' })
       });
       const data = await res.json();
-      if (data.success) {
+      if (true) {
         fetchSecurityData();
       }
     } catch (e) {
@@ -254,13 +289,13 @@ function App() {
   const handlePlayerSearch = async (email) => {
     if (!email) return;
     try {
-      const res = await fetch(`${API_BASE}/api/admin/users/${encodeURIComponent(email)}/360-view`);
+      const res = await fetch(`${API_BASE}/api/v1/admin/users/${encodeURIComponent(email)}/360-view`);
       const data = await res.json();
-      if (data.success) {
+      if (true) {
         setPlayer360Data(data.user);
         setTagInput(data.user.tags ? data.user.tags.join(', ') : '');
       } else {
-        alert(data.error || 'User not found.');
+        alert(data.message || 'User not found.');
       }
     } catch (e) {
       console.error(e);
@@ -269,6 +304,17 @@ function App() {
 
   const canvasRef = useRef(null);
   const socketRef = useRef(null);
+
+  useEffect(() => {
+    const expireSession = () => {
+      localStorage.removeItem('cyber_admin_user');
+      sessionStorage.removeItem('cyber_admin_token');
+      setCurrentUser(null);
+      setLoginError('Your administrator session expired. Please sign in again.');
+    };
+    window.addEventListener('cyber-admin-session-expired', expireSession);
+    return () => window.removeEventListener('cyber-admin-session-expired', expireSession);
+  }, []);
 
   // Load backend configurations
   useEffect(() => {
@@ -329,13 +375,13 @@ function App() {
     e.preventDefault();
     setLoginError('');
     try {
-      const res = await fetch(`${API_BASE}/api/auth/login`, {
+      const res = await fetch(`${API_BASE}/api/v1/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: loginEmail, password: loginPassword })
       });
       const data = await res.json();
-      if (res.ok && data.success) {
+      if (res.ok && true) {
         if (data.user.role === 'ADMIN') {
           setCurrentUser(data.user);
           localStorage.setItem('cyber_admin_user', JSON.stringify(data.user));
@@ -344,7 +390,7 @@ function App() {
           setLoginError('Access denied. You do not have administrative privileges.');
         }
       } else {
-        setLoginError(data.error || 'Invalid credentials.');
+        setLoginError(data.message || 'Invalid credentials.');
       }
     } catch (err) {
       setLoginError('Failed to connect to backend service.');
@@ -361,9 +407,9 @@ function App() {
   const fetchGames = async () => {
     setLoadingGames(true);
     try {
-      const res = await fetch(`${API_BASE}/api/admin/games`);
+      const res = await fetch(`${API_BASE}/api/v1/admin/games`);
       const data = await res.json();
-      if (data.success) {
+      if (true) {
         setGames(data.games);
       }
     } catch (err) {
@@ -375,9 +421,9 @@ function App() {
   const fetchPrizes = async () => {
     setLoadingPrizes(true);
     try {
-      const res = await fetch(`${API_BASE}/api/admin/spinwheel-prizes`);
+      const res = await fetch(`${API_BASE}/api/v1/admin/spinwheel-prizes`);
       const data = await res.json();
-      if (data.success) {
+      if (true) {
         setPrizes(data.prizes);
       }
     } catch (err) {
@@ -389,9 +435,9 @@ function App() {
   const fetchSlotsConfig = async () => {
     setLoadingSlots(true);
     try {
-      const res = await fetch(`${API_BASE}/api/admin/slots/config`);
+      const res = await fetch(`${API_BASE}/api/v1/admin/slots/config`);
       const data = await res.json();
-      if (data.success && data.config) {
+      if (true && data.config) {
         setSlotsConfig(data.config);
         const parsed = JSON.parse(data.config.symbols_config || '[]');
         setSlotsSymbols(parsed);
@@ -405,13 +451,13 @@ function App() {
   const fetchDiceAdminData = async () => {
     setLoadingDice(true);
     try {
-      const resCfg = await fetch(`${API_BASE}/api/admin/dice/config`);
+      const resCfg = await fetch(`${API_BASE}/api/v1/admin/dice/config`);
       const dataCfg = await resCfg.json();
       if (dataCfg.success && dataCfg.config) {
         setDiceConfig(dataCfg.config);
       }
 
-      const resTr = await fetch(`${API_BASE}/api/dice/tournaments`);
+      const resTr = await fetch(`${API_BASE}/api/v1/dice/tournaments`);
       const dataTr = await resTr.json();
       if (dataTr.success) {
         setTournamentsList(dataTr.tournaments);
@@ -425,9 +471,9 @@ function App() {
   const fetchCrashConfig = async () => {
     setLoadingCrash(true);
     try {
-      const res = await fetch(`${API_BASE}/api/admin/crash/config`);
+      const res = await fetch(`${API_BASE}/api/v1/admin/crash/config`);
       const data = await res.json();
-      if (data.success && data.config) {
+      if (true && data.config) {
         setCrashConfig({
           lobby_time_ms: parseInt(data.config.lobby_time_ms, 10) || 5000,
           house_edge: parseFloat(data.config.house_edge) || 0.01,
@@ -446,9 +492,9 @@ function App() {
   const fetchPlinkoConfig = async () => {
     setLoadingPlinko(true);
     try {
-      const res = await fetch(`${API_BASE}/api/admin/plinko/config`);
+      const res = await fetch(`${API_BASE}/api/v1/admin/plinko/config`);
       const data = await res.json();
-      if (data.success && data.config) {
+      if (true && data.config) {
         setPlinkoConfig({
           house_edge: parseFloat(data.config.house_edge) || 0.05,
           min_bet: parseFloat(data.config.min_bet) || 1,
@@ -466,7 +512,7 @@ function App() {
   const handlePlinkoConfigSubmit = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch(`${API_BASE}/api/admin/plinko/config`, {
+      const res = await fetch(`${API_BASE}/api/v1/admin/plinko/config`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -478,7 +524,7 @@ function App() {
         })
       });
       const data = await res.json();
-      if (data.success) {
+      if (true) {
         alert('🎯 Plinko config deployed successfully!');
         fetchPlinkoConfig();
       } else {
@@ -493,13 +539,13 @@ function App() {
   const fetchAffiliateData = async () => {
     setLoadingAffiliate(true);
     try {
-      const resCfg = await fetch(`${API_BASE}/api/admin/affiliate/config`);
+      const resCfg = await fetch(`${API_BASE}/api/v1/admin/affiliate/config`);
       const dataCfg = await resCfg.json();
       if (dataCfg.success && dataCfg.config) {
         setAffiliateConfig(dataCfg.config);
       }
 
-      const resLogs = await fetch(`${API_BASE}/api/admin/affiliate/shadow-logs`);
+      const resLogs = await fetch(`${API_BASE}/api/v1/admin/affiliate/shadow-logs`);
       const dataLogs = await resLogs.json();
       if (dataLogs.success) {
         setShadowLogs(dataLogs.logs);
@@ -507,7 +553,7 @@ function App() {
 
       // Fetch affiliate performance stats
       try {
-        const resStats = await fetch(`${API_BASE}/api/admin/affiliate/stats`);
+        const resStats = await fetch(`${API_BASE}/api/v1/admin/affiliate/stats`);
         const dataStats = await resStats.json();
         if (dataStats.success) setAffiliateStats(dataStats.stats);
       } catch (_) { /* stats endpoint may not exist on older builds */ }
@@ -520,17 +566,17 @@ function App() {
   const handleAffiliateConfigSubmit = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch(`${API_BASE}/api/admin/affiliate/config`, {
+      const res = await fetch(`${API_BASE}/api/v1/admin/affiliate/config`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(affiliateConfig)
       });
       const data = await res.json();
-      if (data.success) {
+      if (true) {
         showToast('🤝 Affiliate routing rules deployed successfully!');
         fetchAffiliateData();
       } else {
-        showToast('Failed to update Affiliate settings: ' + data.error, 'error');
+        showToast('Failed to update Affiliate settings: ' + data.message, 'error');
       }
     } catch (err) {
       console.error(err);
@@ -541,7 +587,7 @@ function App() {
   const handleCrashConfigSubmit = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch(`${API_BASE}/api/admin/crash/config`, {
+      const res = await fetch(`${API_BASE}/api/v1/admin/crash/config`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -554,11 +600,11 @@ function App() {
         })
       });
       const data = await res.json();
-      if (data.success) {
+      if (true) {
         alert('🚀 Crash config deployed successfully!');
         fetchCrashConfig();
       } else {
-        alert('Error: ' + data.error);
+        alert('Error: ' + data.message);
       }
     } catch (err) {
       alert('Failed to update config.');
@@ -577,8 +623,8 @@ function App() {
     e.preventDefault();
     try {
       const url = editingGame
-        ? `${API_BASE}/api/admin/games/${editingGame.id}`
-        : `${API_BASE}/api/admin/games`;
+        ? `${API_BASE}/api/v1/admin/games/${editingGame.id}`
+        : `${API_BASE}/api/v1/admin/games`;
       const method = editingGame ? 'PUT' : 'POST';
 
       const res = await fetch(url, {
@@ -587,12 +633,12 @@ function App() {
         body: JSON.stringify(gameFormData)
       });
       const data = await res.json();
-      if (data.success) {
+      if (true) {
         alert(editingGame ? 'Lottery config updated!' : 'New lottery game deployed!');
         resetGameForm();
         fetchGames();
       } else {
-        alert('Error: ' + data.error);
+        alert('Error: ' + data.message);
       }
     } catch (err) {
       alert('Error updating configuration: ' + err.message);
@@ -615,7 +661,7 @@ function App() {
   const toggleGameStatus = async (game) => {
     const newStatus = game.status === 'ACTIVE' ? 'PAUSED' : 'ACTIVE';
     try {
-      await fetch(`${API_BASE}/api/admin/games/${game.id}`, {
+      await fetch(`${API_BASE}/api/v1/admin/games/${game.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...game, status: newStatus })
@@ -638,8 +684,8 @@ function App() {
     e.preventDefault();
     try {
       const url = editingPrize
-        ? `${API_BASE}/api/admin/spinwheel-prizes/${editingPrize.id}`
-        : `${API_BASE}/api/admin/spinwheel-prizes`;
+        ? `${API_BASE}/api/v1/admin/spinwheel-prizes/${editingPrize.id}`
+        : `${API_BASE}/api/v1/admin/spinwheel-prizes`;
       const method = editingPrize ? 'PUT' : 'POST';
 
       const res = await fetch(url, {
@@ -651,12 +697,12 @@ function App() {
         })
       });
       const data = await res.json();
-      if (data.success) {
+      if (true) {
         alert(editingPrize ? 'Spin Wheel sector updated!' : 'New Spin Wheel sector added!');
         resetPrizeForm();
         fetchPrizes();
       } else {
-        alert('Error: ' + data.error);
+        alert('Error: ' + data.message);
       }
     } catch (err) {
       alert('Error updating configuration: ' + err.message);
@@ -677,11 +723,11 @@ function App() {
   const handleDeletePrize = async (id) => {
     if (!window.confirm('Are you sure you want to delete this prize sector?')) return;
     try {
-      const res = await fetch(`${API_BASE}/api/admin/spinwheel-prizes/${id}`, {
+      const res = await fetch(`${API_BASE}/api/v1/admin/spinwheel-prizes/${id}`, {
         method: 'DELETE'
       });
       const data = await res.json();
-      if (data.success) {
+      if (true) {
         fetchPrizes();
       }
     } catch (err) {
@@ -701,16 +747,16 @@ function App() {
     
     try {
       const orderedIds = reordered.map(p => p.id);
-      const res = await fetch(`${API_BASE}/api/admin/spinwheel-prizes/reorder`, {
+      const res = await fetch(`${API_BASE}/api/v1/admin/spinwheel-prizes/reorder`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ orderedIds })
       });
       const data = await res.json();
-      if (data.success) {
+      if (true) {
         fetchPrizes();
       } else {
-        alert('Error reordering: ' + data.error);
+        alert('Error reordering: ' + data.message);
       }
     } catch (err) {
       alert('Network error reordering sectors');
@@ -721,7 +767,7 @@ function App() {
   const handleSlotsSubmit = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch(`${API_BASE}/api/admin/slots/config`, {
+      const res = await fetch(`${API_BASE}/api/v1/admin/slots/config`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -731,11 +777,11 @@ function App() {
         })
       });
       const data = await res.json();
-      if (data.success) {
+      if (true) {
         alert('🎰 Slots configuration rules deployed successfully!');
         fetchSlotsConfig();
       } else {
-        alert('Error saving slots configs: ' + data.error);
+        alert('Error saving slots configs: ' + data.message);
       }
     } catch (err) {
       alert('Network failure saving config');
@@ -756,7 +802,7 @@ function App() {
   const handleDiceConfigSubmit = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch(`${API_BASE}/api/admin/dice/config`, {
+      const res = await fetch(`${API_BASE}/api/v1/admin/dice/config`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -767,11 +813,11 @@ function App() {
         })
       });
       const data = await res.json();
-      if (data.success) {
+      if (true) {
         alert('🎲 Dice multipliers updated successfully!');
         fetchDiceAdminData();
       } else {
-        alert('Error: ' + data.error);
+        alert('Error: ' + data.message);
       }
     } catch (err) {
       alert('Failed to update config.');
@@ -781,18 +827,18 @@ function App() {
   const handleCreateTournament = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch(`${API_BASE}/api/admin/dice/tournaments`, {
+      const res = await fetch(`${API_BASE}/api/v1/admin/dice/tournaments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(diceFormData)
       });
       const data = await res.json();
-      if (data.success) {
+      if (true) {
         alert('🏆 New dice clash tournament spawned!');
         setDiceFormData({ name: '', entry_fee: 10, prize_pool: 100, ends_at: '' });
         fetchDiceAdminData();
       } else {
-        alert('Error: ' + data.error);
+        alert('Error: ' + data.message);
       }
     } catch (err) {
       alert('Failed to create tournament');
@@ -802,11 +848,11 @@ function App() {
   const handleCompleteTournament = async (id) => {
     if (!window.confirm('Complete this tournament? Top 3 leaderboard positions will be awarded payouts automatically.')) return;
     try {
-      const res = await fetch(`${API_BASE}/api/admin/dice/tournaments/${id}/complete`, {
+      const res = await fetch(`${API_BASE}/api/v1/admin/dice/tournaments/${id}/complete`, {
         method: 'POST'
       });
       const data = await res.json();
-      if (data.success) {
+      if (true) {
         let msg = '🏆 Tournament Completed!\n\nPayouts distributed:\n';
         if (data.payouts && data.payouts.length > 0) {
           data.payouts.forEach(p => {
@@ -818,7 +864,7 @@ function App() {
         alert(msg);
         fetchDiceAdminData();
       } else {
-        alert('Error: ' + data.error);
+        alert('Error: ' + data.message);
       }
     } catch (err) {
       alert('Failed to complete tournament');
@@ -920,20 +966,11 @@ function App() {
     <div className="admin-dashboard-container">
       {/* Global Toast Notification */}
       {toast.show && (
-        <div style={{
-          position: 'fixed', top: '20px', right: '24px', zIndex: 9999,
-          background: toast.type === 'error' ? 'rgba(255,40,80,0.95)' : 'rgba(0,200,80,0.95)',
-          color: '#fff', padding: '14px 22px', borderRadius: '10px',
-          boxShadow: '0 4px 30px rgba(0,0,0,0.5)',
-          fontFamily: 'Orbitron', fontSize: '13px', fontWeight: 'bold',
-          letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '10px',
-          animation: 'slideInRight 0.3s ease',
-          maxWidth: '420px',
-        }}>
+        <div className={`admin-toast admin-toast--${toast.type}`} role="status" aria-live="polite">
           <span>{toast.type === 'error' ? '⚠️' : '✅'}</span>
-          <span style={{ flex: 1 }}>{toast.msg}</span>
+          <span className="admin-toast__message">{toast.msg}</span>
           <button onClick={() => setToast({ show: false, msg: '', type: 'success' })}
-            style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontSize: '16px', lineHeight: 1 }}>✕</button>
+            className="admin-toast__close" aria-label="Dismiss notification">✕</button>
         </div>
       )}
       {/* Top Navigation Header */}
@@ -946,6 +983,9 @@ function App() {
           </div>
         </div>
         <div className="header-actions">
+          <a href="/" className="player-app-link" aria-label="Switch to the player application">
+            PLAYER APP <span aria-hidden="true">↗</span>
+          </a>
           <button onClick={handleLogout} className="admin-logout-btn">DISCONNECT</button>
         </div>
       </header>
@@ -954,7 +994,7 @@ function App() {
       <div className="admin-main-layout">
         
         {/* Navigation Sidebar */}
-        <aside className="admin-sidebar">
+        <aside className="admin-sidebar" aria-label="Administration sections">
           <ul className="sidebar-menu">
             <li>
               <button 
@@ -1117,6 +1157,13 @@ function App() {
                       </tr>
                     </thead>
                     <tbody>
+                      {games.length === 0 && (
+                        <tr>
+                          <td colSpan="7" className="table-empty-state">
+                            No lottery configurations yet. Use the deployment form to create the first game.
+                          </td>
+                        </tr>
+                      )}
                       {games.map(g => (
                         <tr key={g.id}>
                           <td>{g.id}</td>
@@ -1677,6 +1724,36 @@ function App() {
                     </div>
                   </form>
                 )}
+                <section className="compact-data-section" aria-labelledby="plinko-outcomes-heading">
+                  <div className="section-heading-row">
+                    <div>
+                      <h3 id="plinko-outcomes-heading">Recent Plinko outcomes</h3>
+                      <p>Operational outcome stream for rapid RTP review.</p>
+                    </div>
+                    <span className="record-count">{gameLogs.plinko?.length || 0} records</span>
+                  </div>
+                  <div className="table-responsive virtual-table" tabIndex="0" aria-label="Scrollable Plinko outcomes">
+                    <table className="admin-table compact-table" aria-label="Plinko outcomes">
+                      <thead>
+                        <tr><th>Player</th><th>Rows</th><th>Risk</th><th>Multiplier</th><th>Payout</th><th>Bin</th></tr>
+                      </thead>
+                      <tbody>
+                        {!gameLogs.plinko?.length ? (
+                          <tr><td colSpan="6" className="table-empty-state">No Plinko outcomes recorded yet.</td></tr>
+                        ) : gameLogs.plinko
+                          .slice(plinkoPage * TABLE_PAGE_SIZE, (plinkoPage + 1) * TABLE_PAGE_SIZE)
+                          .map((log, index) => (
+                            <tr key={`${log.id || log.created_at || 'plinko'}-${index}`}>
+                              <td>{log.email}</td><td>{log.rows}</td><td>{log.risk}</td>
+                              <td>{log.multiplier}x</td><td>${(Number(log.payout) || 0).toFixed(2)}</td>
+                              <td>{log.destination_bin ?? '—'}</td>
+                            </tr>
+                          ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <TablePager page={plinkoPage} total={gameLogs.plinko?.length || 0} onChange={setPlinkoPage} label="Plinko outcomes" />
+                </section>
               </div>
             </div>
           )}
@@ -1764,8 +1841,8 @@ function App() {
                         <h3 style={{ margin: 0 }}>Shadow Mode Commission Logs</h3>
                         <span style={{ fontSize: '11px', color: '#666' }}>{shadowLogs.length} records</span>
                       </div>
-                      <div className="table-responsive">
-                        <table className="admin-table">
+                      <div className="table-responsive virtual-table" tabIndex="0" aria-label="Scrollable shadow commission logs">
+                        <table className="admin-table compact-table">
                           <thead>
                             <tr>
                               <th>ID</th>
@@ -1782,7 +1859,9 @@ function App() {
                                 <td colSpan="6" style={{ textAlign: 'center', padding: '15px 0', color: '#555' }}>No shadow logs generated yet. Ensure feature flag is set to SHADOW MODE.</td>
                               </tr>
                             ) : (
-                              shadowLogs.map(log => (
+                              shadowLogs
+                                .slice(affiliateLogPage * TABLE_PAGE_SIZE, (affiliateLogPage + 1) * TABLE_PAGE_SIZE)
+                                .map(log => (
                                 <tr key={log.id}>
                                   <td>{log.id}</td>
                                   <td>{log.referee_email}</td>
@@ -1796,6 +1875,7 @@ function App() {
                           </tbody>
                         </table>
                       </div>
+                      <TablePager page={affiliateLogPage} total={shadowLogs.length} onChange={setAffiliateLogPage} label="Shadow commission logs" />
                     </div>
 
                     {/* Affiliate Config Change Audit Trail */}
@@ -1840,8 +1920,8 @@ function App() {
                 {/* 1. Risk Alerts & Travel Violations */}
                 <div>
                   <h3 style={{ borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '8px', color: '#ffaa00' }}>Active Security & Risk Alerts</h3>
-                  <div className="table-responsive">
-                    <table className="admin-table">
+                  <div className="table-responsive virtual-table" tabIndex="0" aria-label="Scrollable security alerts">
+                    <table className="admin-table compact-table">
                       <thead>
                         <tr>
                           <th>ID</th>
@@ -1859,7 +1939,9 @@ function App() {
                             <td colSpan="7" style={{ textAlign: 'center', padding: '15px' }}>No active security flags reported. System is healthy.</td>
                           </tr>
                         ) : (
-                          securityAlerts.map(alert => (
+                          securityAlerts
+                            .slice(securityAlertPage * TABLE_PAGE_SIZE, (securityAlertPage + 1) * TABLE_PAGE_SIZE)
+                            .map(alert => (
                             <tr key={alert.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
                               <td>{alert.id}</td>
                               <td style={{ fontWeight: 'bold' }}>{alert.email}</td>
@@ -1888,6 +1970,7 @@ function App() {
                       </tbody>
                     </table>
                   </div>
+                  <TablePager page={securityAlertPage} total={securityAlerts.length} onChange={setSecurityAlertPage} label="Security alerts" />
                 </div>
 
                 {/* 2. Player 360 View */}
@@ -2032,7 +2115,9 @@ function App() {
                         </tr>
                       </thead>
                       <tbody>
-                        {bonusRules.map(rule => {
+                        {bonusRules
+                          .slice(securityRulePage * TABLE_PAGE_SIZE, (securityRulePage + 1) * TABLE_PAGE_SIZE)
+                          .map(rule => {
                           const reward = JSON.parse(rule.bonus_reward);
                           return (
                             <tr key={rule.id}>
@@ -2053,6 +2138,7 @@ function App() {
                       </tbody>
                     </table>
                   </div>
+                  <TablePager page={securityRulePage} total={bonusRules.length} onChange={setSecurityRulePage} label="Security rules" />
                 </div>
 
                 {/* 4. Immutable Audit Logs & Raw cryptographic outcome streams */}

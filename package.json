@@ -23,7 +23,8 @@
     "test:e2e:headed": "npx playwright test --headed",
     "test:e2e:chromium": "npx playwright test --project=chromium",
     "test:e2e:report": "npx playwright show-report tests/playwright/playwright-report",
-    "test:e2e:smoke": "npx playwright test tests/playwright/10-api-smoke.spec.ts --project=chromium"
+    "test:e2e:smoke": "npx playwright test tests/playwright/10-api-smoke.spec.ts --project=chromium",
+    "test:e2e:admin": "npx playwright test tests/playwright/11-admin.spec.ts --project=chromium"
   },
   "dependencies": {
     "@nestjs/bullmq": "^11.0.4",
@@ -34,6 +35,8 @@
     "@nestjs/platform-socket.io": "^11.1.28",
     "@nestjs/websockets": "^11.1.28",
     "bullmq": "^5.80.9",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.4",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
@@ -51,6 +54,7 @@
     "@types/express": "^5.0.6",
     "@types/node": "^26.1.1",
     "@types/pg": "^8.20.0",
+    "@types/uuid": "^11.0.0",
     "rimraf": "^6.1.3",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",

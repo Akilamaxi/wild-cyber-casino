@@ -2,7 +2,7 @@ import { Controller, Get, Post, Put, Delete, Body, Param, BadRequestException, O
 import { Request } from 'express';
 import { AdminService } from './admin.service';
 
-@Controller('api/admin')
+@Controller('api/v1/admin')
 export class AdminController implements OnModuleInit {
   constructor(private readonly adminService: AdminService) {}
 
@@ -31,6 +31,11 @@ export class AdminController implements OnModuleInit {
   @Put('games/:id')
   async updateGame(@Param('id') id: string, @Body() body: any) {
     return this.adminService.updateGame(id, body);
+  }
+
+  @Delete('games/:id')
+  async deleteGame(@Param('id') id: string) {
+    return this.adminService.deleteGame(id);
   }
 
   @Get('spinwheel-prizes')

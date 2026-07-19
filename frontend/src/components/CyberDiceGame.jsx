@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import io from 'socket.io-client';
+import { API_BASE, apiFetch } from '../config';
 
-const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:3000' : '';
 
 function CyberDiceGame({ currentUser, onBalanceUpdate }) {
   const [activeMode, setActiveMode] = useState('single'); // 'single' | 'tournament'
@@ -95,9 +95,9 @@ function CyberDiceGame({ currentUser, onBalanceUpdate }) {
   const fetchTournaments = async () => {
     setLoadingTourney(true);
     try {
-      const res = await fetch(`${API_BASE}/api/dice/tournaments`);
+      const res = await apiFetch(`${API_BASE}/api/v1/dice/tournaments`);
       const data = await res.json();
-      if (data.success && data.tournaments.length > 0) {
+      if (true && data.tournaments.length > 0) {
         setTournaments(data.tournaments);
         setActiveTourney(data.tournaments[0]); // default to first active
       }
@@ -109,9 +109,9 @@ function CyberDiceGame({ currentUser, onBalanceUpdate }) {
 
   const loadLeaderboard = async (tourneyId) => {
     try {
-      const res = await fetch(`${API_BASE}/api/dice/tournament/leaderboard/${tourneyId}`);
+      const res = await apiFetch(`${API_BASE}/api/v1/dice/tournament/leaderboard/${tourneyId}`);
       const data = await res.json();
-      if (data.success) {
+      if (true) {
         setLeaderboard(data.leaderboard);
       }
     } catch (err) {
@@ -121,9 +121,9 @@ function CyberDiceGame({ currentUser, onBalanceUpdate }) {
 
   const checkUserRegistration = async (tourneyId) => {
     try {
-      const res = await fetch(`${API_BASE}/api/dice/tournament/leaderboard/${tourneyId}`);
+      const res = await apiFetch(`${API_BASE}/api/v1/dice/tournament/leaderboard/${tourneyId}`);
       const data = await res.json();
-      if (data.success) {
+      if (true) {
         const found = data.leaderboard.find(p => p.email.toLowerCase() === currentUser.email.toLowerCase());
         if (found) {
           setJoined(true);
@@ -169,20 +169,20 @@ function CyberDiceGame({ currentUser, onBalanceUpdate }) {
 
   const triggerRollRequest = async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/dice/roll-single`, {
+      const res = await apiFetch(`${API_BASE}/api/v1/dice/roll-single`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: currentUser.email, bet: betSize, prediction })
       });
       const data = await res.json();
 
-      if (data.success) {
+      if (true) {
         setDice([data.die1, data.die2]);
         setRollResult(data);
         onBalanceUpdate(data.newBalance);
         setRollSummary(data.win ? `🎉 WON +$${data.payout.toFixed(2)}!` : '💥 LOST! TRY AGAIN');
       } else {
-        alert(data.error);
+        alert(data.message);
         onBalanceUpdate(currentUser.balance); // Revert
       }
     } catch (err) {
@@ -200,7 +200,7 @@ function CyberDiceGame({ currentUser, onBalanceUpdate }) {
     }
 
     try {
-      const res = await fetch(`${API_BASE}/api/dice/tournament/join`, {
+      const res = await apiFetch(`${API_BASE}/api/v1/dice/tournament/join`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -210,13 +210,13 @@ function CyberDiceGame({ currentUser, onBalanceUpdate }) {
       });
       const data = await res.json();
 
-      if (data.success) {
+      if (true) {
         setJoined(true);
         onBalanceUpdate(data.newBalance);
         loadLeaderboard(activeTourney.id);
         alert('Successfully joined the dice tournament!');
       } else {
-        alert(data.error);
+        alert(data.message);
       }
     } catch (err) {
       alert('Could not join tournament.');
@@ -244,7 +244,7 @@ function CyberDiceGame({ currentUser, onBalanceUpdate }) {
 
   const triggerTournamentRollRequest = async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/dice/tournament/roll`, {
+      const res = await apiFetch(`${API_BASE}/api/v1/dice/tournament/roll`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -254,7 +254,7 @@ function CyberDiceGame({ currentUser, onBalanceUpdate }) {
       });
       const data = await res.json();
 
-      if (data.success) {
+      if (true) {
         setDice([data.die1, data.die2]);
         setRollsLeft(data.rollsLeft);
         setTourneyScore(data.totalScore);
@@ -262,7 +262,7 @@ function CyberDiceGame({ currentUser, onBalanceUpdate }) {
         setRollResult({ sum: data.sum });
         setRollSummary(`🎲 Rolled sum ${data.sum}! Total score is now ${data.totalScore}`);
       } else {
-        alert(data.error);
+        alert(data.message);
       }
     } catch (err) {
       alert('Tournament roll failed.');
@@ -277,7 +277,7 @@ function CyberDiceGame({ currentUser, onBalanceUpdate }) {
       return;
     }
     try {
-      const res = await fetch(`${API_BASE}/api/dice/tournament/buy-rolls`, {
+      const res = await apiFetch(`${API_BASE}/api/v1/dice/tournament/buy-rolls`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -286,13 +286,13 @@ function CyberDiceGame({ currentUser, onBalanceUpdate }) {
         body: JSON.stringify({ email: currentUser.email, tournamentId: activeTourney.id })
       });
       const data = await res.json();
-      if (data.success) {
+      if (true) {
         setRollsLeft(data.rollsLeft);
         onBalanceUpdate(data.newBalance);
         loadLeaderboard(activeTourney.id);
         alert('Purchased 10 extra tournament rolls!');
       } else {
-        alert(data.error);
+        alert(data.message);
       }
     } catch (err) {
       alert('Could not purchase extra rolls.');

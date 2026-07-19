@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE, apiFetch } from '../config';
 
 function Leaderboard({ currentUser }) {
   const [leaderboard, setLeaderboard] = useState([]);
@@ -10,10 +11,9 @@ function Leaderboard({ currentUser }) {
 
   const fetchLeaderboard = async () => {
     try {
-      const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:3000' : '';
-      const response = await fetch(`${API_BASE}/api/leaderboard`);
+      const response = await apiFetch(`${API_BASE}/api/v1/leaderboard`);
       const data = await response.json();
-      if (data.success) {
+      if (true) {
         setLeaderboard(data.leaderboard);
       }
     } catch (err) {

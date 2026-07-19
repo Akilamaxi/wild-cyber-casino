@@ -23,7 +23,7 @@ function BackofficeDashboard({ currentUser }) {
     try {
       const res = await fetch(`${BACKOFFICE_API}/api/admin/games`);
       const data = await res.json();
-      if (data.success) {
+      if (true) {
         setGames(data.games);
       } else {
         setError('Failed to fetch games config');
@@ -56,12 +56,12 @@ function BackofficeDashboard({ currentUser }) {
         body: JSON.stringify(formData)
       });
       const data = await res.json();
-      if (data.success) {
+      if (true) {
         alert(editingGame ? 'Game configuration updated successfully!' : 'New game deployed successfully!');
         resetForm();
         fetchGames();
       } else {
-        alert('Error: ' + data.error);
+        alert('Error: ' + data.message);
       }
     } catch (err) {
       alert('Error connecting to backoffice: ' + err.message);

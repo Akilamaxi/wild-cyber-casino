@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { API_BASE, apiFetch } from '../config';
 
 function AuthModal({ isOpen, onClose, initialTab, onAuthSuccess }) {
   const [activeTab, setActiveTab] = useState(initialTab || 'login'); // 'login' or 'register'
@@ -27,10 +28,9 @@ function AuthModal({ isOpen, onClose, initialTab, onAuthSuccess }) {
     setErrorMsg('');
     setIsLoading(true);
 
-    const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:3000' : '';
     const url = activeTab === 'login' 
-      ? `${API_BASE}/api/auth/login` 
-      : `${API_BASE}/api/auth/register`;
+      ? `${API_BASE}/api/v1/auth/login` 
+      : `${API_BASE}/api/v1/auth/register`;
       
     let fingerprint = localStorage.getItem('casino_device_fingerprint');
     if (!fingerprint) {
@@ -43,7 +43,7 @@ function AuthModal({ isOpen, onClose, initialTab, onAuthSuccess }) {
       : { username, email, password, referralCode, deviceFingerprint: fingerprint };
 
     try {
-      const response = await fetch(url, {
+      const response = await apiFetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -51,8 +51,8 @@ function AuthModal({ isOpen, onClose, initialTab, onAuthSuccess }) {
       
       const data = await response.json();
       
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || 'Authentication failed. Please check inputs.');
+      if (!response.ok ) {
+        throw new Error(data.message || 'Authentication failed. Please check inputs.');
       }
 
       // Success

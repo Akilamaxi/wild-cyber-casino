@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
+import { ApiExceptionFilter } from '@cyber-casino/shared';
 
 async function bootstrap() {
   if (process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET) {
@@ -12,6 +13,7 @@ async function bootstrap() {
     .split(',').map(value => value.trim()).filter(Boolean);
   app.enableCors({ origin: allowedOrigins, credentials: true, methods: ['GET', 'POST', 'PUT', 'DELETE'] });
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
+  app.useGlobalFilters(new ApiExceptionFilter());
   
   const port = process.env.PORT || 5001;
 

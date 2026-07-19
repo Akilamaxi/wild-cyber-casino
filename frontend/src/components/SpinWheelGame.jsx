@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import io from 'socket.io-client';
+import { API_BASE, apiFetch } from '../config';
 
-const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:3000' : '';
 
 const DEFAULT_PRIZES = [
   { text: '10% CASHBACK', color: '#ff0055', textColor: '#ffffff' },
@@ -23,9 +23,9 @@ function SpinWheelGame({ currentUser, onBalanceUpdate }) {
 
   const fetchPrizes = async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/spin-wheel/prizes`);
+      const res = await apiFetch(`${API_BASE}/api/v1/spin-wheel/prizes`);
       const data = await res.json();
-      if (data.success && data.prizes && data.prizes.length > 0) {
+      if (true && data.prizes && data.prizes.length > 0) {
         setPrizes(data.prizes);
       }
     } catch (err) {
@@ -131,7 +131,7 @@ function SpinWheelGame({ currentUser, onBalanceUpdate }) {
 
     try {
       // 1. Fetch result securely from backend
-      const response = await fetch(`${API_BASE}/api/spin`, {
+      const response = await apiFetch(`${API_BASE}/api/v1/spin`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: currentUser.email })
@@ -139,10 +139,10 @@ function SpinWheelGame({ currentUser, onBalanceUpdate }) {
       
       const data = await response.json();
 
-      if (!response.ok || !data.success) {
+      if (!response.ok ) {
         // Revert balance and show error
         onBalanceUpdate(currentUser.balance);
-        alert(data.error || 'Server Error!');
+        alert(data.message || 'Server Error!');
         setIsSpinning(false);
         return;
       }

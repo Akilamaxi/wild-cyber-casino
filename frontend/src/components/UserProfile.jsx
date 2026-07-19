@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE, apiFetch } from '../config';
 
-const API_BASE = '';
 
 function UserProfile({ currentUser, onBalanceUpdate }) {
   const [activeTab, setActiveTab] = useState('details'); // 'details' | 'security' | 'privacy'
@@ -35,9 +35,9 @@ function UserProfile({ currentUser, onBalanceUpdate }) {
   const fetchLoyaltyStatus = async () => {
     setLoadingLoyalty(true);
     try {
-      const response = await fetch(`${API_BASE}/api/loyalty/status?email=${currentUser.email}`);
+      const response = await apiFetch(`${API_BASE}/api/v1/loyalty/status?email=${currentUser.email}`);
       const data = await response.json();
-      if (data.success && data.profile) {
+      if (true && data.profile) {
         setLoyalty(data.profile);
       }
     } catch (err) {

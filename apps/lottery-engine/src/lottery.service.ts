@@ -468,19 +468,23 @@ export class LotteryService implements OnModuleInit {
   }
 
   async slotsSpin(email: string, bet: any) {
-    const betAmount = parseFloat(bet);
-    if (!email || isNaN(betAmount) || betAmount <= 0) {
+    const betAmount = Number(bet);
+    if (!email || !Number.isFinite(betAmount) || betAmount <= 0 || betAmount > 10_000) {
       throw new BadRequestException('Invalid slots bet details.');
     }
 
     return this.db.executeTransaction(async (tx: any) => {
       const user = await tx.get('SELECT balance, gamesPlayed, totalWon FROM users WHERE LOWER(email) = ?', [email.toLowerCase()]);
       if (!user) throw new Error('User not found.');
-      if (user.balance < betAmount) throw new Error('Insufficient wallet funds.');
+      const currentBalance = Number(user.balance);
+      if (!Number.isFinite(currentBalance)) throw new Error('Invalid wallet balance.');
+      if (currentBalance < betAmount) throw new Error('Insufficient wallet funds.');
 
-      let balance = parseFloat(user.balance) - betAmount;
-      const userGamesPlayed = (user.gamesPlayed !== undefined ? parseInt(user.gamesPlayed) : (user.gamesplayed !== undefined ? parseInt(user.gamesplayed) : 0))!== undefined ? parseInt(user.gamesPlayed) : (user.gamesplayed !== undefined ? parseInt(user.gamesplayed) : 0);
-      let userTotalWon = (user.totalWon !== undefined ? parseFloat(user.totalWon) : (user.totalwon !== undefined ? parseFloat(user.totalwon) : 0))!== undefined ? parseFloat(user.totalWon) : (user.totalwon !== undefined ? parseFloat(user.totalwon) : 0);
+      let balance = currentBalance - betAmount;
+      const parsedGamesPlayed = Number(user.gamesPlayed ?? user.gamesplayed ?? 0);
+      const parsedTotalWon = Number(user.totalWon ?? user.totalwon ?? 0);
+      const userGamesPlayed = Number.isSafeInteger(parsedGamesPlayed) && parsedGamesPlayed >= 0 ? parsedGamesPlayed : 0;
+      let userTotalWon = Number.isFinite(parsedTotalWon) && parsedTotalWon >= 0 ? parsedTotalWon : 0;
       const gamesPlayed = userGamesPlayed + 1;
       await tx.run('UPDATE users SET balance = ?, gamesPlayed = ? WHERE LOWER(email) = ?', [balance, gamesPlayed, email.toLowerCase()]);
 
@@ -1700,12 +1704,13 @@ export class LotteryService implements OnModuleInit {
   // Proxies
   async proxyToBackoffice(req: Request, res: Response) {
     try {
-      const targetUrl = `http://127.0.0.1:5001/api/admin${req.url}`;
+      const backofficeUrl = process.env.BACKOFFICE_URL || 'http://127.0.0.1:5001';
+      const proxyPath = req.originalUrl.replace(/^\/api\/v1\/admin/, '');
+      const targetUrl = `${backofficeUrl}/api/v1/admin${proxyPath}`;
       const options: any = {
         method: req.method,
         headers: { 
           'Content-Type': 'application/json',
-          'host': '127.0.0.1:5001',
           'authorization': req.headers.authorization
         }
       };
@@ -1722,12 +1727,13 @@ export class LotteryService implements OnModuleInit {
 
   async proxyToLoyalty(req: Request, res: Response) {
     try {
-      const targetUrl = `http://127.0.0.1:5002/api/loyalty${req.url}`;
+      const loyaltyUrl = process.env.LOYALTY_URL || 'http://127.0.0.1:5002';
+      const proxyPath = req.originalUrl.replace(/^\/api\/v1\/loyalty/, '');
+      const targetUrl = `${loyaltyUrl}/api/v1/loyalty${proxyPath}`;
       const options: any = {
         method: req.method,
         headers: { 
           'Content-Type': 'application/json',
-          'host': '127.0.0.1:5002',
           'authorization': req.headers.authorization
         }
       };

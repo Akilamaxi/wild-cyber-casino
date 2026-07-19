@@ -135,10 +135,12 @@ services:
       - RUN_WORKER_CONCURRENTLY=false
       - JWT_SECRET=${JWT_SECRET:?Set JWT_SECRET}
       - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:8080}
+      - BACKOFFICE_URL=http://backoffice-api:5001
+      - LOYALTY_URL=http://loyalty-engine:5002
     working_dir: /app/apps/lottery-engine
     command: ["npm", "run", "start:prod"]
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/api/lottery/games').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/api/v1/lottery/games').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -147,7 +149,7 @@ services:
     init: true
     security_opt: ["no-new-privileges:true"]
     cap_drop: ["ALL"]
-    networks: [backend]
+    networks: [backend, edge]
 
 volumes:
   pg-data:
@@ -155,3 +157,4 @@ volumes:
 networks:
   backend:
     internal: true
+  edge:

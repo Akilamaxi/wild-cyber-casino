@@ -1,438 +1,283 @@
-import { Controller, Post, Get, Req, Res, Body, Query, Param } from '@nestjs/common';
+import { All, Controller, Post, Get, Req, Res, Body, Query, Param } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { LotteryService } from './lottery.service';
 import { Public, Roles } from './security.decorators';
+import { LoginDto, RegisterDto, WalletAddressDto, AmountDto, SpinDto, BetDto, PlinkoDropDto, DiceRollDto, ReserveTicketDto, CrashCashoutDto } from '@cyber-casino/shared';
 
-@Controller('api')
+@Controller('api/v1')
 export class LotteryController {
   constructor(private readonly service: LotteryService) {}
 
   @Post('auth/login')
   @Public()
-  async login(@Body() body: any, @Req() req: Request, @Res() res: Response) {
-    try {
-      const ip = req.ip || req.headers['x-forwarded-for'] || '127.0.0.1';
-      const userAgent = req.headers['user-agent'] || 'Unknown';
-      
-      let mockGeo: any = null;
-      if (req.headers['x-mock-ip-country']) {
-        mockGeo = {
-          country: req.headers['x-mock-ip-country'] as string,
-          city: (req.headers['x-mock-ip-city'] as string) || 'Unknown',
-          lat: parseFloat(req.headers['x-mock-ip-lat'] as string),
-          lon: parseFloat(req.headers['x-mock-ip-lon'] as string),
-        };
-      }
-
-      const result = await this.service.login(
-        body.email,
-        body.password,
-        body.deviceFingerprint,
-        ip as string,
-        userAgent,
-        mockGeo
-      );
-      return res.json({ success: true, ...result });
-    } catch (err: any) {
-      const status = err.status || 400;
-      return res.status(status).json({ success: false, error: err.message || 'Login failed' });
+  async login(@Body() body: LoginDto, @Req() req: Request) {
+    const ip = req.ip || req.headers['x-forwarded-for'] || '127.0.0.1';
+    const userAgent = req.headers['user-agent'] || 'Unknown';
+    
+    let mockGeo: any = null;
+    if (req.headers['x-mock-ip-country']) {
+      mockGeo = {
+        country: req.headers['x-mock-ip-country'] as string,
+        city: (req.headers['x-mock-ip-city'] as string) || 'Unknown',
+        lat: parseFloat(req.headers['x-mock-ip-lat'] as string),
+        lon: parseFloat(req.headers['x-mock-ip-lon'] as string),
+      };
     }
+
+    const result = await this.service.login(
+      body.email,
+      body.password,
+      body.deviceFingerprint,
+      ip as string,
+      userAgent,
+      mockGeo
+    );
+    return { success: true, ...result };
   }
 
   @Post('auth/register')
   @Public()
-  async register(@Body() body: any, @Req() req: Request, @Res() res: Response) {
-    try {
-      const ip = req.ip || req.headers['x-forwarded-for'] || '127.0.0.1';
-      const userAgent = req.headers['user-agent'] || 'Unknown';
-      
-      let mockGeo: any = null;
-      if (req.headers['x-mock-ip-country']) {
-        mockGeo = {
-          country: req.headers['x-mock-ip-country'] as string,
-          city: (req.headers['x-mock-ip-city'] as string) || 'Unknown',
-          lat: parseFloat(req.headers['x-mock-ip-lat'] as string),
-          lon: parseFloat(req.headers['x-mock-ip-lon'] as string),
-        };
-      }
-
-      const result = await this.service.register(body, ip as string, userAgent, mockGeo);
-      return res.json({ success: true, ...result });
-    } catch (err: any) {
-      return res.status(400).json({ success: false, error: err.message || 'Registration failed' });
+  async register(@Body() body: RegisterDto, @Req() req: Request) {
+    const ip = req.ip || req.headers['x-forwarded-for'] || '127.0.0.1';
+    const userAgent = req.headers['user-agent'] || 'Unknown';
+    
+    let mockGeo: any = null;
+    if (req.headers['x-mock-ip-country']) {
+      mockGeo = {
+        country: req.headers['x-mock-ip-country'] as string,
+        city: (req.headers['x-mock-ip-city'] as string) || 'Unknown',
+        lat: parseFloat(req.headers['x-mock-ip-lat'] as string),
+        lon: parseFloat(req.headers['x-mock-ip-lon'] as string),
+      };
     }
+
+    const result = await this.service.register(body, ip as string, userAgent, mockGeo);
+    return { success: true, ...result };
   }
 
   @Get('leaderboard')
   @Public()
-  async getLeaderboard(@Res() res: Response) {
-    try {
-      const leaderboard = await this.service.getLeaderboard();
-      return res.json({ success: true, leaderboard });
-    } catch (err: any) {
-      return res.status(500).json({ success: false, error: err.message });
-    }
+  async getLeaderboard() {
+    const leaderboard = await this.service.getLeaderboard();
+    return { success: true, leaderboard };
   }
 
   @Get('spin-wheel/prizes')
   @Public()
-  async getSpinwheelPrizes(@Res() res: Response) {
-    try {
-      const prizes = await this.service.getSpinwheelPrizes();
-      return res.json({ success: true, prizes });
-    } catch (err: any) {
-      return res.status(500).json({ success: false, error: err.message });
-    }
+  async getSpinwheelPrizes() {
+    const prizes = await this.service.getSpinwheelPrizes();
+    return { success: true, prizes };
   }
 
   @Post('spin')
-  async spin(@Body() body: any, @Res() res: Response) {
-    try {
-      const result = await this.service.spin(body.email);
-      return res.json({ success: true, ...result });
-    } catch (err: any) {
-      return res.status(400).json({ success: false, error: err.message });
-    }
+  async spin(@Body() body: SpinDto) {
+    const result = await this.service.spin(body.email);
+    return { success: true, ...result };
   }
 
   @Get('slots/config')
   @Public()
-  async getSlotsConfig(@Res() res: Response) {
-    try {
-      const config = await this.service.getSlotsConfig();
-      return res.json({ success: true, config });
-    } catch (err: any) {
-      return res.status(500).json({ success: false, error: err.message });
-    }
+  async getSlotsConfig() {
+    const config = await this.service.getSlotsConfig();
+    return { success: true, config };
   }
 
   @Post('slots/spin')
-  async slotsSpin(@Body() body: any, @Res() res: Response) {
-    try {
-      const result = await this.service.slotsSpin(body.email, body.bet);
-      return res.json({ success: true, ...result });
-    } catch (err: any) {
-      return res.status(400).json({ success: false, error: err.message });
-    }
+  async slotsSpin(@Body() body: BetDto) {
+    const result = await this.service.slotsSpin(body.email, body.bet);
+    return { success: true, ...result };
   }
 
   @Get('plinko/history')
-  async getPlinkoHistory(@Query('email') email: string, @Res() res: Response) {
-    try {
-      const history = await this.service.getPlinkoHistory(email);
-      return res.json({ success: true, history });
-    } catch (err: any) {
-      return res.status(500).json({ success: false, error: err.message });
-    }
+  async getPlinkoHistory(@Query('email') email: string) {
+    const history = await this.service.getPlinkoHistory(email);
+    return { success: true, history };
   }
 
   @Post('plinko/drop')
-  async plinkoDrop(@Body() body: any, @Req() req: Request, @Res() res: Response) {
-    try {
-      await this.service.authenticateRequest(req);
-      const result = await this.service.plinkoDrop(body);
-      return res.json({ success: true, ...result });
-    } catch (err: any) {
-      const status = err.status || 400;
-      return res.status(status).json({ success: false, error: err.message });
-    }
+  async plinkoDrop(@Body() body: PlinkoDropDto, @Req() req: Request) {
+    await this.service.authenticateRequest(req);
+    const result = await this.service.plinkoDrop(body);
+    return { success: true, ...result };
   }
 
   @Get('user/wallet')
-  async getWallet(@Req() req: Request, @Res() res: Response) {
-    try {
-      const decoded = await this.service.authenticateRequest(req);
-      const result = await this.service.getWallet(decoded.email);
-      return res.json({ success: true, ...result });
-    } catch (err: any) {
-      const status = err.status || 401;
-      return res.status(status).json({ success: false, error: err.message });
-    }
+  async getWallet(@Req() req: Request) {
+    const decoded = await this.service.authenticateRequest(req);
+    const result = await this.service.getWallet(decoded.email);
+    return { success: true, ...result };
   }
 
   @Post('user/wallet-address')
-  async setWalletAddress(@Body() body: any, @Req() req: Request, @Res() res: Response) {
-    try {
-      const decoded = await this.service.authenticateRequest(req);
-      await this.service.setWalletAddress(decoded.email, body.walletAddress);
-      return res.json({ success: true });
-    } catch (err: any) {
-      const status = err.status || 400;
-      return res.status(status).json({ success: false, error: err.message });
-    }
+  async setWalletAddress(@Body() body: WalletAddressDto, @Req() req: Request) {
+    const decoded = await this.service.authenticateRequest(req);
+    await this.service.setWalletAddress(decoded.email, body.walletAddress);
+    return { success: true };
   }
 
   @Post('user/deposit')
-  async deposit(@Body() body: any, @Res() res: Response) {
-    try {
-      const result = await this.service.deposit(body.email, body.amount);
-      return res.json({ success: true, newBalance: result });
-    } catch (err: any) {
-      return res.status(400).json({ success: false, error: err.message });
-    }
+  async deposit(@Body() body: AmountDto) {
+    const result = await this.service.deposit(body.email, body.amount);
+    return { success: true, newBalance: result };
   }
 
   @Post('user/withdraw')
-  async withdraw(@Body() body: any, @Res() res: Response) {
-    try {
-      const result = await this.service.withdraw(body.email, body.amount);
-      return res.json({ success: true, newBalance: result });
-    } catch (err: any) {
-      return res.status(400).json({ success: false, error: err.message });
-    }
+  async withdraw(@Body() body: AmountDto) {
+    const result = await this.service.withdraw(body.email, body.amount);
+    return { success: true, newBalance: result };
   }
 
   @Get('lottery/games')
   @Public()
-  async getLotteryGames(@Res() res: Response) {
-    try {
-      const games = await this.service.getLotteryGames();
-      return res.json({ success: true, games });
-    } catch (err: any) {
-      return res.status(500).json({ success: false, error: err.message });
-    }
+  async getLotteryGames() {
+    const games = await this.service.getLotteryGames();
+    return { success: true, games };
   }
 
   @Get('lottery/status')
-  async getLotteryStatus(@Query('email') email: string, @Query('lotteryName') lotteryName: string, @Res() res: Response) {
-    try {
-      const result = await this.service.getLotteryStatus(email, lotteryName);
-      return res.json({ success: true, ...result });
-    } catch (err: any) {
-      return res.status(500).json({ success: false, error: err.message });
-    }
+  async getLotteryStatus(@Query('email') email: string, @Query('lotteryName') lotteryName: string) {
+    const result = await this.service.getLotteryStatus(email, lotteryName);
+    return { success: true, ...result };
   }
 
   @Get('lottery/history')
-  async getLotteryHistory(@Query('email') email: string, @Res() res: Response) {
-    try {
-      const result = await this.service.getLotteryHistory(email);
-      return res.json({ success: true, tickets: result });
-    } catch (err: any) {
-      return res.status(500).json({ success: false, error: err.message });
-    }
+  async getLotteryHistory(@Query('email') email: string) {
+    const result = await this.service.getLotteryHistory(email);
+    return { success: true, tickets: result };
   }
 
   @Get('lottery/winners/:gameName')
   @Public()
-  async getLotteryWinners(@Param('gameName') gameName: string, @Res() res: Response) {
-    try {
-      const draws = await this.service.getLotteryWinners(gameName);
-      return res.json({ success: true, draws });
-    } catch (err: any) {
-      return res.status(500).json({ success: false, error: err.message });
-    }
+  async getLotteryWinners(@Param('gameName') gameName: string) {
+    const draws = await this.service.getLotteryWinners(gameName);
+    return { success: true, draws };
   }
 
   @Get('lottery/pool-tickets')
-  async getLotteryPoolTickets(@Query('email') email: string, @Query('lotteryName') lotteryName: string, @Res() res: Response) {
-    try {
-      const tickets = await this.service.getLotteryPoolTickets(email, lotteryName);
-      return res.json({ success: true, tickets });
-    } catch (err: any) {
-      return res.status(500).json({ success: false, error: err.message });
-    }
+  async getLotteryPoolTickets(@Query('email') email: string, @Query('lotteryName') lotteryName: string) {
+    const tickets = await this.service.getLotteryPoolTickets(email, lotteryName);
+    return { success: true, tickets };
   }
 
   @Post('lottery/reserve')
-  async reserveTickets(@Body() body: any, @Res() res: Response) {
-    try {
-      const result = await this.service.reserveTickets(body.email, body.ticketId, body.ticketIds);
-      return res.json({ success: true, ...result });
-    } catch (err: any) {
-      return res.status(400).json({ success: false, error: err.message });
-    }
+  async reserveTickets(@Body() body: ReserveTicketDto) {
+    const result = await this.service.reserveTickets(body.email, body.ticketId, body.ticketIds);
+    return { success: true, ...result };
   }
 
   @Post('lottery/release')
-  async releaseTickets(@Body() body: any, @Res() res: Response) {
-    try {
-      await this.service.releaseTickets(body.email, body.ticketId, body.ticketIds);
-      return res.json({ success: true });
-    } catch (err: any) {
-      return res.status(500).json({ success: false, error: err.message });
-    }
+  async releaseTickets(@Body() body: ReserveTicketDto) {
+    await this.service.releaseTickets(body.email, body.ticketId, body.ticketIds);
+    return { success: true };
   }
 
   @Post('lottery/checkout')
-  async checkoutTickets(@Body() body: any, @Res() res: Response) {
-    try {
-      const result = await this.service.checkoutTickets(body.email, body.ticketId, body.ticketIds);
-      return res.json({ success: true, ...result });
-    } catch (err: any) {
-      return res.status(400).json({ success: false, error: err.message });
-    }
+  async checkoutTickets(@Body() body: ReserveTicketDto) {
+    const result = await this.service.checkoutTickets(body.email, body.ticketId, body.ticketIds);
+    return { success: true, ...result };
   }
 
   @Get('dice/config')
   @Public()
-  async getDiceConfig(@Res() res: Response) {
-    try {
-      const config = await this.service.getDiceConfig();
-      return res.json({ success: true, config });
-    } catch (err: any) {
-      return res.status(500).json({ success: false, error: err.message });
-    }
+  async getDiceConfig() {
+    const config = await this.service.getDiceConfig();
+    return { success: true, config };
   }
 
   @Post('dice/roll-single')
-  async rollSingle(@Body() body: any, @Res() res: Response) {
-    try {
-      const result = await this.service.rollSingle(body.email, body.bet, body.prediction);
-      return res.json({ success: true, ...result });
-    } catch (err: any) {
-      return res.status(400).json({ success: false, error: err.message });
-    }
+  async rollSingle(@Body() body: DiceRollDto) {
+    const result = await this.service.rollSingle(body.email, body.bet, body.prediction);
+    return { success: true, ...result };
   }
 
   @Get('dice/tournaments')
   @Public()
-  async getDiceTournaments(@Res() res: Response) {
-    try {
-      const tournaments = await this.service.getDiceTournaments();
-      return res.json({ success: true, tournaments });
-    } catch (err: any) {
-      return res.status(500).json({ success: false, error: err.message });
-    }
+  async getDiceTournaments() {
+    const tournaments = await this.service.getDiceTournaments();
+    return { success: true, tournaments };
   }
 
   @Post('dice/tournament/join')
-  async joinTournament(@Body() body: any, @Req() req: Request, @Res() res: Response) {
-    try {
-      const decoded = await this.service.authenticateRequest(req);
-      const result = await this.service.joinTournament(decoded.email, body.tournamentId);
-      return res.json({ success: true, ...result });
-    } catch (err: any) {
-      const status = err.status || 400;
-      return res.status(status).json({ success: false, error: err.message });
-    }
+  async joinTournament(@Body() body: any, @Req() req: Request) {
+    const decoded = await this.service.authenticateRequest(req);
+    const result = await this.service.joinTournament(decoded.email, body.tournamentId);
+    return { success: true, ...result };
   }
 
   @Post('dice/tournament/roll')
-  async tournamentRoll(@Body() body: any, @Req() req: Request, @Res() res: Response) {
-    try {
-      const decoded = await this.service.authenticateRequest(req);
-      const result = await this.service.tournamentRoll(decoded.email, body.tournamentId);
-      return res.json({ success: true, ...result });
-    } catch (err: any) {
-      const status = err.status || 400;
-      return res.status(status).json({ success: false, error: err.message });
-    }
+  async tournamentRoll(@Body() body: any, @Req() req: Request) {
+    const decoded = await this.service.authenticateRequest(req);
+    const result = await this.service.tournamentRoll(decoded.email, body.tournamentId);
+    return { success: true, ...result };
   }
 
   @Post('dice/tournament/buy-rolls')
-  async tournamentBuyRolls(@Body() body: any, @Req() req: Request, @Res() res: Response) {
-    try {
-      const decoded = await this.service.authenticateRequest(req);
-      const result = await this.service.tournamentBuyRolls(decoded.email, body.tournamentId);
-      return res.json({ success: true, ...result });
-    } catch (err: any) {
-      const status = err.status || 400;
-      return res.status(status).json({ success: false, error: err.message });
-    }
+  async tournamentBuyRolls(@Body() body: any, @Req() req: Request) {
+    const decoded = await this.service.authenticateRequest(req);
+    const result = await this.service.tournamentBuyRolls(decoded.email, body.tournamentId);
+    return { success: true, ...result };
   }
 
   @Get('dice/tournament/leaderboard/:tournamentId')
   @Public()
-  async tournamentLeaderboard(@Param('tournamentId') tournamentId: string, @Res() res: Response) {
-    try {
-      const leaderboard = await this.service.tournamentLeaderboard(tournamentId);
-      return res.json({ success: true, leaderboard });
-    } catch (err: any) {
-      return res.status(500).json({ success: false, error: err.message });
-    }
+  async tournamentLeaderboard(@Param('tournamentId') tournamentId: string) {
+    const leaderboard = await this.service.tournamentLeaderboard(tournamentId);
+    return { success: true, leaderboard };
   }
 
   @Get('crash/active-bets')
-  async getCrashActiveBets(@Res() res: Response) {
-    try {
-      const bets = await this.service.getCrashActiveBets();
-      return res.json({ success: true, bets });
-    } catch (err: any) {
-      return res.status(500).json({ success: false, error: err.message });
-    }
+  async getCrashActiveBets() {
+    const bets = await this.service.getCrashActiveBets();
+    return { success: true, bets };
   }
 
   @Get('crash/history')
-  async getCrashHistory(@Query('email') email: string, @Res() res: Response) {
-    try {
-      const history = await this.service.getCrashHistory(email);
-      return res.json({ success: true, history });
-    } catch (err: any) {
-      return res.status(500).json({ success: false, error: err.message });
-    }
+  async getCrashHistory(@Query('email') email: string) {
+    const history = await this.service.getCrashHistory(email);
+    return { success: true, history };
   }
 
   @Post('crash/bet')
-  async crashBet(@Body() body: any, @Res() res: Response) {
-    try {
-      const result = await this.service.crashBet(body.email, body.bet);
-      return res.json({ success: true, ...result });
-    } catch (err: any) {
-      return res.status(400).json({ success: false, error: err.message });
-    }
+  async crashBet(@Body() body: BetDto) {
+    const result = await this.service.crashBet(body.email, body.bet);
+    return { success: true, ...result };
   }
 
   @Post('crash/cashout')
-  async crashCashout(@Body() body: any, @Res() res: Response) {
-    try {
-      const result = await this.service.crashCashout(body.email, body.betId);
-      return res.json({ success: true, ...result });
-    } catch (err: any) {
-      return res.status(400).json({ success: false, error: err.message });
-    }
+  async crashCashout(@Body() body: CrashCashoutDto) {
+    const result = await this.service.crashCashout(body.email, body.betId);
+    return { success: true, ...result };
   }
 
   @Get('admin/stats')
   @Roles('ADMIN')
-  async getAdminStats(@Res() res: Response) {
-    try {
-      const stats = await this.service.getAdminStats();
-      return res.json({ success: true, stats });
-    } catch (err: any) {
-      return res.status(500).json({ success: false, error: err.message });
-    }
+  async getAdminStats() {
+    const stats = await this.service.getAdminStats();
+    return { success: true, stats };
   }
 
   @Post('admin/kill-switch')
   @Roles('ADMIN')
-  async toggleKillSwitch(@Body() body: any, @Res() res: Response) {
-    try {
-      const result = await this.service.toggleKillSwitch(body.active);
-      return res.json({ success: true, ...result });
-    } catch (err: any) {
-      return res.status(500).json({ success: false, error: err.message });
-    }
+  async toggleKillSwitch(@Body() body: any) {
+    const result = await this.service.toggleKillSwitch(body.active);
+    return { success: true, ...result };
   }
 
   @Get('admin/audit-verify/:drawId')
   @Roles('ADMIN')
-  async verifyAudit(@Param('drawId') drawId: string, @Res() res: Response) {
-    try {
-      const result = await this.service.verifyAudit(drawId);
-      return res.json({ success: true, ...result });
-    } catch (err: any) {
-      return res.status(500).json({ success: false, error: err.message });
-    }
+  async verifyAudit(@Param('drawId') drawId: string) {
+    const result = await this.service.verifyAudit(drawId);
+    return { success: true, ...result };
   }
 
   // Reverse Proxies
-  @Post('admin/*')
+  @All('admin/*')
   @Roles('ADMIN')
-  async proxyAdminPost(@Req() req: Request, @Res() res: Response) {
+  async proxyAdmin(@Req() req: Request, @Res() res: Response) {
     return this.service.proxyToBackoffice(req, res);
   }
-  @Get('admin/*')
-  @Roles('ADMIN')
-  async proxyAdminGet(@Req() req: Request, @Res() res: Response) {
-    return this.service.proxyToBackoffice(req, res);
-  }
-  @Post('loyalty/*')
-  async proxyLoyaltyPost(@Req() req: Request, @Res() res: Response) {
-    return this.service.proxyToLoyalty(req, res);
-  }
-  @Get('loyalty/*')
-  async proxyLoyaltyGet(@Req() req: Request, @Res() res: Response) {
+  @All('loyalty/*')
+  async proxyLoyalty(@Req() req: Request, @Res() res: Response) {
     return this.service.proxyToLoyalty(req, res);
   }
 }

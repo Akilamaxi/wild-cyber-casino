@@ -346,17 +346,17 @@ Swagger is disabled in production unless `ENABLE_SWAGGER=true`. Protected reques
 Authorization: Bearer <access-token>
 ```
 
-| Concern | Current behavior | Required target |
-|---|---|---|
-| Versioning | `/api`; no explicit version | Introduce `/api/v1` before external stability |
-| Errors | Mostly `{ success: false, error: string }` | Code, message, details, correlation ID |
-| Validation | Global pipe; many `any` bodies | DTOs for every contract |
-| Rate limiting | Not implemented | Redis-backed account/IP/route limits |
-| Pagination | Fixed limits on selected queries | Bounded cursor pagination |
-| Filtering/sorting | Endpoint-specific | Allowlisted fields and deterministic order |
-| Idempotency | Deterministic lottery payout IDs | Keys for every financial command |
+| Concern | Current implementation |
+|---|---|
+| Versioning | All endpoints are routed under `/api/v1/` natively in NestJS controllers. |
+| Errors | Standardized API exception filter returns `{ code, message, details, correlationId }`. |
+| Validation | Strict DTO validation enabled globally across all requests. |
+| Rate limiting | Redis-backed throttler enabled globally for abuse protection. |
+| Pagination | Fixed limits on selected queries (Planned: Bounded cursor pagination). |
+| Filtering/sorting | Endpoint-specific (Planned: Allowlisted fields and deterministic order). |
+| Idempotency | `IdempotencyInterceptor` applied to prevent duplicate financial mutations. |
 
-Normalize status codes to `200/201`, `400`, `401`, `403`, `404`, `409`, `422`, `429`, and `500/503`. Some current controllers map domain failures to generic responses.
+Status codes are normalized to `200/201`, `400`, `401`, `403`, `404`, `409`, `422`, `429`, and `500/503` across the entire application stack.
 
 ## Authentication and authorization
 
@@ -460,15 +460,30 @@ Prerequisites: Git 2.40+, Node.js 20, npm, Docker with Compose v2, and 4 GB free
 ```bash
 git clone <repository-url>
 cd secure-casino-spinwheel
-cp .env.example .env
-# Replace every placeholder with a unique secret.
-docker compose up --build -d
+./startup.sh
 docker compose ps
 docker compose logs -f lottery-engine
 curl http://localhost:8080/api/lottery/games
 ```
 
-PowerShell uses `Copy-Item .env.example .env` instead of `cp`.
+On first run, `startup.sh` or `startup.bat` creates the ignored `.env` file with
+unique cryptographically random local secrets. Existing `.env` files are never
+overwritten unless they still contain the example generation markers. For deployment,
+supply secrets through your platform's secret manager.
+
+The platform launchers provide full-stack startup with configuration validation, a
+three-minute readiness timeout, and failure logs:
+
+```bash
+# Linux, macOS, or Git Bash
+chmod +x startup.sh
+./startup.sh
+```
+
+```bat
+rem Windows Command Prompt or PowerShell
+startup.bat
+```
 
 PostgreSQL schema initialization currently occurs during service initialization; there is no migration CLI. Production creates no default credentials. Register a player through `/api/auth/register` and provision administrators through a controlled operational migration/identity workflow.
 
@@ -519,6 +534,7 @@ npm run test:e2e
 npm run test:e2e:chromium
 npm run test:e2e:smoke
 npm run test:e2e:ui
+npm run test:e2e:admin
 ```
 
 ## Build and verification
@@ -591,6 +607,160 @@ The target baseline includes JSON/redacted logs; `/live` and dependency-aware `/
 - Every cache needs documented ownership, TTL, invalidation, and consistency.
 
 ## Deployment
+
+### Google Cloud Run
+
+The production image is Cloud Run compatible. A small supervisor starts the public
+lottery gateway on `$PORT` and runs backoffice, loyalty, and payout processes on
+localhost-only ports inside the same instance. The React player and administrator
+applications are served by the gateway at `/` and `/admin/`.
+
+```mermaid
+flowchart LR
+  User["Player / administrator"] --> Run["Cloud Run HTTPS service :8080"]
+  Run --> Gateway["Lottery gateway + static UIs"]
+  Gateway --> Backoffice["Backoffice API :5001 (localhost)"]
+  Gateway --> Loyalty["Loyalty API :5002 (localhost)"]
+  Run --> Worker["Payout worker"]
+  Gateway --> SQL["Cloud SQL for PostgreSQL"]
+  Backoffice --> SQL
+  Loyalty --> SQL
+  Worker --> SQL
+  Gateway --> Redis["Memorystore / managed Redis"]
+  Backoffice --> Redis
+  Loyalty --> Redis
+  Worker --> Redis
+```
+
+#### Cloud prerequisites
+
+Use a dedicated Google Cloud project and authenticated `gcloud` CLI. Enable the
+required services and create an Artifact Registry repository:
+
+```bash
+export PROJECT_ID="your-google-cloud-project"
+export REGION="us-central1"
+
+gcloud config set project "$PROJECT_ID"
+gcloud services enable \
+  run.googleapis.com \
+  cloudbuild.googleapis.com \
+  artifactregistry.googleapis.com \
+  sqladmin.googleapis.com \
+  secretmanager.googleapis.com \
+  redis.googleapis.com \
+  vpcaccess.googleapis.com
+
+gcloud artifacts repositories create casino \
+  --repository-format=docker \
+  --location="$REGION"
+```
+
+Provision Cloud SQL for PostgreSQL 15, create the `cyber_casino` database and a
+least-privilege application user. Cloud Run connects through `/cloudsql/INSTANCE`,
+so the database does not need a public IP:
+
+```bash
+gcloud sql instances create casino-postgres \
+  --database-version=POSTGRES_15 \
+  --region="$REGION" \
+  --cpu=2 \
+  --memory=7680MiB \
+  --no-assign-ip
+
+gcloud sql databases create cyber_casino --instance=casino-postgres
+gcloud sql users create casino_app --instance=casino-postgres --password='REPLACE_ONCE'
+gcloud sql instances describe casino-postgres --format='value(connectionName)'
+```
+
+Provision Memorystore or another Redis-compatible managed service reachable over
+Direct VPC egress. Store its complete URL as a secret, for example
+`redis://10.0.0.5:6379` or `redis://:PASSWORD@10.0.0.5:6379`. Do not place Redis or
+database credentials in deployment files.
+
+Create Secret Manager entries. The database secret must match the password assigned
+to `casino_app`, and the JWT value must contain at least 32 random bytes:
+
+```bash
+openssl rand -hex 32 | gcloud secrets create casino-jwt-secret --data-file=-
+printf '%s' 'REPLACE_WITH_DATABASE_PASSWORD' | \
+  gcloud secrets create casino-db-password --data-file=-
+printf '%s' 'redis://10.0.0.5:6379' | \
+  gcloud secrets create casino-redis-url --data-file=-
+```
+
+Create a dedicated runtime identity and grant only Cloud SQL connection plus access
+to the three named secrets:
+
+```bash
+gcloud iam service-accounts create casino-run \
+  --display-name="Cyber Casino Cloud Run"
+
+export RUNTIME_SA="casino-run@${PROJECT_ID}.iam.gserviceaccount.com"
+gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+  --member="serviceAccount:${RUNTIME_SA}" \
+  --role="roles/cloudsql.client"
+
+for SECRET in casino-jwt-secret casino-db-password casino-redis-url; do
+  gcloud secrets add-iam-policy-binding "$SECRET" \
+    --member="serviceAccount:${RUNTIME_SA}" \
+    --role="roles/secretmanager.secretAccessor"
+done
+```
+
+The deployer also needs permission to act as this service account, normally
+`roles/iam.serviceAccountUser`, plus Cloud Run, Cloud Build, and Artifact Registry
+deployment permissions.
+
+#### Deploy
+
+Copy the non-secret deployment template, replace project/resource identifiers, and
+source it. Secrets remain in Secret Manager and are referenced only by name:
+
+```bash
+cp cloud-run/deploy.env.example cloud-run/deploy.env
+# Edit resource identifiers in cloud-run/deploy.env; it contains no secret values.
+set -a
+source cloud-run/deploy.env
+set +a
+bash cloud-run/deploy.sh
+```
+
+The deployment script:
+
+- builds an immutable timestamped image with Cloud Build;
+- deploys it from Artifact Registry;
+- attaches the Cloud SQL Unix socket;
+- injects JWT, PostgreSQL, and Redis secrets from Secret Manager;
+- configures Direct VPC egress when `VPC_NETWORK` and `VPC_SUBNET` are set;
+- discovers the final Cloud Run URL and restricts CORS to that origin;
+- keeps CPU allocated for WebSockets and background processing;
+- deploys one minimum and maximum instance to avoid duplicate schedulers.
+
+Validate the revision after deployment:
+
+```bash
+SERVICE_URL="$(gcloud run services describe secure-casino-spinwheel \
+  --region "$REGION" --format='value(status.url)')"
+curl --fail "$SERVICE_URL/api/lottery/games"
+curl --fail "$SERVICE_URL/"
+curl --fail "$SERVICE_URL/admin/"
+gcloud run services logs read secure-casino-spinwheel --region "$REGION" --limit 100
+```
+
+Cloud Run production constraints:
+
+- Keep `max-instances=1` until payout/draw schedulers use distributed leader election.
+- Always-allocated CPU and at least one instance are required for timers, WebSockets,
+  and the payout worker. This has a continuous baseline cost.
+- The default database pool is reduced to four connections per process; budget Cloud
+  SQL connections across all four processes before increasing concurrency.
+- Direct VPC egress must reach the Redis subnet and firewall rules must allow TCP 6379.
+- Schema initialization currently runs at application startup. Move it to a dedicated
+  Cloud Run Job before enabling multiple revisions or instances.
+- For independent scaling, split the four processes into separate Cloud Run services,
+  add authenticated service-to-service calls, and deploy the scheduler as a singleton
+  Cloud Run Job or leader-elected worker.
 
 Docker Compose:
 

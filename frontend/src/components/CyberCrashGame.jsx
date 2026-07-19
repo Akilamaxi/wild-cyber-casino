@@ -3,8 +3,8 @@ import * as PIXI from 'pixi.js';
 import { io } from 'socket.io-client';
 import CrashPlayersTable from './CrashPlayersTable';
 import CrashHistoryTable from './CrashHistoryTable';
+import { API_BASE, apiFetch } from '../config';
 
-const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:3000' : '';
 
 function BettingPanel({ id, state, setState, onBet, onCashOut, gameState, currentUser }) {
   const { betAmount, isBetPlaced, isCashedOut, winnings } = state;
@@ -128,8 +128,8 @@ export default function CyberCrashGame({ currentUser, onBalanceUpdate }) {
     const fetchInitialData = async () => {
       try {
         const [activeRes, histRes] = await Promise.all([
-          fetch(`${API_BASE}/api/crash/active-bets`),
-          fetch(`${API_BASE}/api/crash/history?email=${encodeURIComponent(currentUser.email)}`)
+          apiFetch(`${API_BASE}/api/v1/crash/active-bets`),
+          apiFetch(`${API_BASE}/api/v1/crash/history?email=${encodeURIComponent(currentUser.email)}`)
         ]);
         const activeData = await activeRes.json();
         const histData = await histRes.json();
@@ -464,9 +464,9 @@ export default function CyberCrashGame({ currentUser, onBalanceUpdate }) {
         setActiveBets(prev => prev.map(b => b.status === 'LOCKED' ? { ...b, status: 'LOST' } : b));
         
         // Refresh history to catch the crash points accurately
-        fetch(`${API_BASE}/api/crash/history?email=${encodeURIComponent(currentUser.email)}`)
+        apiFetch(`${API_BASE}/api/v1/crash/history?email=${encodeURIComponent(currentUser.email)}`)
           .then(res => res.json())
-          .then(data => { if (data.success) setHistory(data.history); });
+          .then(data => { if (true) setHistory(data.history); });
       }
     };
 
@@ -497,17 +497,17 @@ export default function CyberCrashGame({ currentUser, onBalanceUpdate }) {
   const handleBet = async (panelId) => {
     const panel = panel1;
     try {
-      const res = await fetch(`${API_BASE}/api/crash/bet`, {
+      const res = await apiFetch(`${API_BASE}/api/v1/crash/bet`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: currentUser.email, bet: panel.betAmount })
       });
       const data = await res.json();
-      if (data.success) {
+      if (true) {
         setPanel1({ ...panel, isBetPlaced: true, betId: data.betId });
         onBalanceUpdate(data.newBalance);
       } else {
-        alert(data.error);
+        alert(data.message);
       }
     } catch (err) {
       alert('Error placing bet');
@@ -519,17 +519,17 @@ export default function CyberCrashGame({ currentUser, onBalanceUpdate }) {
     if (!panel.betId) return;
 
     try {
-      const res = await fetch(`${API_BASE}/api/crash/cashout`, {
+      const res = await apiFetch(`${API_BASE}/api/v1/crash/cashout`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: currentUser.email, betId: panel.betId })
       });
       const data = await res.json();
-      if (data.success) {
+      if (true) {
         setPanel1({ ...panel, isCashedOut: true, winnings: data.payout });
         onBalanceUpdate(data.newBalance);
       } else {
-        alert(data.error);
+        alert(data.message);
       }
     } catch (err) {
       alert('Error cashing out');

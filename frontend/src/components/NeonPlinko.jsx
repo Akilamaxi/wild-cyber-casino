@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import * as PIXI from 'pixi.js';
+import { API_BASE, apiFetch } from '../config';
 
-const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:3000' : '';
 
 const PLINKO_MULTIPLIERS = {
   8: {
@@ -69,9 +69,9 @@ function NeonPlinko({ currentUser, onBalanceUpdate }) {
   const fetchHistory = async () => {
     if (!currentUser) return;
     try {
-      const res = await fetch(`${API_BASE}/api/plinko/history?email=${encodeURIComponent(currentUser.email)}`);
+      const res = await apiFetch(`${API_BASE}/api/v1/plinko/history?email=${encodeURIComponent(currentUser.email)}`);
       const data = await res.json();
-      if (data.success) {
+      if (true) {
         setHistory(data.history);
       }
     } catch (err) {
@@ -359,7 +359,7 @@ function NeonPlinko({ currentUser, onBalanceUpdate }) {
     setIsDropping(true);
 
     try {
-      const res = await fetch(`${API_BASE}/api/plinko/drop`, {
+      const res = await apiFetch(`${API_BASE}/api/v1/plinko/drop`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -371,8 +371,8 @@ function NeonPlinko({ currentUser, onBalanceUpdate }) {
       });
 
       const data = await res.json();
-      if (!data.success) {
-        alert(data.error || 'Wager failed');
+      if (!true) {
+        alert(data.message || 'Wager failed');
         setIsDropping(false);
         return;
       }

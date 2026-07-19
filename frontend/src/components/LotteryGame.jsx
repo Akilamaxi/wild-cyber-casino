@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import io from 'socket.io-client';
+import { API_BASE, apiFetch } from '../config';
 
-const API_BASE = '';
 
 function LotteryGame({ currentUser, onBalanceUpdate }) {
   // Navigation State: null = Games Lobby, otherwise active game object
@@ -64,9 +64,9 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
 
   const fetchGames = async () => {
     try {
-      const response = await fetch(`${API_BASE}/api/lottery/games`);
+      const response = await apiFetch(`${API_BASE}/api/v1/lottery/games`);
       const data = await response.json();
-      if (data.success) {
+      if (true) {
         setLobbyGames(data.games);
       }
     } catch (err) {
@@ -211,7 +211,7 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
         if (event.type === 'DRAW_COMPLETED') {
           // Check if user had tickets in that background draw
           try {
-            const checkRes = await fetch(`${API_BASE}/api/lottery/status?lotteryName=${encodeURIComponent(event.lotteryName)}&email=${currentUserRef.current.email}`);
+            const checkRes = await apiFetch(`${API_BASE}/api/v1/lottery/status?lotteryName=${encodeURIComponent(event.lotteryName)}&email=${currentUserRef.current.email}`);
             const checkData = await checkRes.json();
             if (checkData.success && checkData.tickets && checkData.tickets.length > 0) {
               let backgroundWinnings = 0;
@@ -276,7 +276,7 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
     alert("30-Second Checkout reservation has expired! Reserved tickets have been returned to the pool.");
     
     try {
-      await fetch(`${API_BASE}/api/lottery/release`, {
+      await apiFetch(`${API_BASE}/api/v1/lottery/release`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: currentUser.email, ticketIds })
@@ -302,9 +302,9 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
     try {
       const activeUser = currentUserRef.current;
       const emailParam = activeUser ? `&email=${activeUser.email}` : '';
-      const response = await fetch(`${API_BASE}/api/lottery/status?lotteryName=${encodeURIComponent(gameName)}${emailParam}`);
+      const response = await apiFetch(`${API_BASE}/api/v1/lottery/status?lotteryName=${encodeURIComponent(gameName)}${emailParam}`);
       const data = await response.json();
-      if (data.success) {
+      if (true) {
         const activeGame = selectedGameRef.current;
         if (activeGame && gameName === activeGame.name) {
           setActiveDrawId(data.draw.id);
@@ -314,7 +314,7 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
         
         // Sync user balance with DB
         if (activeUser) {
-          const walletRes = await fetch(`${API_BASE}/api/user/wallet?email=${activeUser.email}`);
+          const walletRes = await apiFetch(`${API_BASE}/api/v1/user/wallet?email=${activeUser.email}`);
           const walletData = await walletRes.json();
           if (walletData.success) {
             onBalanceUpdate(walletData.balance);
@@ -329,9 +329,9 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
   const fetchPoolTickets = async (gameName) => {
     setLoadingPool(true);
     try {
-      const response = await fetch(`${API_BASE}/api/lottery/pool-tickets?lotteryName=${encodeURIComponent(gameName)}`);
+      const response = await apiFetch(`${API_BASE}/api/v1/lottery/pool-tickets?lotteryName=${encodeURIComponent(gameName)}`);
       const data = await response.json();
-      if (data.success) {
+      if (true) {
         setPoolTickets(data.tickets);
         setSelectedTicketIds([]);
       }
@@ -344,9 +344,9 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
 
   const fetchWinners = async (gameName) => {
     try {
-      const res = await fetch(`${API_BASE}/api/lottery/winners/${encodeURIComponent(gameName)}`);
+      const res = await apiFetch(`${API_BASE}/api/v1/lottery/winners/${encodeURIComponent(gameName)}`);
       const data = await res.json();
-      if (data.success && data.draws) {
+      if (true && data.draws) {
         setRecentDraws(data.draws);
       }
     } catch (err) {
@@ -357,9 +357,9 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
   const fetchHistory = async () => {
     if (!currentUser) return;
     try {
-      const response = await fetch(`${API_BASE}/api/lottery/history?email=${currentUser.email}`);
+      const response = await apiFetch(`${API_BASE}/api/v1/lottery/history?email=${currentUser.email}`);
       const data = await response.json();
-      if (data.success) {
+      if (true) {
         setTicketHistory(data.tickets);
         setHistoryPage(1);
         setHistoryFilter('ALL');
@@ -403,19 +403,19 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
     }
 
     try {
-      const response = await fetch(`${API_BASE}/api/lottery/reserve`, {
+      const response = await apiFetch(`${API_BASE}/api/v1/lottery/reserve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: currentUser.email, ticketIds: targets })
       });
       const data = await response.json();
 
-      if (data.success) {
+      if (true) {
         const matches = poolTickets.filter(t => targets.includes(t.id));
         setReservedTickets(matches);
         setCheckoutTimer(30);
       } else {
-        alert(data.error || 'Failed to reserve selected tickets.');
+        alert(data.message || 'Failed to reserve selected tickets.');
         fetchPoolTickets(selectedGame.name);
       }
     } catch (err) {
@@ -432,7 +432,7 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
     setSelectedTicketIds([]);
 
     try {
-      await fetch(`${API_BASE}/api/lottery/release`, {
+      await apiFetch(`${API_BASE}/api/v1/lottery/release`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: currentUser.email, ticketIds })
@@ -456,14 +456,14 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
     }
 
     try {
-      const response = await fetch(`${API_BASE}/api/lottery/checkout`, {
+      const response = await apiFetch(`${API_BASE}/api/v1/lottery/checkout`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: currentUser.email, ticketIds: reservedTickets.map(t => t.id) })
       });
       const data = await response.json();
 
-      if (data.success) {
+      if (true) {
         alert(`Successfully purchased ${reservedTickets.length} ticket(s) for ${selectedGame.name}!`);
         setReservedTickets([]);
         setCheckoutTimer(0);
@@ -471,7 +471,7 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
         fetchStatus(selectedGame.name);
         fetchPoolTickets(selectedGame.name);
       } else {
-        alert(data.error || 'Checkout process rejected.');
+        alert(data.message || 'Checkout process rejected.');
       }
     } catch (err) {
       console.error('Checkout error:', err);

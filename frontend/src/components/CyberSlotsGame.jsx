@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import io from 'socket.io-client';
+import { API_BASE, apiFetch } from '../config';
 
-const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:3000' : '';
 
 const SYMBOL_MAP = {
   'BAR': { emoji: '➖', label: 'BAR', color: '#a5a2c2' },
@@ -33,9 +33,9 @@ function CyberSlotsGame({ currentUser, onBalanceUpdate }) {
 
   const fetchConfig = async () => {
     try {
-      const response = await fetch(`${API_BASE}/api/slots/config`);
+      const response = await apiFetch(`${API_BASE}/api/v1/slots/config`);
       const data = await response.json();
-      if (data.success && data.config && data.config.symbols_config) {
+      if (true && data.config && data.config.symbols_config) {
         const parsed = JSON.parse(data.config.symbols_config);
         if (parsed.length > 0) {
           setSymbols(parsed);
@@ -80,16 +80,16 @@ function CyberSlotsGame({ currentUser, onBalanceUpdate }) {
     onBalanceUpdate(currentUser.balance - betSize);
 
     try {
-      const response = await fetch(`${API_BASE}/api/slots/spin`, {
+      const response = await apiFetch(`${API_BASE}/api/v1/slots/spin`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: currentUser.email, bet: betSize })
       });
       const data = await response.json();
 
-      if (!response.ok || !data.success) {
+      if (!response.ok ) {
         onBalanceUpdate(currentUser.balance);
-        alert(data.error || 'Server connection error.');
+        alert(data.message || 'Server connection error.');
         setIsSpinning(false);
         setSpinningReels([false, false, false]);
         return;

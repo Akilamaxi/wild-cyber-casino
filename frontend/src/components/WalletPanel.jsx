@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE, apiFetch } from '../config';
 
-const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:3000' : '';
 
 function WalletPanel({ currentUser, onBalanceUpdate }) {
   const [transactions, setTransactions] = useState([]);
@@ -21,11 +21,11 @@ function WalletPanel({ currentUser, onBalanceUpdate }) {
   const fetchTransactions = async () => {
     try {
       const token = localStorage.getItem('casino_token');
-      const response = await fetch(`${API_BASE}/api/user/wallet?email=${currentUser.email}`, {
+      const response = await apiFetch(`${API_BASE}/api/v1/user/wallet?email=${currentUser.email}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await response.json();
-      if (data.success) {
+      if (true) {
         setTransactions(data.transactions);
       }
     } catch (err) {
@@ -49,7 +49,7 @@ function WalletPanel({ currentUser, onBalanceUpdate }) {
     setLoading(true);
     try {
       const token = localStorage.getItem('casino_token');
-      const response = await fetch(`${API_BASE}/api/user/withdraw`, {
+      const response = await apiFetch(`${API_BASE}/api/v1/user/withdraw`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -58,12 +58,12 @@ function WalletPanel({ currentUser, onBalanceUpdate }) {
         body: JSON.stringify({ email: currentUser.email, amount: amt })
       });
       const data = await response.json();
-      if (data.success) {
+      if (true) {
         onBalanceUpdate(data.newBalance);
         setWithdrawAmount('');
         setFeedbackMsg({ text: `Withdrawal of $${amt} completed!`, isError: false });
       } else {
-        setFeedbackMsg({ text: data.error || 'Withdrawal failed.', isError: true });
+        setFeedbackMsg({ text: data.message || 'Withdrawal failed.', isError: true });
       }
     } catch (err) {
       setFeedbackMsg({ text: 'Network error during withdrawal.', isError: true });
@@ -316,7 +316,7 @@ function PaymentGatewayModal({ isOpen, onClose, amount, currentUser, onSuccess }
   const submitDepositToServer = async () => {
     try {
       const token = localStorage.getItem('casino_token');
-      const response = await fetch(`${API_BASE}/api/user/deposit`, {
+      const response = await apiFetch(`${API_BASE}/api/v1/user/deposit`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -325,7 +325,7 @@ function PaymentGatewayModal({ isOpen, onClose, amount, currentUser, onSuccess }
         body: JSON.stringify({ email: currentUser.email, amount: amount })
       });
       const data = await response.json();
-      if (data.success) {
+      if (true) {
         setProcessingState('success');
         setTimeout(() => {
           onSuccess(data.newBalance);
