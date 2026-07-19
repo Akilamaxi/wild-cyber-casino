@@ -1,6 +1,6 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
-import { SharedModule } from '@cyber-casino/shared';
+import { CsrfGuard, SecurityMiddleware, SharedModule } from '@cyber-casino/shared';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis';
 import { LoyaltyController } from './loyalty.controller';
@@ -19,4 +19,6 @@ import { LoyaltyAuthGuard } from './loyalty-auth.guard';
   providers: [LoyaltyService, { provide: APP_GUARD, useClass: LoyaltyAuthGuard },
     { provide: APP_GUARD, useClass: ThrottlerGuard },],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) { consumer.apply(SecurityMiddleware).forRoutes('*'); }
+}

@@ -1,5 +1,6 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { DbService, PubSubService, CryptoRngService } from '@cyber-casino/shared';
+import * as crypto from 'crypto';
 
 @Injectable()
 export class AdminService {
@@ -12,6 +13,17 @@ export class AdminService {
   async init() {
     await this.db.initDatabase();
     await this.pubsub.connect(process.env.REDIS_URL || 'redis://127.0.0.1:6379');
+  }
+
+  private async audit(adminEmail: string, action: string, details: string, targetEmail?: string, requestId?: string) {
+    await this.db.executeTransaction(async (tx: any) => {
+      const previous = await tx.get('SELECT entry_hash FROM admin_audit_trail ORDER BY id DESC LIMIT 1 FOR UPDATE');
+      const previousHash = previous?.entryHash || 'GENESIS';
+      const createdAt = new Date().toISOString();
+      const canonical = JSON.stringify({ adminEmail, action, targetEmail: targetEmail || null, details, createdAt, requestId: requestId || null, previousHash });
+      const entryHash = crypto.createHmac('sha256', process.env.AUDIT_HMAC_SECRET || process.env.JWT_SECRET || 'local-audit-key').update(canonical).digest('hex');
+      await tx.run('INSERT INTO admin_audit_trail (admin_email, action, target_email, details, created_at, request_id, previous_hash, entry_hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', [adminEmail, action, targetEmail || null, details, createdAt, requestId || null, previousHash, entryHash]);
+    });
   }
 
   async toggleKillSwitch(active: boolean) {
@@ -343,10 +355,7 @@ export class AdminService {
     const alertId = parseInt(id, 10);
     await this.db.run('UPDATE security_alerts SET resolved = 1 WHERE id = ?', [alertId]);
     
-    await this.db.run(
-      'INSERT INTO admin_audit_trail (admin_email, action, details, created_at) VALUES (?, "RESOLVE_ALERT", ?, ?)',
-      [adminEmail || 'admin@test.com', `Resolved security alert ID: ${alertId}`, new Date().toISOString()]
-    );
+    await this.audit(adminEmail || 'unknown-admin', 'RESOLVE_ALERT', `Resolved security alert ID: ${alertId}`);
 
     return { success: true };
   }
@@ -368,10 +377,7 @@ export class AdminService {
       }
     }
 
-    await this.db.run(
-      'INSERT INTO admin_audit_trail (admin_email, action, target_email, details, created_at) VALUES (?, "UPDATE_USER_STATUS", ?, ?, ?)',
-      [adminEmail || 'admin@test.com', email.toLowerCase(), `Updated status to: ${status}`, new Date().toISOString()]
-    );
+    await this.audit(adminEmail || 'unknown-admin', 'UPDATE_USER_STATUS', `Updated status to: ${status}`, email.toLowerCase());
 
     return { success: true };
   }
@@ -391,10 +397,7 @@ export class AdminService {
       await this.db.run('INSERT INTO user_tags (email, tag) VALUES (?, ?)', [email.toLowerCase(), tag]);
     }
 
-    await this.db.run(
-      'INSERT INTO admin_audit_trail (admin_email, action, target_email, details, created_at) VALUES (?, "UPDATE_USER_TAGS", ?, ?, ?)',
-      [adminEmail || 'admin@test.com', email.toLowerCase(), `Updated tags to: ${tags.join(', ')}`, new Date().toISOString()]
-    );
+    await this.audit(adminEmail || 'unknown-admin', 'UPDATE_USER_TAGS', `Updated tags to: ${tags.join(', ')}`, email.toLowerCase());
 
     return { success: true };
   }
@@ -419,10 +422,7 @@ export class AdminService {
       [ruleName, triggerType, thresh, reward]
     );
 
-    await this.db.run(
-      'INSERT INTO admin_audit_trail (admin_email, action, details, created_at) VALUES (?, "CREATE_BONUS_RULE", ?, ?)',
-      [adminEmail || 'admin@test.com', `Created bonus rule: ${ruleName} (Threshold: ${thresh}, Reward: ${rewardType} ${amt})`, new Date().toISOString()]
-    );
+    await this.audit(adminEmail || 'unknown-admin', 'CREATE_BONUS_RULE', `Created bonus rule: ${ruleName} (Threshold: ${thresh}, Reward: ${rewardType} ${amt})`);
 
     return { success: true };
   }
@@ -431,10 +431,7 @@ export class AdminService {
     const ruleId = parseInt(id, 10);
     await this.db.run('UPDATE bonus_rules SET active = ? WHERE id = ?', [active ? 1 : 0, ruleId]);
 
-    await this.db.run(
-      'INSERT INTO admin_audit_trail (admin_email, action, details, created_at) VALUES (?, "TOGGLE_BONUS_RULE", ?, ?)',
-      [adminEmail || 'admin@test.com', `Toggled rule ID: ${ruleId} to active=${active}`, new Date().toISOString()]
-    );
+    await this.audit(adminEmail || 'unknown-admin', 'TOGGLE_BONUS_RULE', `Toggled rule ID: ${ruleId} to active=${active}`);
 
     return { success: true };
   }

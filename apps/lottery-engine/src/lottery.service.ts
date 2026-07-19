@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, NotFoundException, ForbiddenException, OnModuleInit, Inject, forwardRef } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, ForbiddenException, UnauthorizedException, OnModuleInit, Inject, forwardRef } from '@nestjs/common';
 import { Request, Response } from 'express';
 import * as crypto from 'crypto';
 import * as jwt from 'jsonwebtoken';
@@ -43,6 +43,31 @@ const verifyPassword = async (password: string, stored: string): Promise<boolean
     });
   });
   return actual.length === expected.length && crypto.timingSafeEqual(actual, expected);
+};
+
+const decodeBase32 = (value: string) => {
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+  let bits = '';
+  for (const char of value.replace(/=+$/g, '').toUpperCase()) {
+    const index = alphabet.indexOf(char);
+    if (index < 0) throw new Error('Invalid MFA secret.');
+    bits += index.toString(2).padStart(5, '0');
+  }
+  return Buffer.from((bits.match(/.{8}/g) || []).map(byte => parseInt(byte, 2)));
+};
+
+const verifyTotp = (secret: string, code: string) => {
+  const key = decodeBase32(secret);
+  const current = Math.floor(Date.now() / 30000);
+  return [-1, 0, 1].some(offset => {
+    const counter = Buffer.alloc(8); counter.writeBigUInt64BE(BigInt(current + offset));
+    const digest = crypto.createHmac('sha1', key).update(counter).digest();
+    const position = digest[digest.length - 1] & 0x0f;
+    const number = (digest.readUInt32BE(position) & 0x7fffffff) % 1_000_000;
+    const expected = Buffer.from(number.toString().padStart(6, '0'));
+    const supplied = Buffer.from(String(code || ''));
+    return expected.length === supplied.length && crypto.timingSafeEqual(expected, supplied);
+  });
 };
 
 const PLINKO_MULTIPLIERS: Record<number, Record<string, number[]>> = {
@@ -132,6 +157,44 @@ export class LotteryService implements OnModuleInit {
     if (this.isKillSwitchActive) {
       throw new ForbiddenException('Draw operations are currently disabled by administrator.');
     }
+  }
+
+  private async createSession(user: any) {
+    const jti = crypto.randomUUID();
+    const token = jwt.sign(
+      { email: user.email, username: user.username, role: user.role, jti, typ: 'access' }, getJwtSecret(),
+      { expiresIn: (process.env.JWT_ACCESS_TTL || '15m') as any, issuer: process.env.JWT_ISSUER || 'cyber-casino', audience: process.env.JWT_AUDIENCE || 'cyber-casino-api', algorithm: 'HS256' },
+    );
+    const refreshToken = crypto.randomBytes(48).toString('base64url');
+    const tokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
+    await this.db.run(
+      'INSERT INTO refresh_sessions (id, email, token_hash, expires_at, revoked_at, created_at) VALUES (?, ?, ?, ?, NULL, ?)',
+      [crypto.randomUUID(), user.email.toLowerCase(), tokenHash, new Date(Date.now() + 7 * 86400000).toISOString(), new Date().toISOString()],
+    );
+    return { token, refreshToken };
+  }
+
+  async refreshSession(refreshToken: string) {
+    if (!refreshToken) throw new ForbiddenException('Refresh session is missing.');
+    const hash = crypto.createHash('sha256').update(refreshToken).digest('hex');
+    return this.db.executeTransaction(async (tx: any) => {
+      const session = await tx.get('SELECT * FROM refresh_sessions WHERE token_hash = ? FOR UPDATE', [hash]);
+      if (!session || session.revokedAt || new Date(session.expiresAt).getTime() <= Date.now()) {
+        if (session?.email) await tx.run('UPDATE refresh_sessions SET revoked_at = ? WHERE LOWER(email) = ? AND revoked_at IS NULL', [new Date().toISOString(), session.email.toLowerCase()]);
+        throw new ForbiddenException('Refresh session is invalid or has been reused.');
+      }
+      await tx.run('UPDATE refresh_sessions SET revoked_at = ? WHERE id = ?', [new Date().toISOString(), session.id]);
+      const user = await tx.get('SELECT email, username, balance, gamesPlayed, totalWon, role, status FROM users WHERE LOWER(email) = ?', [session.email.toLowerCase()]);
+      if (!user || user.status !== 'ACTIVE') throw new ForbiddenException('Account is unavailable.');
+      const next = await this.createSession(user);
+      return { user, ...next };
+    });
+  }
+
+  async revokeRefreshSession(refreshToken: string) {
+    if (!refreshToken) return;
+    const hash = crypto.createHash('sha256').update(refreshToken).digest('hex');
+    await this.db.run('UPDATE refresh_sessions SET revoked_at = ? WHERE token_hash = ? AND revoked_at IS NULL', [new Date().toISOString(), hash]);
   }
 
   async authenticateRequest(req: Request): Promise<any> {
@@ -269,7 +332,7 @@ export class LotteryService implements OnModuleInit {
     return deg * (Math.PI / 180);
   }
 
-  async login(email: string, password, deviceFingerprint, ip: string, userAgent, mockGeo) {
+  async login(email: string, password, deviceFingerprint, ip: string, userAgent, mockGeo, mfaCode?: string) {
     if (!email || !password) {
       throw new BadRequestException('Email and password are required.');
     }
@@ -278,7 +341,7 @@ export class LotteryService implements OnModuleInit {
       [email.toLowerCase()]
     );
     if (!user || !(await verifyPassword(String(password), user.password))) {
-      throw new BadRequestException('Invalid email or password credentials.');
+      throw new UnauthorizedException('Invalid email or password credentials.');
     }
     if (!user.password.startsWith('scrypt$')) {
       await this.db.run('UPDATE users SET password = ? WHERE LOWER(email) = ?', [await hashPassword(password), email.toLowerCase()]);
@@ -286,6 +349,11 @@ export class LotteryService implements OnModuleInit {
     delete user.password;
     if (user.status === 'FROZEN' || user.status === 'BANNED') {
       throw new ForbiddenException(`Account is ${user.status}.`);
+    }
+    if (user.role === 'ADMIN' && process.env.ADMIN_MFA_SECRET) {
+      if (!mfaCode || !verifyTotp(process.env.ADMIN_MFA_SECRET, mfaCode)) throw new ForbiddenException('A valid administrator MFA code is required.');
+    } else if (user.role === 'ADMIN' && process.env.NODE_ENV === 'production' && process.env.ADMIN_MFA_REQUIRED !== 'false') {
+      throw new ForbiddenException('Administrator MFA is not configured.');
     }
 
     await this.logSessionAndCheckAlerts(user.email, ip, userAgent, deviceFingerprint || 'unknown-fingerprint', mockGeo);
@@ -295,18 +363,7 @@ export class LotteryService implements OnModuleInit {
       throw new ForbiddenException(`Account is ${freshStatus.status}. Login blocked by security system.`);
     }
 
-    const jti = crypto.randomUUID();
-    const token = jwt.sign(
-      { email: user.email, username: user.username, role: user.role, jti },
-      getJwtSecret(),
-      {
-        expiresIn: process.env.JWT_ACCESS_TTL || '15m',
-        issuer: process.env.JWT_ISSUER || 'cyber-casino',
-        audience: process.env.JWT_AUDIENCE || 'cyber-casino-api',
-        algorithm: 'HS256',
-      }
-    );
-    return { user, token };
+    return { user, ...(await this.createSession(user)) };
   }
 
   async register(body: any, ip: string, userAgent, mockGeo) {
@@ -372,18 +429,7 @@ export class LotteryService implements OnModuleInit {
       throw new ForbiddenException(`Account flagged and ${freshUser.status} during registration security check.`);
     }
 
-    const jti = crypto.randomUUID();
-    const token = jwt.sign(
-      { email: result.email, username: result.username, role: result.role, jti },
-      getJwtSecret(),
-      {
-        expiresIn: process.env.JWT_ACCESS_TTL || '15m',
-        issuer: process.env.JWT_ISSUER || 'cyber-casino',
-        audience: process.env.JWT_AUDIENCE || 'cyber-casino-api',
-        algorithm: 'HS256',
-      }
-    );
-    return { user: result, token };
+    return { user: result, ...(await this.createSession(result)) };
   }
 
   async getLeaderboard() {
@@ -472,7 +518,6 @@ export class LotteryService implements OnModuleInit {
     if (!email || !Number.isFinite(betAmount) || betAmount <= 0 || betAmount > 10_000) {
       throw new BadRequestException('Invalid slots bet details.');
     }
-
     return this.db.executeTransaction(async (tx: any) => {
       const user = await tx.get('SELECT balance, gamesPlayed, totalWon FROM users WHERE LOWER(email) = ?', [email.toLowerCase()]);
       if (!user) throw new Error('User not found.');
@@ -795,9 +840,40 @@ export class LotteryService implements OnModuleInit {
         'INSERT INTO transactions (id, email, type, amount, balanceAfter, timestamp) VALUES (?, ?, ?, ?, ?, ?)',
         [txId, email.toLowerCase(), 'DEPOSIT', depAmount, newBalance, new Date().toISOString()]
       );
+      const ledgerTime = new Date().toISOString();
+      await tx.run('INSERT INTO ledger_entries (id, transaction_id, email, account, direction, amount, currency, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', [crypto.randomUUID(), txId, email.toLowerCase(), 'PLAYER_WALLET', 'CREDIT', depAmount, 'USD', ledgerTime]);
+      await tx.run('INSERT INTO ledger_entries (id, transaction_id, email, account, direction, amount, currency, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', [crypto.randomUUID(), txId, email.toLowerCase(), 'PLATFORM_CLEARING', 'DEBIT', depAmount, 'USD', ledgerTime]);
 
       await this.checkAndTriggerBounty(email, tx);
       return newBalance;
+    });
+  }
+
+  async processPaymentWebhook(body: any, headers: { signature: string; timestamp: string; nonce: string }) {
+    const secret = process.env.PAYMENT_WEBHOOK_SECRET;
+    if (!secret || secret.length < 32) throw new ForbiddenException('Payment verification is unavailable.');
+    const timestamp = Number(headers.timestamp);
+    if (!Number.isFinite(timestamp) || Math.abs(Date.now() - timestamp) > 5 * 60 * 1000) throw new ForbiddenException('Payment timestamp is outside the accepted window.');
+    if (!/^[A-Za-z0-9_-]{16,128}$/.test(headers.nonce)) throw new ForbiddenException('Invalid payment nonce.');
+    const payload = `${headers.timestamp}.${headers.nonce}.${JSON.stringify(body)}`;
+    const expected = crypto.createHmac('sha256', secret).update(payload).digest('hex');
+    const supplied = Buffer.from(headers.signature, 'hex');
+    const expectedBytes = Buffer.from(expected, 'hex');
+    if (supplied.length !== expectedBytes.length || !crypto.timingSafeEqual(supplied, expectedBytes)) throw new ForbiddenException('Invalid payment signature.');
+
+    return this.db.executeTransaction(async (tx: any) => {
+      const prior = await tx.get('SELECT nonce FROM payment_webhook_nonces WHERE provider = ? AND nonce = ?', ['default', headers.nonce]);
+      if (prior) throw new ForbiddenException('Payment callback has already been processed.');
+      await tx.run('INSERT INTO payment_webhook_nonces (provider, nonce, received_at) VALUES (?, ?, ?)', ['default', headers.nonce, new Date().toISOString()]);
+      const amount = Number(body.amount);
+      const user = await tx.get('UPDATE users SET balance = balance + ? WHERE LOWER(email) = ? RETURNING balance', [amount, body.email.toLowerCase()]);
+      if (!user) throw new BadRequestException('Payment account not found.');
+      const txId = `PAY-${body.providerTransactionId}`;
+      const now = new Date().toISOString();
+      await tx.run('INSERT INTO transactions (id, email, type, amount, balanceAfter, timestamp) VALUES (?, ?, ?, ?, ?, ?)', [txId, body.email.toLowerCase(), 'DEPOSIT', amount, user.balance, now]);
+      await tx.run('INSERT INTO ledger_entries (id, transaction_id, email, account, direction, amount, currency, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', [crypto.randomUUID(), txId, body.email.toLowerCase(), 'PLAYER_WALLET', 'CREDIT', amount, body.currency, now]);
+      await tx.run('INSERT INTO ledger_entries (id, transaction_id, email, account, direction, amount, currency, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', [crypto.randomUUID(), txId, body.email.toLowerCase(), 'PLATFORM_CLEARING', 'DEBIT', amount, body.currency, now]);
+      return { transactionId: txId, newBalance: user.balance };
     });
   }
 
@@ -820,6 +896,9 @@ export class LotteryService implements OnModuleInit {
         'INSERT INTO transactions (id, email, type, amount, balanceAfter, timestamp) VALUES (?, ?, ?, ?, ?, ?)',
         [txId, email.toLowerCase(), 'WITHDRAWAL', -witAmount, newBalance, new Date().toISOString()]
       );
+      const ledgerTime = new Date().toISOString();
+      await tx.run('INSERT INTO ledger_entries (id, transaction_id, email, account, direction, amount, currency, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', [crypto.randomUUID(), txId, email.toLowerCase(), 'PLAYER_WALLET', 'DEBIT', witAmount, 'USD', ledgerTime]);
+      await tx.run('INSERT INTO ledger_entries (id, transaction_id, email, account, direction, amount, currency, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', [crypto.randomUUID(), txId, email.toLowerCase(), 'PLATFORM_CLEARING', 'CREDIT', witAmount, 'USD', ledgerTime]);
 
       return newBalance;
     });
@@ -1711,7 +1790,10 @@ export class LotteryService implements OnModuleInit {
         method: req.method,
         headers: { 
           'Content-Type': 'application/json',
-          'authorization': req.headers.authorization
+          ...(req.headers.authorization ? { authorization: req.headers.authorization } : {}),
+          ...(req.headers.cookie ? { cookie: req.headers.cookie } : {}),
+          ...(req.headers['x-csrf-token'] ? { 'x-csrf-token': String(req.headers['x-csrf-token']) } : {}),
+          ...(req.requestId ? { 'x-request-id': req.requestId } : {}),
         }
       };
       if (['POST', 'PUT', 'PATCH'].includes(req.method)) {
@@ -1734,7 +1816,10 @@ export class LotteryService implements OnModuleInit {
         method: req.method,
         headers: { 
           'Content-Type': 'application/json',
-          'authorization': req.headers.authorization
+          ...(req.headers.authorization ? { authorization: req.headers.authorization } : {}),
+          ...(req.headers.cookie ? { cookie: req.headers.cookie } : {}),
+          ...(req.headers['x-csrf-token'] ? { 'x-csrf-token': String(req.headers['x-csrf-token']) } : {}),
+          ...(req.requestId ? { 'x-request-id': req.requestId } : {}),
         }
       };
       if (['POST', 'PUT', 'PATCH'].includes(req.method)) {

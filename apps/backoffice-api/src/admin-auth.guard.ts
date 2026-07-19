@@ -10,11 +10,12 @@ export class AdminAuthGuard implements CanActivate {
     const request = context.switchToHttp().getRequest();
     const header = request.headers.authorization;
     const secret = process.env.JWT_SECRET;
-    if (!header?.startsWith('Bearer ') || !secret) throw new UnauthorizedException('Authentication required.');
+    const token = header?.startsWith('Bearer ') ? header.slice(7) : request.cookies?.casino_access;
+    if (!token || !secret) throw new UnauthorizedException('Authentication required.');
 
     let decoded: any;
     try {
-      decoded = jwt.verify(header.slice(7), secret, {
+      decoded = jwt.verify(token, secret, {
         algorithms: ['HS256'],
         issuer: process.env.JWT_ISSUER || 'cyber-casino',
         audience: process.env.JWT_AUDIENCE || 'cyber-casino-api',

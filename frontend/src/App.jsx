@@ -10,6 +10,7 @@ import CyberSlotsGame from './components/CyberSlotsGame';
 import LotteryGame from './components/LotteryGame';
 import UserProfile from './components/UserProfile';
 import CyberChat from './components/CyberChat';
+import { apiFetch } from './config';
 import CyberDiceGame from './components/CyberDiceGame';
 import CyberCrashGame from './components/CyberCrashGame';
 import NeonPlinko from './components/NeonPlinko';
@@ -44,19 +45,16 @@ function App() {
     }
   }, []);
 
-  const handleAuthSuccess = (user, token) => {
+  const handleAuthSuccess = (user) => {
     setCurrentUser(user);
     localStorage.setItem('casino_session', JSON.stringify(user));
-    if (token) {
-      localStorage.setItem('casino_token', token);
-    }
     setCurrentView('landing');
   };
 
   const handleLogout = () => {
     setCurrentUser(null);
     localStorage.removeItem('casino_session');
-    localStorage.removeItem('casino_token');
+    apiFetch('/api/v1/auth/logout', { method: 'POST' }).catch(() => {});
     setCurrentView('landing');
   };
 

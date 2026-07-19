@@ -17,14 +17,15 @@ export class AuthGuard implements CanActivate {
 
     const request = context.switchToHttp().getRequest();
     const header = request.headers.authorization;
-    if (!header?.startsWith('Bearer ')) throw new UnauthorizedException('Authentication required.');
+    const token = header?.startsWith('Bearer ') ? header.slice(7) : request.cookies?.casino_access;
+    if (!token) throw new UnauthorizedException('Authentication required.');
 
     const secret = process.env.JWT_SECRET;
     if (!secret) throw new UnauthorizedException('Authentication is unavailable.');
 
     let decoded: any;
     try {
-      decoded = jwt.verify(header.slice(7), secret, {
+      decoded = jwt.verify(token, secret, {
         algorithms: ['HS256'],
         issuer: process.env.JWT_ISSUER || 'cyber-casino',
         audience: process.env.JWT_AUDIENCE || 'cyber-casino-api',

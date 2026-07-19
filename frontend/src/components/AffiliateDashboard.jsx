@@ -20,7 +20,7 @@ export default function AffiliateDashboard({ userSession, onWalletUpdate }) {
     try {
       setLoading(true);
       const res = await apiFetch(`/api/v1/v1/affiliate/stats?email=${encodeURIComponent(userSession.email)}`, {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('casino_token')}` }
+        headers: {}
       });
       const data = await res.json();
       if (true) {
@@ -63,7 +63,6 @@ export default function AffiliateDashboard({ userSession, onWalletUpdate }) {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('casino_token')}`
         },
         body: JSON.stringify({ email: userSession.email })
       });

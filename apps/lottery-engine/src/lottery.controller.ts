@@ -1,8 +1,10 @@
 import { All, Controller, Post, Get, Req, Res, Body, Query, Param } from '@nestjs/common';
 import { Request, Response } from 'express';
+import * as crypto from 'crypto';
+import { Throttle } from '@nestjs/throttler';
 import { LotteryService } from './lottery.service';
 import { Public, Roles } from './security.decorators';
-import { LoginDto, RegisterDto, WalletAddressDto, AmountDto, SpinDto, BetDto, PlinkoDropDto, DiceRollDto, ReserveTicketDto, CrashCashoutDto } from '@cyber-casino/shared';
+import { LoginDto, RegisterDto, WalletAddressDto, AmountDto, PaymentWebhookDto, SpinDto, BetDto, PlinkoDropDto, DiceRollDto, ReserveTicketDto, CrashCashoutDto, TournamentActionDto, BooleanStateDto } from '@cyber-casino/shared';
 
 @Controller('api/v1')
 export class LotteryController {
@@ -10,7 +12,8 @@ export class LotteryController {
 
   @Post('auth/login')
   @Public()
-  async login(@Body() body: LoginDto, @Req() req: Request) {
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  async login(@Body() body: LoginDto, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const ip = req.ip || req.headers['x-forwarded-for'] || '127.0.0.1';
     const userAgent = req.headers['user-agent'] || 'Unknown';
     
@@ -30,14 +33,17 @@ export class LotteryController {
       body.deviceFingerprint,
       ip as string,
       userAgent,
-      mockGeo
+      mockGeo,
+      body.mfaCode,
     );
-    return { success: true, ...result };
+    this.setSessionCookies(res, result.token, result.refreshToken);
+    return { success: true, user: result.user, token: result.token };
   }
 
   @Post('auth/register')
   @Public()
-  async register(@Body() body: RegisterDto, @Req() req: Request) {
+  @Throttle({ default: { limit: 3, ttl: 60000 } })
+  async register(@Body() body: RegisterDto, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const ip = req.ip || req.headers['x-forwarded-for'] || '127.0.0.1';
     const userAgent = req.headers['user-agent'] || 'Unknown';
     
@@ -52,7 +58,34 @@ export class LotteryController {
     }
 
     const result = await this.service.register(body, ip as string, userAgent, mockGeo);
-    return { success: true, ...result };
+    this.setSessionCookies(res, result.token, result.refreshToken);
+    return { success: true, user: result.user, token: result.token };
+  }
+
+  @Post('auth/refresh')
+  @Public()
+  async refresh(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    const result = await this.service.refreshSession(req.cookies?.casino_refresh || '');
+    this.setSessionCookies(res, result.token, result.refreshToken);
+    return { success: true, user: result.user };
+  }
+
+  @Post('auth/logout')
+  @Public()
+  async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    await this.service.revokeRefreshSession(req.cookies?.casino_refresh || '');
+    for (const name of ['casino_access', 'casino_refresh', 'casino_csrf']) {
+      res.clearCookie(name, { path: '/' });
+    }
+    return { success: true };
+  }
+
+  private setSessionCookies(res: Response, access: string, refresh: string) {
+    const secure = process.env.NODE_ENV === 'production';
+    const common = { secure, sameSite: 'strict' as const, path: '/' };
+    res.cookie('casino_access', access, { ...common, httpOnly: true, maxAge: 15 * 60 * 1000 });
+    res.cookie('casino_refresh', refresh, { ...common, httpOnly: true, maxAge: 7 * 24 * 60 * 60 * 1000 });
+    res.cookie('casino_csrf', crypto.randomBytes(24).toString('base64url'), { ...common, httpOnly: false, maxAge: 7 * 24 * 60 * 60 * 1000 });
   }
 
   @Get('leaderboard')
@@ -119,6 +152,17 @@ export class LotteryController {
   async deposit(@Body() body: AmountDto) {
     const result = await this.service.deposit(body.email, body.amount);
     return { success: true, newBalance: result };
+  }
+
+  @Post('payments/webhook')
+  @Public()
+  async paymentWebhook(@Body() body: PaymentWebhookDto, @Req() req: Request) {
+    const result = await this.service.processPaymentWebhook(body, {
+      signature: String(req.headers['x-payment-signature'] || ''),
+      timestamp: String(req.headers['x-payment-timestamp'] || ''),
+      nonce: String(req.headers['x-payment-nonce'] || ''),
+    });
+    return { success: true, ...result };
   }
 
   @Post('user/withdraw')
@@ -198,21 +242,21 @@ export class LotteryController {
   }
 
   @Post('dice/tournament/join')
-  async joinTournament(@Body() body: any, @Req() req: Request) {
+  async joinTournament(@Body() body: TournamentActionDto, @Req() req: Request) {
     const decoded = await this.service.authenticateRequest(req);
     const result = await this.service.joinTournament(decoded.email, body.tournamentId);
     return { success: true, ...result };
   }
 
   @Post('dice/tournament/roll')
-  async tournamentRoll(@Body() body: any, @Req() req: Request) {
+  async tournamentRoll(@Body() body: TournamentActionDto, @Req() req: Request) {
     const decoded = await this.service.authenticateRequest(req);
     const result = await this.service.tournamentRoll(decoded.email, body.tournamentId);
     return { success: true, ...result };
   }
 
   @Post('dice/tournament/buy-rolls')
-  async tournamentBuyRolls(@Body() body: any, @Req() req: Request) {
+  async tournamentBuyRolls(@Body() body: TournamentActionDto, @Req() req: Request) {
     const decoded = await this.service.authenticateRequest(req);
     const result = await this.service.tournamentBuyRolls(decoded.email, body.tournamentId);
     return { success: true, ...result };
@@ -258,7 +302,7 @@ export class LotteryController {
 
   @Post('admin/kill-switch')
   @Roles('ADMIN')
-  async toggleKillSwitch(@Body() body: any) {
+  async toggleKillSwitch(@Body() body: BooleanStateDto) {
     const result = await this.service.toggleKillSwitch(body.active);
     return { success: true, ...result };
   }
@@ -271,12 +315,12 @@ export class LotteryController {
   }
 
   // Reverse Proxies
-  @All('admin/*')
+  @All('admin/*path')
   @Roles('ADMIN')
   async proxyAdmin(@Req() req: Request, @Res() res: Response) {
     return this.service.proxyToBackoffice(req, res);
   }
-  @All('loyalty/*')
+  @All('loyalty/*path')
   async proxyLoyalty(@Req() req: Request, @Res() res: Response) {
     return this.service.proxyToLoyalty(req, res);
   }

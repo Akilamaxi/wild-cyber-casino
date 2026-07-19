@@ -16,7 +16,7 @@ let testEmail: string;
 test.describe('API Smoke Tests', () => {
   test.beforeAll(async () => {
     const ctx = await request.newContext();
-    const res = await ctx.post(`${BACKEND}/api/auth/login`, {
+    const res = await ctx.post(`${BACKEND}/api/v1/auth/login`, {
       data: {
         email: DEMO_USER.email,
         password: DEMO_USER.password,
@@ -31,7 +31,7 @@ test.describe('API Smoke Tests', () => {
 
   // ── Auth ────────────────────────────────────────────────────────────────────
   test('POST /api/auth/login returns token and user', async ({ request }) => {
-    const res = await request.post(`${BACKEND}/api/auth/login`, {
+    const res = await request.post(`${BACKEND}/api/v1/auth/login`, {
       data: { email: DEMO_USER.email, password: DEMO_USER.password, deviceFingerprint: 'PW-TEST' },
     });
     expect(res.ok()).toBe(true);
@@ -42,7 +42,7 @@ test.describe('API Smoke Tests', () => {
   });
 
   test('POST /api/auth/login with bad password returns 401 / success:false', async ({ request }) => {
-    const res = await request.post(`${BACKEND}/api/auth/login`, {
+    const res = await request.post(`${BACKEND}/api/v1/auth/login`, {
       data: { email: DEMO_USER.email, password: 'wrongpassword', deviceFingerprint: 'PW-TEST' },
     });
     const body = await res.json();
@@ -51,7 +51,7 @@ test.describe('API Smoke Tests', () => {
 
   // ── Wallet ──────────────────────────────────────────────────────────────────
   test('GET /api/user/wallet returns transactions array', async ({ request }) => {
-    const res = await request.get(`${BACKEND}/api/user/wallet?email=${testEmail}`, {
+    const res = await request.get(`${BACKEND}/api/v1/user/wallet?email=${testEmail}`, {
       headers: { Authorization: `Bearer ${authToken}` },
     });
     expect(res.ok()).toBe(true);
@@ -62,7 +62,7 @@ test.describe('API Smoke Tests', () => {
 
   // ── Slots ───────────────────────────────────────────────────────────────────
   test('GET /api/slots/config returns symbols_config', async ({ request }) => {
-    const res = await request.get(`${BACKEND}/api/slots/config`);
+    const res = await request.get(`${BACKEND}/api/v1/slots/config`);
     expect(res.ok()).toBe(true);
     const body = await res.json();
     expect(body.success).toBe(true);
@@ -70,8 +70,9 @@ test.describe('API Smoke Tests', () => {
   });
 
   test('POST /api/slots/spin with integer bet returns valid game result', async ({ request }) => {
-    const res = await request.post(`${BACKEND}/api/slots/spin`, {
+    const res = await request.post(`${BACKEND}/api/v1/slots/spin`, {
       data: { email: testEmail, bet: 5 },
+      headers: { Authorization: `Bearer ${authToken}` },
     });
     if (!res.ok()) {
       console.error('Slots spin failed:', res.status(), await res.text());
@@ -88,7 +89,7 @@ test.describe('API Smoke Tests', () => {
   });
 
   test('POST /api/slots/spin with string "NaN" bet is rejected gracefully', async ({ request }) => {
-    const res = await request.post(`${BACKEND}/api/slots/spin`, {
+    const res = await request.post(`${BACKEND}/api/v1/slots/spin`, {
       headers: { Authorization: `Bearer ${authToken}` },
       data: { email: testEmail, bet: 'NaN' },
     });
@@ -104,7 +105,7 @@ test.describe('API Smoke Tests', () => {
 
   // ── Crash ───────────────────────────────────────────────────────────────────
   test('GET /api/crash/active-bets returns bets array', async ({ request }) => {
-    const res = await request.get(`${BACKEND}/api/crash/active-bets`);
+    const res = await request.get(`${BACKEND}/api/v1/crash/active-bets`, { headers: { Authorization: `Bearer ${authToken}` } });
     expect(res.ok()).toBe(true);
     const body = await res.json();
     expect(body.success).toBe(true);
@@ -113,7 +114,7 @@ test.describe('API Smoke Tests', () => {
 
   // ── Dice ────────────────────────────────────────────────────────────────────
   test('POST /api/dice/roll-single with valid bet returns roll result', async ({ request }) => {
-    const res = await request.post(`${BACKEND}/api/dice/roll-single`, {
+    const res = await request.post(`${BACKEND}/api/v1/dice/roll-single`, {
       data: { email: testEmail, bet: 5, prediction: 50 },
     });
     if (res.ok()) {
@@ -129,7 +130,7 @@ test.describe('API Smoke Tests', () => {
 
   // ── Loyalty ─────────────────────────────────────────────────────────────────
   test('GET /api/loyalty/status returns tier or points', async ({ request }) => {
-    const res = await request.get(`${BACKEND}/api/loyalty/status?email=${testEmail}`, {
+    const res = await request.get(`${BACKEND}/api/v1/loyalty/status?email=${testEmail}`, {
       headers: { Authorization: `Bearer ${authToken}` },
     });
     if (res.ok()) {
@@ -140,7 +141,7 @@ test.describe('API Smoke Tests', () => {
 
   // ── Draw / Lottery ──────────────────────────────────────────────────────────
   test('GET /api/lottery/games returns active games array', async ({ request }) => {
-    const res = await request.get(`${BACKEND}/api/lottery/games`);
+    const res = await request.get(`${BACKEND}/api/v1/lottery/games`);
     if (res.ok()) {
       const body = await res.json();
       expect(body.success).toBe(true);

@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, BadRequestException, OnModuleInit, Req } from '@nestjs/common';
 import { Request } from 'express';
 import { AdminService } from './admin.service';
+import { BooleanStateDto, BonusRuleDto, DiceTournamentDto, GameConfigDto, OrderedIdsDto, SpinwheelPrizeDto, UserStatusDto, UserTagsDto } from '@cyber-casino/shared';
 
 @Controller('api/v1/admin')
 export class AdminController implements OnModuleInit {
@@ -24,12 +25,12 @@ export class AdminController implements OnModuleInit {
   }
 
   @Post('games')
-  async createGame(@Body() body: any) {
+  async createGame(@Body() body: GameConfigDto) {
     return this.adminService.createGame(body);
   }
 
   @Put('games/:id')
-  async updateGame(@Param('id') id: string, @Body() body: any) {
+  async updateGame(@Param('id') id: string, @Body() body: GameConfigDto) {
     return this.adminService.updateGame(id, body);
   }
 
@@ -44,12 +45,12 @@ export class AdminController implements OnModuleInit {
   }
 
   @Post('spinwheel-prizes')
-  async createSpinwheelPrize(@Body() body: any) {
+  async createSpinwheelPrize(@Body() body: SpinwheelPrizeDto) {
     return this.adminService.createSpinwheelPrize(body);
   }
 
   @Put('spinwheel-prizes/:id')
-  async updateSpinwheelPrize(@Param('id') id: string, @Body() body: any) {
+  async updateSpinwheelPrize(@Param('id') id: string, @Body() body: SpinwheelPrizeDto) {
     return this.adminService.updateSpinwheelPrize(id, body);
   }
 
@@ -59,7 +60,8 @@ export class AdminController implements OnModuleInit {
   }
 
   @Post('spinwheel-prizes/reorder')
-  async reorderSpinwheelPrizes(@Body('orderedIds') orderedIds: string[]) {
+  async reorderSpinwheelPrizes(@Body() body: OrderedIdsDto) {
+    const orderedIds = body.orderedIds;
     if (!Array.isArray(orderedIds)) {
       throw new BadRequestException('Invalid payload: orderedIds array required.');
     }
@@ -87,7 +89,7 @@ export class AdminController implements OnModuleInit {
   }
 
   @Post('dice/tournaments')
-  async createDiceTournament(@Body() body: any) {
+  async createDiceTournament(@Body() body: DiceTournamentDto) {
     return this.adminService.createDiceTournament(body);
   }
 
@@ -147,7 +149,7 @@ export class AdminController implements OnModuleInit {
   }
 
   @Post('users/:email/status')
-  async updateUserStatus(@Param('email') email: string, @Body() body: any, @Req() req: Request & { user?: any }) {
+  async updateUserStatus(@Param('email') email: string, @Body() body: UserStatusDto, @Req() req: Request & { user?: any }) {
     return this.adminService.updateUserStatus(email, body.status, req.user.email);
   }
 
@@ -157,7 +159,7 @@ export class AdminController implements OnModuleInit {
   }
 
   @Post('users/:email/tags')
-  async updateUserTags(@Param('email') email: string, @Body() body: any, @Req() req: Request & { user?: any }) {
+  async updateUserTags(@Param('email') email: string, @Body() body: UserTagsDto, @Req() req: Request & { user?: any }) {
     return this.adminService.updateUserTags(email, body.tags, req.user.email);
   }
 
@@ -167,12 +169,12 @@ export class AdminController implements OnModuleInit {
   }
 
   @Post('bonus-rules')
-  async createBonusRule(@Body() body: any, @Req() req: Request & { user?: any }) {
+  async createBonusRule(@Body() body: BonusRuleDto, @Req() req: Request & { user?: any }) {
     return this.adminService.createBonusRule({ ...body, adminEmail: req.user.email });
   }
 
   @Post('bonus-rules/:id/toggle')
-  async toggleBonusRule(@Param('id') id: string, @Body() body: any, @Req() req: Request & { user?: any }) {
+  async toggleBonusRule(@Param('id') id: string, @Body() body: BooleanStateDto, @Req() req: Request & { user?: any }) {
     return this.adminService.toggleBonusRule(id, body.active, req.user.email);
   }
 

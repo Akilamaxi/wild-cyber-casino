@@ -225,6 +225,49 @@ export class DbService implements OnModuleDestroy {
       `);
 
       await this.run(`
+        CREATE TABLE IF NOT EXISTS refresh_sessions (
+          id VARCHAR(64) PRIMARY KEY,
+          email VARCHAR(255) NOT NULL REFERENCES users(email) ON DELETE CASCADE,
+          token_hash VARCHAR(64) UNIQUE NOT NULL,
+          expires_at VARCHAR(100) NOT NULL,
+          revoked_at VARCHAR(100),
+          created_at VARCHAR(100) NOT NULL
+        )
+      `);
+      await this.run('CREATE INDEX IF NOT EXISTS idx_refresh_sessions_email ON refresh_sessions(email)');
+
+      await this.run(`
+        CREATE TABLE IF NOT EXISTS ledger_entries (
+          id VARCHAR(64) PRIMARY KEY,
+          transaction_id VARCHAR(255) NOT NULL,
+          email VARCHAR(255) NOT NULL REFERENCES users(email),
+          account VARCHAR(64) NOT NULL,
+          direction VARCHAR(6) NOT NULL CHECK (direction IN ('DEBIT', 'CREDIT')),
+          amount NUMERIC(20, 8) NOT NULL CHECK (amount > 0),
+          currency VARCHAR(16) NOT NULL DEFAULT 'USD',
+          created_at VARCHAR(100) NOT NULL,
+          UNIQUE(transaction_id, account)
+        )
+      `);
+      await this.run(`
+        CREATE TABLE IF NOT EXISTS payment_webhook_nonces (
+          provider VARCHAR(64) NOT NULL,
+          nonce VARCHAR(128) NOT NULL,
+          received_at VARCHAR(100) NOT NULL,
+          PRIMARY KEY(provider, nonce)
+        )
+      `);
+      await this.run(`
+        CREATE OR REPLACE FUNCTION reject_ledger_mutation() RETURNS trigger AS $$
+        BEGIN RAISE EXCEPTION 'ledger entries are immutable'; END; $$ LANGUAGE plpgsql
+      `);
+      await this.run('DROP TRIGGER IF EXISTS ledger_immutable ON ledger_entries');
+      await this.run(`
+        CREATE TRIGGER ledger_immutable BEFORE UPDATE OR DELETE ON ledger_entries
+        FOR EACH ROW EXECUTE FUNCTION reject_ledger_mutation()
+      `);
+
+      await this.run(`
         CREATE TABLE IF NOT EXISTS lottery_draws (
           id SERIAL PRIMARY KEY,
           lotteryName VARCHAR(255) NOT NULL,
@@ -654,9 +697,15 @@ export class DbService implements OnModuleDestroy {
           action VARCHAR(100) NOT NULL,
           target_email VARCHAR(255),
           details TEXT NOT NULL,
-          created_at VARCHAR(100) NOT NULL
+          created_at VARCHAR(100) NOT NULL,
+          request_id VARCHAR(128),
+          previous_hash VARCHAR(64),
+          entry_hash VARCHAR(64)
         )
       `);
+      await this.run('ALTER TABLE admin_audit_trail ADD COLUMN IF NOT EXISTS request_id VARCHAR(128)');
+      await this.run('ALTER TABLE admin_audit_trail ADD COLUMN IF NOT EXISTS previous_hash VARCHAR(64)');
+      await this.run('ALTER TABLE admin_audit_trail ADD COLUMN IF NOT EXISTS entry_hash VARCHAR(64)');
 
       const rulesCount = await this.get('SELECT COUNT(*) as count FROM bonus_rules');
       if (parseInt(rulesCount.count, 10) === 0) {

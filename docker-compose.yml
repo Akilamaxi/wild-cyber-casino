@@ -103,6 +103,7 @@ services:
       - PGDATABASE=cyber_casino
       - PGPORT=5432
       - JWT_SECRET=${JWT_SECRET:?Set JWT_SECRET}
+      - AUDIT_HMAC_SECRET=${AUDIT_HMAC_SECRET:-}
       - ADMIN_CORS_ORIGINS=${ADMIN_CORS_ORIGINS:-http://localhost:8080}
     working_dir: /app/apps/backoffice-api
     command: ["npm", "run", "start:prod"]
@@ -134,6 +135,11 @@ services:
       - PGPORT=5432
       - RUN_WORKER_CONCURRENTLY=false
       - JWT_SECRET=${JWT_SECRET:?Set JWT_SECRET}
+      - ADMIN_MFA_SECRET=${ADMIN_MFA_SECRET:-}
+      - ADMIN_MFA_REQUIRED=${ADMIN_MFA_REQUIRED:-false}
+      - PAYMENT_WEBHOOK_SECRET=${PAYMENT_WEBHOOK_SECRET:-}
+      - AUDIT_HMAC_SECRET=${AUDIT_HMAC_SECRET:-}
+      - ALLOW_MOCK_PAYMENTS=${ALLOW_MOCK_PAYMENTS:-true}
       - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:8080}
       - BACKOFFICE_URL=http://backoffice-api:5001
       - LOYALTY_URL=http://loyalty-engine:5002

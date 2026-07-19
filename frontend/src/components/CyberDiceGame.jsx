@@ -204,7 +204,6 @@ function CyberDiceGame({ currentUser, onBalanceUpdate }) {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('casino_token')}`
         },
         body: JSON.stringify({ email: currentUser.email, tournamentId: activeTourney.id })
       });
@@ -248,7 +247,6 @@ function CyberDiceGame({ currentUser, onBalanceUpdate }) {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('casino_token')}`
         },
         body: JSON.stringify({ email: currentUser.email, tournamentId: activeTourney.id })
       });
@@ -281,7 +279,6 @@ function CyberDiceGame({ currentUser, onBalanceUpdate }) {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('casino_token')}`
         },
         body: JSON.stringify({ email: currentUser.email, tournamentId: activeTourney.id })
       });

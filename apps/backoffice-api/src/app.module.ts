@@ -1,6 +1,6 @@
-import { Module } from '@nestjs/common';
-import { APP_GUARD } from '@nestjs/core';
-import { SharedModule } from '@cyber-casino/shared';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { CsrfGuard, IdempotencyInterceptor, SecurityMiddleware, SharedModule } from '@cyber-casino/shared';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis';
 import { AdminController } from './admin.controller';
@@ -17,7 +17,11 @@ import { AdminAuthGuard } from './admin-auth.guard';
     }),
   ],
   controllers: [AdminController],
-  providers: [AdminService, EventsGateway,    { provide: APP_GUARD, useClass: AdminAuthGuard },
-    { provide: APP_GUARD, useClass: ThrottlerGuard },],
+  providers: [AdminService, EventsGateway, { provide: APP_GUARD, useClass: AdminAuthGuard },
+    { provide: APP_GUARD, useClass: CsrfGuard },
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_INTERCEPTOR, useClass: IdempotencyInterceptor }],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) { consumer.apply(SecurityMiddleware).forRoutes('*'); }
+}

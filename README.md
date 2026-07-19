@@ -827,11 +827,25 @@ PR checklist:
 - [ ] Docker/environment documentation is updated.
 - [ ] Metrics, alerts, and rollback are considered.
 
+## Security controls
+
+The HTTP services now apply a restrictive CSP, HSTS in production, clickjacking/MIME/referrer/permissions protections, request correlation IDs, strict body whitelisting, payload validation, Redis-backed distributed throttling, and tighter authentication limits. React's normal escaped rendering is used; no `dangerouslySetInnerHTML`, `innerHTML`, `eval`, or dynamic-function path exists in the maintained frontends.
+
+Browser authentication uses `HttpOnly`, `Secure` (production), `SameSite=Strict` access and rotating refresh cookies. State-changing cookie requests require the double-submit `casino_csrf` token. Refresh reuse revokes the account's remaining refresh sessions. Bearer tokens remain accepted temporarily for non-browser API clients and compatibility tests, but the maintained player/admin UIs no longer persist tokens in Web Storage. Administrators must provide TOTP when `ADMIN_MFA_SECRET` is configured; Cloud Run sets `ADMIN_MFA_REQUIRED=true` and fails admin login closed when it is absent.
+
+Payment-provider callbacks use `POST /api/v1/payments/webhook` with `X-Payment-Timestamp`, `X-Payment-Nonce`, and `X-Payment-Signature`. The signature is lowercase hex HMAC-SHA256 over `<timestamp>.<nonce>.<JSON body>`. Timestamps have a five-minute window, nonces are stored transactionally, and signatures use constant-time comparison. Production disables direct mock deposits. Deposit and withdrawal boundaries write balanced entries into an append-only `NUMERIC(20,8)` ledger protected by a database mutation-rejection trigger. Every financial client should also send a unique `X-Idempotency-Key`.
+
+Sensitive production values are Secret Manager references in `cloud-run/deploy.env.example`; never place their values in that file. Cloud Run terminates TLS. Run `cloud-run/configure-production-security.sh` to enable Cloud SQL automated backups/PITR and create Cloud Armor login/API throttles, then attach the policy to an external HTTPS load balancer and disable the default Cloud Run URL. Test restoration on a schedule—backup configuration is not proof of recoverability.
+
+Administrative risk actions create HMAC-chained audit entries (`previous_hash` and `entry_hash`). Keep `AUDIT_HMAC_SECRET` in Secret Manager, restrict database write privileges, export the chain to retention-locked storage, and alert on verification gaps. Request IDs are returned in `X-Request-Id` for incident correlation.
+
+These controls materially harden the reference application, but they do not replace an independent penetration test, payment-provider certification, jurisdiction-specific gambling controls, or a financial/accounting audit.
+
 ## Roadmap
 
-- Versioned migrations and immutable double-entry ledger.
-- Signed payment webhooks, idempotency, payout integration.
-- Distributed rate limiting, refresh rotation, MFA, hardened sessions.
+- Versioned migrations and full game/payout coverage in the immutable ledger.
+- Provider-specific payout integration and reconciliation.
+- WebAuthn recovery and step-up approval for high-risk administration.
 - Durable queues/streams, dead-letter handling, replay.
 - Service-specific images, Kubernetes/Helm, multi-region operation.
 - OpenTelemetry, Prometheus, Grafana, SLOs.
@@ -845,10 +859,10 @@ PR checklist:
 
 Before real funds:
 
-1. Replace floating-point money with integer minor units or constrained `NUMERIC`.
-2. Implement immutable double-entry accounting and end-to-end idempotency.
-3. Replace mock deposits with signed, replay-protected payment webhooks.
-4. Add durable events, distributed rate limits, MFA, session rotation, and admin approval controls.
+1. Replace remaining gameplay floating-point balances with integer minor units or constrained `NUMERIC`.
+2. Extend immutable double-entry accounting and reconciliation across every wager, award, affiliate, and payout path.
+3. Connect and certify the signed webhook contract with the selected payment provider.
+4. Add durable events and dual approval for high-risk administration.
 5. Move schema changes to migrations and enforce least privilege.
 6. Add observability, backups, restoration, reconciliation, and disaster-recovery runbooks.
 7. Complete concurrency, load, security, RNG, financial, and failure-injection tests.

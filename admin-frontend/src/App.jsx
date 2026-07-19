@@ -6,15 +6,16 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL
   || (window.location.port === '8080' ? window.location.origin : 'http://localhost:8080');
 
 const fetch = async (input, init = {}) => {
-  const token = sessionStorage.getItem('cyber_admin_token');
+  const csrf = document.cookie.split('; ').find(value => value.startsWith('casino_csrf='))?.split('=')[1];
   const response = await window.fetch(input, {
     ...init,
+    credentials: 'include',
     headers: {
       ...(init.headers || {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {})
+      ...(csrf && !['GET', 'HEAD', 'OPTIONS'].includes((init.method || 'GET').toUpperCase()) ? { 'X-CSRF-Token': decodeURIComponent(csrf) } : {})
     }
   });
-  if (response.status === 401 && !String(input).endsWith('/api/v1/v1/auth/login')) {
+  if (response.status === 401 && !String(input).endsWith('/api/v1/auth/login')) {
     window.dispatchEvent(new CustomEvent('cyber-admin-session-expired'));
   }
   return response;
@@ -51,7 +52,7 @@ function TablePager({ page, total, onChange, label }) {
 function App() {
   const [currentUser, setCurrentUser] = useState(() => {
     const saved = localStorage.getItem('cyber_admin_user');
-    if (!saved || !sessionStorage.getItem('cyber_admin_token')) return null;
+    if (!saved) return null;
     try {
       return JSON.parse(saved);
     } catch {
@@ -62,6 +63,7 @@ function App() {
   });
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
+  const [loginMfaCode, setLoginMfaCode] = useState('');
   const [loginError, setLoginError] = useState('');
   const [activeTab, setActiveTab] = useState('lottery'); // 'lottery' | 'spinwheel' | 'slots' | 'dice' | 'crash'
 
@@ -330,7 +332,7 @@ function App() {
 
       // Connect WebSockets for real-time config updates
       socketRef.current = io(API_BASE, {
-        auth: { token: sessionStorage.getItem('cyber_admin_token') }
+        withCredentials: true
       });
       socketRef.current.on('connect', () => {
         console.log('[WS] Admin connected to WebSocket server.');
@@ -378,14 +380,13 @@ function App() {
       const res = await fetch(`${API_BASE}/api/v1/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: loginEmail, password: loginPassword })
+        body: JSON.stringify({ email: loginEmail, password: loginPassword, ...(loginMfaCode ? { mfaCode: loginMfaCode } : {}) })
       });
       const data = await res.json();
       if (res.ok && true) {
         if (data.user.role === 'ADMIN') {
           setCurrentUser(data.user);
           localStorage.setItem('cyber_admin_user', JSON.stringify(data.user));
-          sessionStorage.setItem('cyber_admin_token', data.token);
         } else {
           setLoginError('Access denied. You do not have administrative privileges.');
         }
@@ -400,7 +401,7 @@ function App() {
   const handleLogout = () => {
     setCurrentUser(null);
     localStorage.removeItem('cyber_admin_user');
-    sessionStorage.removeItem('cyber_admin_token');
+    fetch(`${API_BASE}/api/v1/auth/logout`, { method: 'POST' }).catch(() => {});
   };
 
   // --- Fetchers ---
@@ -954,6 +955,12 @@ function App() {
                 onChange={e => setLoginPassword(e.target.value)} 
                 required 
               />
+            </div>
+            <div className="form-group">
+              <label>Authenticator Code</label>
+              <input type="text" inputMode="numeric" autoComplete="one-time-code" maxLength="6"
+                placeholder="6-digit code (production)" value={loginMfaCode}
+                onChange={e => setLoginMfaCode(e.target.value.replace(/\D/g, '').slice(0, 6))} />
             </div>
             <button type="submit" className="admin-submit-btn">AUTHORIZE ACCESS</button>
           </form>
