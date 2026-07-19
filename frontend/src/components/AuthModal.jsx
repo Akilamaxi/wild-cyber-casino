@@ -40,7 +40,13 @@ function AuthModal({ isOpen, onClose, initialTab, onAuthSuccess }) {
 
     const payload = activeTab === 'login' 
       ? { email, password, deviceFingerprint: fingerprint } 
-      : { username, email, password, referralCode, deviceFingerprint: fingerprint };
+      : {
+          username,
+          email,
+          password,
+          deviceFingerprint: fingerprint,
+          ...(referralCode.trim() ? { referralCode: referralCode.trim() } : {})
+        };
 
     try {
       const response = await apiFetch(url, {

@@ -1,4 +1,5 @@
 import { IsEmail, IsString, IsNotEmpty, IsOptional, MinLength, IsNumber, Min, Max, MaxLength, Matches } from 'class-validator';
+import { Transform } from 'class-transformer';
 
 export class LoginDto {
   @IsEmail({}, { message: 'Valid email is required' })
@@ -35,6 +36,7 @@ export class RegisterDto {
   deviceFingerprint?: string;
 
   @IsOptional()
+  @Transform(({ value }) => typeof value === 'string' && value.trim() === '' ? undefined : value?.trim())
   @IsString()
   @MaxLength(50)
   @Matches(/^[A-Za-z0-9_-]+$/, { message: 'Referral code contains invalid characters' })
