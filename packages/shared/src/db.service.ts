@@ -98,11 +98,19 @@ export class DbService implements OnModuleDestroy {
   private pgRowToCamel(row: any) {
     if (!row) return undefined;
     const result: any = {};
+    // PostgreSQL folds unquoted legacy camelCase identifiers to lowercase.
+    // Restore their API names while retaining the raw keys for compatibility.
+    const legacyNames: Record<string, string> = {
+      gamesplayed: 'gamesPlayed', totalwon: 'totalWon', lotteryname: 'lotteryName',
+      drawid: 'drawId', winningnumbers: 'winningNumbers', chosennumbers: 'chosenNumbers',
+      betamount: 'betAmount', balanceafter: 'balanceAfter', textcolor: 'textColor',
+      isbonus: 'isBonus', reservedby: 'reservedBy', reserveduntil: 'reservedUntil',
+    };
     Object.keys(row).forEach(k => {
       if (k === 'count' || k === 'sum' || k === 'avg' || k === 'max' || k === 'min') {
         result[k] = row[k];
       } else {
-        const camel = k.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
+        const camel = legacyNames[k] || k.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
         result[camel] = row[k];
         if (camel !== k) result[k] = row[k];
       }
@@ -154,8 +162,12 @@ export class DbService implements OnModuleDestroy {
         }));
       };
       
-      const clientGet = (sql: string, params: any[] = []) => client.query(this.translateQuery(sql), params).then(res => res.rows[0]);
-      const clientAll = (sql: string, params: any[] = []) => client.query(this.translateQuery(sql), params).then(res => res.rows);
+      const clientGet = (sql: string, params: any[] = []) => client
+        .query(this.translateQuery(sql), params)
+        .then(res => this.pgRowToCamel(res.rows[0]));
+      const clientAll = (sql: string, params: any[] = []) => client
+        .query(this.translateQuery(sql), params)
+        .then(res => res.rows.map(row => this.pgRowToCamel(row)));
 
       const result = await operationsCallback({ run: clientRun, get: clientGet, all: clientAll });
       await client.query('COMMIT');
@@ -342,8 +354,8 @@ export class DbService implements OnModuleDestroy {
       `);
 
       const defaultGames = [
-        { id: 'GAME-1', name: 'Sugar Rush 15', interval: 15000, price: 5.0 },
-        { id: 'GAME-2', name: 'Sweet Treat 30', interval: 30000, price: 10.0 },
+        { id: 'GAME-1', name: 'Sugar Rush 15', interval: 60000, price: 5.0 },
+        { id: 'GAME-2', name: 'Sweet Treat 30', interval: 60000, price: 10.0 },
         { id: 'GAME-3', name: 'Glazed Gold', interval: 60000, price: 20.0 },
         { id: 'GAME-4', name: 'The Daily Dollop', interval: 120000, price: 50.0 },
         { id: 'GAME-5', name: 'The Weekly Whiff', interval: 300000, price: 100.0 },
@@ -357,6 +369,9 @@ export class DbService implements OnModuleDestroy {
           VALUES ($1, $2, $3, $4, 0.30, 'ACTIVE') ON CONFLICT DO NOTHING
         `, [g.id, g.name, g.interval, g.price]);
       }
+      // Checkout reservations last up to 30 seconds; shorter draw cycles make
+      // successful checkout impossible and are therefore migrated to 60 seconds.
+      await this.run('UPDATE games_config SET draw_interval_ms = 60000 WHERE draw_interval_ms < 60000');
 
       if (process.env.NODE_ENV !== 'production') {
         await this.run(`

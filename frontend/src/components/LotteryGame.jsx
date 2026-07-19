@@ -66,7 +66,7 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
     try {
       const response = await apiFetch(`${API_BASE}/api/v1/lottery/games`);
       const data = await response.json();
-      if (true) {
+      if (response.ok && data.success) {
         setLobbyGames(data.games);
       }
     } catch (err) {
@@ -304,7 +304,7 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
       const emailParam = activeUser ? `&email=${activeUser.email}` : '';
       const response = await apiFetch(`${API_BASE}/api/v1/lottery/status?lotteryName=${encodeURIComponent(gameName)}${emailParam}`);
       const data = await response.json();
-      if (true) {
+      if (response.ok && data.success && Array.isArray(data.tickets)) {
         const activeGame = selectedGameRef.current;
         if (activeGame && gameName === activeGame.name) {
           setActiveDrawId(data.draw.id);
@@ -331,7 +331,7 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
     try {
       const response = await apiFetch(`${API_BASE}/api/v1/lottery/pool-tickets?lotteryName=${encodeURIComponent(gameName)}`);
       const data = await response.json();
-      if (true) {
+      if (response.ok && data.success && Array.isArray(data.tickets)) {
         setPoolTickets(data.tickets);
         setSelectedTicketIds([]);
       }
@@ -346,7 +346,7 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
     try {
       const res = await apiFetch(`${API_BASE}/api/v1/lottery/winners/${encodeURIComponent(gameName)}`);
       const data = await res.json();
-      if (true && data.draws) {
+      if (res.ok && data.success && Array.isArray(data.draws)) {
         setRecentDraws(data.draws);
       }
     } catch (err) {
@@ -359,7 +359,7 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
     try {
       const response = await apiFetch(`${API_BASE}/api/v1/lottery/history?email=${currentUser.email}`);
       const data = await response.json();
-      if (true) {
+      if (response.ok && data.success) {
         setTicketHistory(data.tickets);
         setHistoryPage(1);
         setHistoryFilter('ALL');
@@ -410,7 +410,7 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
       });
       const data = await response.json();
 
-      if (true) {
+      if (response.ok && data.success) {
         const matches = poolTickets.filter(t => targets.includes(t.id));
         setReservedTickets(matches);
         setCheckoutTimer(30);
@@ -463,7 +463,7 @@ function LotteryGame({ currentUser, onBalanceUpdate }) {
       });
       const data = await response.json();
 
-      if (true) {
+      if (response.ok && data.success) {
         alert(`Successfully purchased ${reservedTickets.length} ticket(s) for ${selectedGame.name}!`);
         setReservedTickets([]);
         setCheckoutTimer(0);

@@ -1018,10 +1018,20 @@ export class LotteryService implements OnModuleInit {
   async getLotteryPoolTickets(email: string, lotteryName: string) {
     const name = lotteryName || 'Sugar Rush 15';
     const draw = await this.db.get(
-      "SELECT id FROM lottery_draws WHERE state = 'OPEN' AND lotteryName = ? ORDER BY id DESC LIMIT 1",
+      `SELECT d.id, d.timestamp, g.draw_interval_ms
+       FROM lottery_draws d
+       JOIN games_config g ON g.name = d.lotteryName
+       WHERE d.state = 'OPEN' AND d.lotteryName = ? AND g.status = 'ACTIVE'
+       ORDER BY d.id DESC LIMIT 1`,
       [name]
     );
     if (!draw) return [];
+
+    // Do not offer a 30-second reservation when the draw can lock before the
+    // player finishes checkout. The next DRAW_STATE_CHANGED event refreshes it.
+    const drawAgeMs = Date.now() - new Date(draw.timestamp).getTime();
+    const remainingMs = Number(draw.drawIntervalMs ?? draw.draw_interval_ms) - drawAgeMs;
+    if (!Number.isFinite(remainingMs) || remainingMs <= 35_000) return [];
 
     const nowIso = new Date().toISOString();
     let poolTickets = await this.db.all(`
@@ -1033,7 +1043,7 @@ export class LotteryService implements OnModuleInit {
 
     if (poolTickets.length < 5) {
       console.log(`[LOTTERY ENGINE] Auto-generating ticket pool of 100 tickets for Draw ID ${draw.id} of ${name}...`);
-      const totalTickets = 100;
+      const totalTickets = 25;
       const pool = [];
       const generateUniqueNumbers = () => {
         const nums = new Set();
@@ -1048,12 +1058,12 @@ export class LotteryService implements OnModuleInit {
       }
 
       await this.db.executeTransaction(async (tx: any) => {
-        for (const ticketNumbers of pool) {
-          await tx.run(
-            'INSERT INTO lottery_ticket_pool (lotteryName, drawId, chosenNumbers, status) VALUES (?, ?, ?, ?)',
-            [name, draw.id, JSON.stringify(ticketNumbers), 'AVAILABLE']
-          );
-        }
+        const placeholders = pool.map(() => '(?, ?, ?, ?)').join(', ');
+        const params = pool.flatMap(ticketNumbers => [name, draw.id, JSON.stringify(ticketNumbers), 'AVAILABLE']);
+        await tx.run(
+          `INSERT INTO lottery_ticket_pool (lotteryName, drawId, chosenNumbers, status) VALUES ${placeholders}`,
+          params,
+        );
       });
 
       poolTickets = await this.db.all(`
@@ -1085,7 +1095,7 @@ export class LotteryService implements OnModuleInit {
 
     return this.db.executeTransaction(async (tx: any) => {
       for (const id of ids) {
-        const ticket = await tx.get("SELECT * FROM lottery_ticket_pool WHERE id = ?", [id]);
+        const ticket = await tx.get("SELECT * FROM lottery_ticket_pool WHERE id = ? FOR UPDATE", [id]);
         if (!ticket) throw new Error(`Ticket #${id} not found in pool.`);
         
         const isAvailable = ticket.status === 'AVAILABLE' || 
@@ -1287,7 +1297,21 @@ export class LotteryService implements OnModuleInit {
   }
 
   async getDiceTournaments() {
-    return this.db.all('SELECT * FROM dice_tournaments ORDER BY id DESC');
+    return this.db.executeTransaction(async (tx: any) => {
+      await tx.get('SELECT pg_advisory_xact_lock(?)', [842001]);
+      const now = new Date().toISOString();
+      await tx.run("UPDATE dice_tournaments SET status = 'COMPLETED' WHERE status = 'ACTIVE' AND ends_at IS NOT NULL AND ends_at <= ?", [now]);
+      let active = await tx.all("SELECT * FROM dice_tournaments WHERE status = 'ACTIVE' AND (ends_at IS NULL OR ends_at > ?) ORDER BY id DESC", [now]);
+      if (active.length === 0) {
+        const endsAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+        await tx.run(
+          "INSERT INTO dice_tournaments (name, entry_fee, prize_pool, status, created_at, ends_at) VALUES (?, ?, ?, 'ACTIVE', ?, ?)",
+          ['NEON SHIELD DICE CLASH', 10, 100, now, endsAt],
+        );
+        active = await tx.all("SELECT * FROM dice_tournaments WHERE status = 'ACTIVE' AND ends_at > ? ORDER BY id DESC", [now]);
+      }
+      return active;
+    });
   }
 
   async joinTournament(email: string, tournamentId: any) {

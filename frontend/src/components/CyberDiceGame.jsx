@@ -97,7 +97,7 @@ function CyberDiceGame({ currentUser, onBalanceUpdate }) {
     try {
       const res = await apiFetch(`${API_BASE}/api/v1/dice/tournaments`);
       const data = await res.json();
-      if (true && data.tournaments.length > 0) {
+      if (res.ok && data.success && Array.isArray(data.tournaments) && data.tournaments.length > 0) {
         setTournaments(data.tournaments);
         setActiveTourney(data.tournaments[0]); // default to first active
       }
@@ -111,7 +111,7 @@ function CyberDiceGame({ currentUser, onBalanceUpdate }) {
     try {
       const res = await apiFetch(`${API_BASE}/api/v1/dice/tournament/leaderboard/${tourneyId}`);
       const data = await res.json();
-      if (true) {
+      if (res.ok && data.success && Array.isArray(data.leaderboard)) {
         setLeaderboard(data.leaderboard);
       }
     } catch (err) {
@@ -123,7 +123,7 @@ function CyberDiceGame({ currentUser, onBalanceUpdate }) {
     try {
       const res = await apiFetch(`${API_BASE}/api/v1/dice/tournament/leaderboard/${tourneyId}`);
       const data = await res.json();
-      if (true) {
+      if (res.ok && data.success && Array.isArray(data.leaderboard)) {
         const found = data.leaderboard.find(p => p.email.toLowerCase() === currentUser.email.toLowerCase());
         if (found) {
           setJoined(true);
@@ -176,7 +176,7 @@ function CyberDiceGame({ currentUser, onBalanceUpdate }) {
       });
       const data = await res.json();
 
-      if (true) {
+      if (res.ok && data.success) {
         setDice([data.die1, data.die2]);
         setRollResult(data);
         onBalanceUpdate(data.newBalance);
@@ -205,13 +205,14 @@ function CyberDiceGame({ currentUser, onBalanceUpdate }) {
         headers: { 
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email: currentUser.email, tournamentId: activeTourney.id })
+        body: JSON.stringify({ tournamentId: activeTourney.id })
       });
       const data = await res.json();
 
-      if (true) {
+      if (res.ok && data.success) {
         setJoined(true);
-        onBalanceUpdate(data.newBalance);
+        if (Number.isFinite(data.newBalance)) onBalanceUpdate(data.newBalance);
+        await checkUserRegistration(activeTourney.id);
         loadLeaderboard(activeTourney.id);
         alert('Successfully joined the dice tournament!');
       } else {
@@ -248,11 +249,11 @@ function CyberDiceGame({ currentUser, onBalanceUpdate }) {
         headers: { 
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email: currentUser.email, tournamentId: activeTourney.id })
+        body: JSON.stringify({ tournamentId: activeTourney.id })
       });
       const data = await res.json();
 
-      if (true) {
+      if (res.ok && data.success) {
         setDice([data.die1, data.die2]);
         setRollsLeft(data.rollsLeft);
         setTourneyScore(data.totalScore);
@@ -280,10 +281,10 @@ function CyberDiceGame({ currentUser, onBalanceUpdate }) {
         headers: { 
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email: currentUser.email, tournamentId: activeTourney.id })
+        body: JSON.stringify({ tournamentId: activeTourney.id })
       });
       const data = await res.json();
-      if (true) {
+      if (res.ok && data.success) {
         setRollsLeft(data.rollsLeft);
         onBalanceUpdate(data.newBalance);
         loadLeaderboard(activeTourney.id);

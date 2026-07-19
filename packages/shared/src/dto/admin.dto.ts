@@ -8,7 +8,7 @@ export class UserTagsDto { @IsArray() @ArrayMaxSize(25) @IsString({ each: true }
 export class GameConfigDto {
   @IsOptional() @IsString() @MaxLength(80) id?: string;
   @IsString() @MaxLength(120) name!: string;
-  @IsNumber() @Min(1000) @Max(86400000) draw_interval_ms!: number;
+  @IsNumber() @Min(60000) @Max(86400000) draw_interval_ms!: number;
   @IsNumber() @Min(0.01) @Max(1000000) ticket_price!: number;
   @IsOptional() @IsInt() @Min(1) @Max(10000) max_tickets_per_user?: number;
   @IsOptional() @IsNumber() @Min(0) @Max(1) house_edge_percentage?: number;
